@@ -1,0 +1,8 @@
+/*
+
+!/src/
+!/PyScripts/
+!/.gitignore
+
+/PyScripts/env/
+Makefile

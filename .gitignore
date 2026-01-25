@@ -4,6 +4,7 @@
 !/PyScripts/
 !/.gitignore
 !/README.md
+!/include
 
 /PyScripts/env/
 Makefile

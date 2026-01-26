@@ -1,4 +1,4 @@
-#include "retrieve_tickers.h"
+#include "../include/retrieve_tickers.h"
 #include <iostream>
 #include <cpr/cpr.h>
 #include <regex>

@@ -45,7 +45,7 @@ end_date='2025-12-31'
 print(f"Running: {sys.argv[0]}")
 
 CLEANED_DATA=pd.DataFrame()
-if (not (Path("bin") / "total_data.csv").exists()):
+if (not (Path("../bin") / "total_data.csv").exists()):
     print("Setting up necessary variables...")
     TICKERS=sys.argv[1:]
     print("Retrieved TICKERS.")
@@ -53,9 +53,13 @@ if (not (Path("bin") / "total_data.csv").exists()):
     COMMODS=["CL=F", "NG=F", "GC=F", "SI=F", "ZC=F"]
     print("Finished setting up necessary variables.")
 
-    print("Downloading necessary data.")
+    print("Downloading necessary data...")
+    print("Downloading Indexes...")
     INDEX_DATA=yf.download(INDEXES, start=start_date, end=end_date, threads=1)
+    time.sleep(2)
+    print("Downloading Commodities...")
     COMMO_DATA=yf.download(COMMODS, start=start_date, end=end_date, threads=1)
+    print("Downloading Stocks...")
     print("TICKERS size is: ",  len(TICKERS))
     cycles = int(len(TICKERS) / 50)
     print("Downloading over ", cycles + 1, " cycles.")
@@ -87,7 +91,7 @@ if (not (Path("bin") / "total_data.csv").exists()):
     print("Final NA count: ", CLEANED_DATA.isnull().sum().sum())
 
     print("Generating .csv file to store data at bin folder named: total_data.csv")
-    CLEANED_DATA.to_csv(Path("bin") / 'total_data.csv', index=True)
+    CLEANED_DATA.to_csv(Path("../bin") / 'total_data.csv', index=True)
     print("Finished creating file.")
 else:
     confirmation=input("Data file was found, would you like to download and overwrite existing file (true/yes)? ")
@@ -99,9 +103,13 @@ else:
         COMMODS=["CL=F", "NG=F", "GC=F", "SI=F", "ZC=F"]
         print("Finished setting up necessary variables.")
 
-        print("Downloading necessary data.")
+        print("Downloading necessary data...")
+        print("Downloading Indexes...")
         INDEX_DATA=yf.download(INDEXES, start=start_date, end=end_date, threads=1)
+        time.sleep(2)
+        print("Downloading Commodities...")
         COMMO_DATA=yf.download(COMMODS, start=start_date, end=end_date, threads=1)
+        print("Downloading Stocks...")
         print("TICKERS size is: ",  len(TICKERS))
         cycles = int(len(TICKERS) / 50)
         print("Downloading over ", cycles + 1, " cycles.")
@@ -133,7 +141,7 @@ else:
         print("Final NA count: ", CLEANED_DATA.isnull().sum().sum())
 
         print("Generating .csv file to store data at bin folder named: total_data.csv")
-        CLEANED_DATA.to_csv(Path("bin") / 'total_data.csv', index=True)
+        CLEANED_DATA.to_csv(Path("../bin") / 'total_data.csv', index=True)
         print("Finished creating file.")
     else:
         print("Did not redownload.")

@@ -5,9 +5,6 @@
 !/.gitignore
 !/README.md
 !/include
-!/bin
+!/bin/placeholder.txt
 
-/bin/executables
-/bin/final_executable
-/bin/*.csv
 /PyScripts/env/

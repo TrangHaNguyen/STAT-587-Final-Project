@@ -5,5 +5,7 @@
 !/.gitignore
 !/README.md
 !/include
+!/bin
 
+/bin/*
 /PyScripts/env/

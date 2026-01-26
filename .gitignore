@@ -7,5 +7,7 @@
 !/include
 !/bin
 
-/bin/*
+/bin/executables
+/bin/final_executable
+/bin/*.csv
 /PyScripts/env/

@@ -35,7 +35,7 @@ int main() {
     // whereas we are adding the current working directing (cwd) to the script of interest.
     std::cout << std::flush;
     std::stringstream ss;
-    ss << "start cmd /k " << env_pyt.string() << " -u \"" << cwd.string() << "/PyScripts/data_manager.py\" ";
+    ss << "start cmd /k " << env_pyt.string() << " -u \"" << cwd.string() << "/PyScripts/data_io.py\" ";
     for (int i = 0; i < TICKERS.size(); i++) ss << TICKERS[i] << " ";
     std::system(ss.str().c_str());
 

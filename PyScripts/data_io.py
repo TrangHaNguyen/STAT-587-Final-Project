@@ -23,6 +23,12 @@ from pathlib import Path
 #   - Silver (SI=F), 
 #   - Corn (ZC=F)
 #
+# Note:
+#   - When considering exchanges that differ in time zone, specifically the indexes for Japan and Germany, you should not use
+#     ^GDAXI closing prices as a feature for predicting US stock prices as the Close for ^GDAXI occurs after US markets have opened. 
+#     It is ok to use ^N225 values because the trading hours for the Nikkei 225 happen outside of US market hours.
+#     You can circumvent this issue by using lagged values for the ^GDAXI index, but this could cause the respective data to be less useful. 
+#
 # This data will be formatted as such: 
 # | Metric       | Close                                                                               | High                                                                                | Low                                                                                 | Open                                                                                | Volume                                                                              |
 # | Type         | Stocks                  | Commodities                     | Indexes                 | Stocks                  | Commodities                     | Indexes                 | Stocks                  | Commodities                     | Indexes                 | Stocks                  | Commodities                     | Indexes                 | Stocks                  | Commodities                     | Indexes                 |
@@ -31,6 +37,10 @@ from pathlib import Path
 # | Date 0       |         |     |         |             |     |             |         |     |         |         |     |         |             |     |             |         |     |         |         |     |         |             |     |             |         |     |         |         |     |         |             |     |             |         |     |         |         |     |         |             |     |             |         |     |         |
 # |  ...         |         |     |         |             |     |             |         |     |         |         |     |         |             |     |             |         |     |         |         |     |         |             |     |             |         |     |         |         |     |         |             |     |             |         |     |         |         |     |         |             |     |             |         |     |         |
 # | Date n       |         |     |         |             |     |             |         |     |         |         |     |         |             |     |             |         |     |         |         |     |         |             |     |             |         |     |         |         |     |         |             |     |             |         |     |         |         |     |         |             |     |             |         |     |         |
+#
+#   Level 0: Metric (Close, High, Low, Open, Volume) + (All derived features)
+#   Level 1: Type (Stocks, Commodities, Indexes)
+#   Level 2: Ticker (Stock tickers, Commodity tickers, Index tickers)
 #
 # With a stock lookup table as such:
 # | Stock (Name) | Sectors | Market Capitalization (in tens of millions) |

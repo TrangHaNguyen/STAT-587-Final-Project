@@ -2,6 +2,8 @@
 import yfinance as yf
 import pandas as pd
 from pathlib import Path
+import numpy as np
+# from sklearn.ensemble import RandomForestRegressor
 
 pd.set_option('display.max_rows', 100)
 pd.set_option('display.max_columns', 8)
@@ -11,11 +13,10 @@ while (cwd.name!="STAT-587-Final-Project"): cwd=cwd.parent
 
 # Hyperparameters
 lag=[1, 3, 7, 14]
-ema_windows=[7, 14, 21]
-vol_windows=[14, 28]
+ema_windows=[7, 14, 28]
+vol_windows=[7, 14, 28]
 max_min_windows=[7, 21]
 rol_VWAP_windows=[7, 14, 21]
-rol_zscore_windows=[7, 14, 21]
 
 # Day of the week lists for Day of the Week analysis
 Monday=[]
@@ -57,8 +58,14 @@ DATA.loc[:, idx['Close', 'Indexes', '^GDAXI']] = DATA.loc[:, idx['Close', 'Index
 # Dropping last row that contains the ^GDAXI NA
 DATA=DATA.iloc[:-1]
 
+High_=DATA.loc[:, idx['High', :, :]]
+Low_=DATA.loc[:, idx['Low', :, :]]
+
+# Generating percent change from day before to current day. 
+# We drop the first row as it would be an NA given that there is no data from before the first entry.
 MODIFIED_DATA=DATA.loc[:, idx[['Close', 'Open', 'High', 'Low'], :, :]].copy().pct_change().rename(columns={metric: f"{metric} PC" for metric in ['Close', 'Open', 'High', 'Low']}, level=0).iloc[1:]
 MODIFIED_DATA=pd.concat([MODIFIED_DATA, DATA.loc[:, idx[['Close', 'Open', 'High', 'Low', 'Volume'], :, :]].copy().iloc[1:]], axis=1)
+MODIFIED_DATA=pd.concat([MODIFIED_DATA, pd.DataFrame(High_.values-Low_.values, index=High_.index, columns=High_.columns).rename(columns={'High': f"Daily Range"}, level=0)], axis=1)
 
 for metric in ['Close PC', 'Open PC', 'High PC', 'Low PC']:
     for lag_period in lag:
@@ -80,11 +87,32 @@ for metric in ['Close', 'Open', 'High', 'Low']:
         max_=MODIFIED_DATA.loc[:, idx[f'MAX {max_min_window}', :, :]]
         min_=MODIFIED_DATA.loc[:, idx[f'MIN {max_min_window}', :, :]]
         metric_=MODIFIED_DATA.loc[:, idx[metric, :, :]]
-        max_min_channel_pos = (metric_.values - min_.values) / (max_.values - min_.values)
-        MODIFIED_DATA=pd.concat([MODIFIED_DATA, pd.DataFrame(max_min_channel_pos, index=MODIFIED_DATA.index, columns=metric_.columns).rename(columns={metric: f'Channel Position {metric} {max_min_window}'}, level=0)], axis=1)
+        max_min_channel_pos =(metric_.values-min_.values)/(max_.values-min_.values)
+        MODIFIED_DATA=pd.concat([MODIFIED_DATA, pd.DataFrame(max_min_channel_pos, index=MODIFIED_DATA.index, columns=metric_.columns).rename(columns={metric: f'Channel Position {metric} {max_min_window}'}, level=0).ffill().fillna(0.5)], axis=1)
 
-# print(MODIFIED_DATA.columns.levels[0])
-# print(MODIFIED_DATA["Channel Position Close 21"]["Stocks"].iloc[0:100])
+for rol_VWAP_window in rol_VWAP_windows:
+    typical_price=(MODIFIED_DATA.loc[:, idx['High', :, :]].values + MODIFIED_DATA.loc[:, idx['Low', :, :]].values + MODIFIED_DATA.loc[:, idx['Close', :, :]].values)/3
+    volume=(DATA.loc[:, idx['Volume', :, :]])
+    price_volume=typical_price*volume.values
+    price_volume_rol_sum=pd.DataFrame(price_volume, index=MODIFIED_DATA.index, columns=volume.columns).rolling(rol_VWAP_window).sum()
+    volume_rol_sum=volume.rolling(rol_VWAP_window).sum()
+    # print((price_volume_rol_sum / volume_rol_sum).rename(columns={'Volume': f'Rolling VWAP {rol_VWAP_window}'}, level=0))
+    MODIFIED_DATA=pd.concat([MODIFIED_DATA, (price_volume_rol_sum / volume_rol_sum).rename(columns={'Volume': f'Rolling VWAP {rol_VWAP_window}'}, level=0)], axis=1)
 
-print(MODIFIED_DATA["Close"]["Indexes"]["^VIX"].head(100))
-print(MODIFIED_DATA.loc[:, idx["Close", ["Stocks", "Indexes"], ["AAPL", "^SPX", "^N225", "^GDAXI"]]].head(100))
+for rol_zscore_window in ema_windows:
+    for metric in ['Close', 'Open', 'High', 'Low']:
+        price=MODIFIED_DATA.loc[:, idx[metric, :, :]]
+        EMA=MODIFIED_DATA.loc[:, idx[f"{metric} EMA {rol_zscore_window}", :, :]]
+        Vol=MODIFIED_DATA.loc[:, idx[f"{metric} VOL {rol_zscore_window}", :, :]]
+        z_score=(price.values-EMA.values)/Vol.values 
+        MODIFIED_DATA=pd.concat([MODIFIED_DATA, pd.DataFrame(z_score, index=MODIFIED_DATA.index, columns=price.columns).rename(columns={metric: f"{metric} Z-Score {rol_zscore_window}"}, level=0)], axis=1)
+        
+print(MODIFIED_DATA.loc[:, idx['Close Z-Score 7', :, :]].head(100))
+
+# # print(MODIFIED_DATA["Channel Position Close 21"]["Stocks"].iloc[0:100])
+
+# print(MODIFIED_DATA["Rolling VWAP 14"]["Stocks"]["AAPL"].iloc[100:200])
+# # print(MODIFIED_DATA.loc[:, idx["Close", ["Stocks", "Indexes"], ["AAPL", "^SPX", "^N225", "^GDAXI"]]].head(100))
+
+# Y=MODIFIED_DATA.loc[:, idx['Close', 'Indexes', '^SPX']].shift(-1).values[:-1]
+# X=MODIFIED_DATA.drop(columns='^SPX', level=2).iloc[:-1, :]

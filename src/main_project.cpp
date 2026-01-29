@@ -37,7 +37,7 @@ int main() {
 
     std::vector<std::string> TICKERS;
     if (std::filesystem::exists(cwd / "PyScripts" / "tickers.csv")) {
-        std::cout << "Found existing Tickers.csv!";
+        std::cout << "Found existing Tickers.csv.";
     }
     else {
         std::cout << "Scrapping Wiki for S&P 500 Tickers...\n";

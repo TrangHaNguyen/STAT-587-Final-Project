@@ -92,12 +92,16 @@ for metric in ['Close', 'Open', 'High', 'Low']:
 
 for rol_VWAP_window in rol_VWAP_windows:
     typical_price=(MODIFIED_DATA.loc[:, idx['High', :, :]].values + MODIFIED_DATA.loc[:, idx['Low', :, :]].values + MODIFIED_DATA.loc[:, idx['Close', :, :]].values)/3
-    volume=(DATA.loc[:, idx['Volume', :, :]])
+    volume=(MODIFIED_DATA.loc[:, idx['Volume', :, :]])
     price_volume=typical_price*volume.values
     price_volume_rol_sum=pd.DataFrame(price_volume, index=MODIFIED_DATA.index, columns=volume.columns).rolling(rol_VWAP_window).sum()
     volume_rol_sum=volume.rolling(rol_VWAP_window).sum()
     # print((price_volume_rol_sum / volume_rol_sum).rename(columns={'Volume': f'Rolling VWAP {rol_VWAP_window}'}, level=0))
     MODIFIED_DATA=pd.concat([MODIFIED_DATA, (price_volume_rol_sum / volume_rol_sum).rename(columns={'Volume': f'Rolling VWAP {rol_VWAP_window}'}, level=0)], axis=1)
+
+# Dropping columns where an all zero volume results in failing to calculate rolling VWAP.
+MODIFIED_DATA=MODIFIED_DATA.dropna(how="all", axis=1)
+MODIFIED_DATA=MODIFIED_DATA.drop(columns=[('Volume', 'Indexes', '^VIX')])
 
 for rol_zscore_window in ema_windows:
     for metric in ['Close', 'Open', 'High', 'Low']:
@@ -107,12 +111,13 @@ for rol_zscore_window in ema_windows:
         z_score=(price.values-EMA.values)/Vol.values 
         MODIFIED_DATA=pd.concat([MODIFIED_DATA, pd.DataFrame(z_score, index=MODIFIED_DATA.index, columns=price.columns).rename(columns={metric: f"{metric} Z-Score {rol_zscore_window}"}, level=0)], axis=1)
         
-print(MODIFIED_DATA.loc[:, idx['Close Z-Score 7', :, :]].head(100))
+MODIFIED_DATA=MODIFIED_DATA.dropna(how="any", axis=0)
+# print(MODIFIED_DATA.loc[:, idx['Close Z-Score 7', :, :]].head(100))
 
 # # print(MODIFIED_DATA["Channel Position Close 21"]["Stocks"].iloc[0:100])
 
 # print(MODIFIED_DATA["Rolling VWAP 14"]["Stocks"]["AAPL"].iloc[100:200])
 # # print(MODIFIED_DATA.loc[:, idx["Close", ["Stocks", "Indexes"], ["AAPL", "^SPX", "^N225", "^GDAXI"]]].head(100))
 
-# Y=MODIFIED_DATA.loc[:, idx['Close', 'Indexes', '^SPX']].shift(-1).values[:-1]
-# X=MODIFIED_DATA.drop(columns='^SPX', level=2).iloc[:-1, :]
+Y=MODIFIED_DATA.loc[:, idx['Close', 'Indexes', '^SPX']].shift(-1).values[:-1]
+X=MODIFIED_DATA.drop(columns='^SPX', level=2).iloc[:-1, :]

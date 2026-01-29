@@ -55,13 +55,18 @@ while (cwd.name!="STAT-587-Final-Project"): cwd=cwd.parent
 start_date='2024-01-01'
 end_date='2025-12-31'
 
+TICKERS=sys.argv[1:]
+if len(TICKERS)==0:
+    TICKERS=pd.read_csv(cwd / "PyScripts" / "tickers.csv").squeeze("columns")
+else:
+    pd.Series(TICKERS, name="Ticker").to_csv(cwd / "PyScripts" / "tickers.csv", index=False)
+print("Retrieved TICKERS.")
+
 print(f"Running: {sys.argv[0]}")
 
 CLEANED_DATA=pd.DataFrame()
 if (not (cwd / "bin" / "total_data.csv").exists()):
     print("Setting up necessary variables...")
-    TICKERS=sys.argv[1:]
-    print("Retrieved TICKERS.")
     INDEXES=["^SPX", "^RUT", "^IXIC", "^DJI", "^VIX", "^N225", "^GDAXI"]
     COMMODS=["CL=F", "NG=F", "GC=F", "SI=F", "ZC=F"]
     print("Finished setting up necessary variables.")
@@ -103,8 +108,6 @@ else:
     confirmation=input("Data file was found, would you like to download and overwrite existing file (true/yes)? ")
     if confirmation.lower() in ["true", "t", "yes", "y"]:
         print("Setting up necessary variables...")
-        TICKERS=sys.argv[1:]
-        print("Retrieved TICKERS.")
         INDEXES=["^SPX", "^RUT", "^IXIC", "^DJI", "^VIX", "^N225", "^GDAXI"]
         COMMODS=["CL=F", "NG=F", "GC=F", "SI=F", "ZC=F"]
         print("Finished setting up necessary variables.")

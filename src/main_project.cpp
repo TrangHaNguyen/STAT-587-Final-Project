@@ -34,10 +34,17 @@ int main() {
     }
     else std::cout << "Virtual environment found.\n";
 
-    std::cout << "Scrapping Wiki for S&P 500 Tickers...\n";
-    std::vector<std::string> TICKERS = retrieve_tickers();
-    std::cout << "Finished scrapping Wiki.\n";
-    
+
+    std::vector<std::string> TICKERS;
+    if (std::filesystem::exists(cwd / "PyScripts" / "tickers.csv")) {
+        std::cout << "Found existing Tickers.csv!";
+    }
+    else {
+        std::cout << "Scrapping Wiki for S&P 500 Tickers...\n";
+        TICKERS = retrieve_tickers();
+        std::cout << "Finished scrapping Wiki.\n";
+    }
+
     std::stringstream ss;
     #ifdef _WIN32
         ss << "start /wait cmd /c " << env_pyt.string() << " -u \"" << cwd.string() << "/PyScripts/data_io.py\" ";

@@ -1,10 +1,8 @@
 /*
 
-!/src/
 !/PyScripts/
 !/.gitignore
 !/README.md
-!/include
-!/bin/placeholder.txt
 
 /PyScripts/env/
+/PyScripts/tickers.csv

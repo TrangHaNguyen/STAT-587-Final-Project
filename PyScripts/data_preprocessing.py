@@ -16,7 +16,7 @@ vol_windows=[7, 14, 28]
 max_min_windows=[7, 21]
 rol_VWAP_windows=[7, 14, 21]
 
-# Day of the week lists for Day of the Week analysis
+# Day of the week lists for Day of Week analysis
 Monday=[]
 Tuesday=[]
 Wednesday=[]
@@ -72,6 +72,12 @@ for metric in ['Close', 'Open', 'High', 'Low']:
         max_=MODIFIED_DATA.loc[:, idx[f'MAX {max_min_window}', :, :]]
         min_=MODIFIED_DATA.loc[:, idx[f'MIN {max_min_window}', :, :]]
         metric_=MODIFIED_DATA.loc[:, idx[metric, :, :]]
+        # A case was noted when the max_ and min_ values are equal to each other. We can simply drop the relative stock to remove this.
+        is_zero = (max_.values - min_.values == 0)
+        if is_zero.any():
+            problem_tickers = max_.columns[is_zero.any(axis=0)].get_level_values(2).unique()
+            MODIFIED_DATA.drop(columns=problem_tickers, level=2, inplace=True)
+            continue
         max_min_channel_pos =(metric_.values-min_.values)/(max_.values-min_.values)
         MODIFIED_DATA=pd.concat([MODIFIED_DATA, pd.DataFrame(max_min_channel_pos, index=MODIFIED_DATA.index, columns=metric_.columns).rename(columns={metric: f'Channel Position {metric} {max_min_window}'}, level=0).ffill().fillna(0.5)], axis=1)
 

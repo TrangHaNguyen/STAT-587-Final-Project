@@ -5,4 +5,4 @@
 !/README.md
 
 /PyScripts/env/
-/PyScripts/tickers.csv
+/PyScripts/*.csv

@@ -143,7 +143,18 @@ def clean_data():
     print("Final shape (y_regression):", y_regression.shape[0], "rows, 1 columns.")
     return X, y_regression
 
-clean_data()
+def pull_features(dataframe, feature_name, include=False):
+    idx = pd.IndexSlice
+    if not include:
+        return dataframe.loc[:, idx[feature_name, :, :]]
+    else:
+        new_dataframe = pd.DataFrame()
+        for metric in dataframe.columns.get_level_values(0).unique():
+            if feature_name in metric:
+                new_dataframe = pd.concat([new_dataframe, dataframe.loc[:, idx[metric, :, :]]], axis=1)
+        return new_dataframe
+
+X, y_regression=clean_data()
 
 print("Setting up for fitting models...")
 kf = KFold(n_splits=12, shuffle=True, random_state=1)

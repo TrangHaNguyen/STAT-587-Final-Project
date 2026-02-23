@@ -1,13 +1,6 @@
 #!/usr/bin/env python3
 import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
 from pathlib import Path
-from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
-from sklearn.preprocessing import StandardScaler
-from sklearn.decomposition import PCA
-from mlxtend.feature_selection import SequentialFeatureSelector as MFS
-from sklearn.model_selection import train_test_split, TimeSeriesSplit, cross_val_score, KFold, cross_validate
 
 pd.set_option('display.max_rows', 100)
 pd.set_option('display.max_columns', 8)
@@ -154,57 +147,5 @@ def pull_features(dataframe, feature_name, include=False):
                 new_dataframe = pd.concat([new_dataframe, dataframe.loc[:, idx[metric, :, :]]], axis=1)
         return new_dataframe
 
-if __name__=="__main__":
-    print("Setting up for fitting models...")
-    kf = KFold(n_splits=12, shuffle=True, random_state=1)
 
-    X_train, X_test, yr_train, yr_test=train_test_split(X, y_regression, test_size=0.2)
-    yc_train=(yr_train>=0).astype(int).to_numpy()
-    y_test=(yr_test>=0).astype(int).to_numpy()
-
-    # tscv=TimeSeriesSplit(n_splits=3)
-    # sfs=SequentialFeatureSelector(RFRegression, n_features_to_select=10, direction='forward', cv=tscv)
-
-    # ------- Step-wise Regression -------
-    print("------- Step-wise Regression -------")
-    mfs=MFS(RFRegressor_red, k_features=(1, int(np.sqrt(X.shape[0]))), forward=True, floating=True, cv=3, n_jobs=-1)
-    mfs.fit(X_train_pca, yr_train)
-    X_train_stepwise=mfs.transform(X_train_pca)
-    X_test_stepwise=mfs.transform(X_test_pca)
-    print("Performed Step-wise Regression on X_train_pca and X_test_pca.")
-
-    mfs=MFS(RFClassifier_red, k_features=(1, int(np.sqrt(X.shape[0]))), forward=True, floating=True, cv=3, n_jobs=-1)
-    mfs.fit(Xc_train_pca, yc_train)
-    Xc_train_stepwise=mfs.transform(Xc_train_pca)
-    Xc_test_stepwise=mfs.transform(Xc_test_pca)
-    print("Performed Step-wise Regression on Xc_train_pca and Xc_test_pca.")
-    # ------------------------
-
-    # ------- Random Forest Regression (Step-wise; Reduced)
-    print("------- Random Forest Regression (Step-wise; Reduced) -------")
-    RFRegressor_red_stepwise = RandomForestRegressor(n_jobs=-1)
-    RFRegressor_red_stepwise.fit(X_train_stepwise, yr_train)
-
-    RFR_red_stepwise_predictions=RFRegressor_red_stepwise.predict(X_test_stepwise)
-    RFR_red_stepwise_prediction_direction = (pd.Series(RFR_red_stepwise_predictions) >= 0).astype(int).to_numpy()
-    print("Average predicted direction:", np.mean(RFR_red_stepwise_prediction_direction))
-
-    accuracy=np.mean(RFR_red_stepwise_prediction_direction == yr_test)
-    print("Accuracy (*100%):", accuracy * 100)
-    # ------------------------
-
-    # ------- Random Forest Classification (Step-wise; Reduced)
-    print("------- Random Forest Classification (Step-wise; Reduced) -------")
-    RFClassifier_red_stepwise = RandomForestClassifier(n_jobs=-1)
-    RFClassifier_red_stepwise.fit(Xc_train_stepwise, yc_train)
-
-    RFC_red_stepwise_predictions=RFClassifier_red_stepwise.predict(Xc_test_stepwise)
-    print("Average predicted direction:", np.mean(RFC_red_stepwise_predictions))
-
-    accuracy=np.mean(RFC_red_stepwise_predictions == yc_test)
-    print("Accuracy (*100%):", accuracy * 100)
-    # ------------------------
-
-
-    # print(X.columns.get_level_values(0).unique())
 

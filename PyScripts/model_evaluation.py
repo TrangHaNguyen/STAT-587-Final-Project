@@ -21,6 +21,17 @@ def display_feat_importances(model, X: pd.DataFrame, n: int =50) -> None:
     plt.xticks(rotation=45)
     plt.ylabel("Feature Name")
     plt.show()
+
+def display_feat_importances_logistic(model, X: pd.DataFrame, n: int =50) -> None:
+    importances = np.abs(model.coef_[0]) 
+
+    model_feature_df = pd.DataFrame({
+        'Feature': X.columns,
+        'Importance': importances
+    }).sort_values(by='Importance', ascending=False)
+    model_feature_df.head(n=n).plot(kind='barh', x="Feature", y="Importance")
+    plt.gca().invert_yaxis() # Often looks better for barh
+    plt.show()
     
 def classification_cv_eval(model, X_train: pd.DataFrame, y_train: pd.DataFrame, k: int =10) -> None:
     kf = KFold(n_splits=k, shuffle=True, random_state=1)

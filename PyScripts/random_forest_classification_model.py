@@ -10,44 +10,48 @@ if __name__=="__main__":
     X, y_regression=cast(Any, clean_data())
     X_train, X_test, y_train, y_test=train_test_split(X, y_regression, test_size=0.2, random_state=1)
     def to_binary_class(y):
-        return (y>=0).astype(int).to_numpy()
+        return (y>=0).astype(int)
     y_train=to_binary_class(y_train)
     y_test=to_binary_class(y_test)
     
     # ------- PCA APPLICATION -------
 
-    X_train, X_test=apply_PCA(X_train, X_test, n_comp=0.9) 
+    # X_train, X_test=apply_PCA(X_train, X_test, n_comp=0.9) 
 
-    RFClassifier_red_PCA=RandomForestClassifier(random_state=1, n_jobs=-1)
-    RFClassifier_red_PCA.fit(X_train, y_train)
+    # RFClassifier_red_PCA=RandomForestClassifier(random_state=1, n_jobs=-1)
+    # RFClassifier_red_PCA.fit(X_train, y_train)
 
-    display_feat_importances(RFClassifier_red_PCA, X_train)
+    # display_feat_importances(RFClassifier_red_PCA, X_train)
 
-    acc, avg_dir=classification_accuracy(RFClassifier_red_PCA.predict(X_test), y_test)
-    print("Accuracy (Test):", acc)
-    print("Average Direction (Test):", avg_dir)
+    # acc, avg_dir=classification_accuracy(RFClassifier_red_PCA.predict(X_test), y_test)
+    # print("Accuracy (Test):", acc)
+    # print("Average Direction (Test):", avg_dir)
 
-    # classification_cv_eval(RFClassifier_red_PCA, X_train, y_train)
-    classification_wfv_eval(RFClassifier_red_PCA, X_train, y_train)
+    # # classification_cv_eval(RFClassifier_red_PCA, X_train, y_train)
+    # classification_wfv_eval(RFClassifier_red_PCA, X_train, y_train)
 
+    # input("Press Enter to continue...")
     # ------- LASSO APPLICATION -------
 
     X_train, X_test, _, _=train_test_split(X, y_regression, test_size=0.2, random_state=1)
 
     X_train=LASSO(X_train, y_train)
     X_test=X_test[X_train.columns]
-
+    print(X_train.shape)
+    print(X_test.shape)
+    
     RFClassifier_red_LASSO=RandomForestClassifier(random_state=1, n_jobs=-1)
     RFClassifier_red_LASSO.fit(X_train, y_train)
 
     display_feat_importances(RFClassifier_red_LASSO, X_train)
 
-    acc, avg_dir=classification_accuracy(RFClassifier_red_PCA.predict(X_test), y_test)
+    acc, avg_dir=classification_accuracy(RFClassifier_red_LASSO.predict(X_test), y_test)
     print("Accuracy (Test):", acc)
     print("Average Direction (Test):", avg_dir)
 
     classification_wfv_eval(RFClassifier_red_LASSO, X_train, y_train)
 
+    input("Press Enter to continue...")
     # ------- RIDGE APPLICATION -------
 
     X_train, X_test, _, _=train_test_split(X, y_regression, test_size=0.2, random_state=1)
@@ -65,6 +69,7 @@ if __name__=="__main__":
 
     classification_wfv_eval(RFClassifier_red_RIDGE, X_train, y_train)
 
+    input("Press Enter to continue...")
     # ------- STEP-WISE REGRESSION APPLICATION -------
 
     X_train, X_test, _, _=train_test_split(X, y_regression, test_size=0.2, random_state=1)
@@ -85,3 +90,4 @@ if __name__=="__main__":
     classification_wfv_eval(RFClassifier_red_sw_wfv, X_train, y_train)
     classification_cv_eval(RFClassifier_red_sw_wfv, X_train, y_train)
 
+    input("Press Enter to Finish...")

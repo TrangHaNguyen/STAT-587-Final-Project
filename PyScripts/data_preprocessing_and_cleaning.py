@@ -67,8 +67,11 @@ def clean_data():
         for ema_window in ema_windows: 
             features=pd.concat([features, features.loc[:, idx[metric, :, :]].ewm(span=ema_window, adjust=False).mean().rename(columns={metric: f"{metric} EMA {ema_window}"}, level=0)], axis=1)
         for vol_window in vol_windows:
-            features=pd.concat([features, features.loc[:, idx[metric, :, :]].rolling(window=vol_window).std().rename(columns={metric: f"{metric} VOL {vol_window}"}, level=0)], axis=1)
-    print("Created EMA and Rolling Volatility.")
+            vol=features.loc[:, idx[metric, :, :]].rolling(window=vol_window).std()
+            ema=features.loc[:, idx[f"{metric} EMA {vol_window}", :, :]]
+            norm_vol=vol/ema.values
+            features=pd.concat([features, norm_vol.rename(columns={metric: f"{metric} VOL {vol_window}"}, level=0)], axis=1)
+    print("Created EMA and Rolling Volatility (Scaled).")
 
     for max_min_window in max_min_windows:
         features=pd.concat([features, features.loc[:, idx['High', :, :]].rolling(window=max_min_window).max().rename(columns={'High': f"MAX {max_min_window}"}, level=0)], axis=1)

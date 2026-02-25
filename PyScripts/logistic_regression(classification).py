@@ -28,10 +28,10 @@ if __name__=="__main__":
     display_feat_importances_logistic(Log_Reg_model_pipeline_R_L.named_steps['classifier'], X_train)
 
     classification_wfv_eval(Log_Reg_model_pipeline_R_L, X_train, y_train)
-
+    input("Press Enter to continue...")
     # ------- LASSO(External)->RIDGE(Internal) APPLICATION -------
     X_train, X_test, _, _=train_test_split(X, y_regression, test_size=0.2, random_state=1)
-    X_train=LASSO(X_train, y_train), 
+    X_train=LASSO(X_train, y_train)
     X_test=X_test[X_train.columns]
     tscv=TimeSeriesSplit(n_splits=3)
     Log_Reg_L_R=LogisticRegressionCV(Cs=10, cv=tscv, penalty='l2', solver='saga', random_state=1, n_jobs=-1, max_iter=500)
@@ -43,7 +43,7 @@ if __name__=="__main__":
     display_feat_importances_logistic(Log_Reg_model_pipeline_L_R.named_steps['classifier'], X_train)
 
     classification_wfv_eval(Log_Reg_model_pipeline_L_R, X_train, y_train)
-
+    input("Press Enter to continue...")
     # ------- PCA APPLICATION -------
     X_train, X_test, _, _=train_test_split(X, y_regression, test_size=0.2, random_state=1)
     X_train, X_test=apply_PCA(X_train, X_test, n_comp=0.9)
@@ -60,3 +60,4 @@ if __name__=="__main__":
     display_feat_importances_logistic(Log_Reg_PCA, X_train)
 
     classification_wfv_eval(Log_Reg_PCA, X_train, y_train)
+    input("Press Enter to Finish...")

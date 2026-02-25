@@ -68,3 +68,6 @@ def classification_wfv_eval(model, X_train: pd.DataFrame, y_train: pd.DataFrame,
     print(f"Standard Deviation: {cv_scores.std() * 100:.2f}%")
     print(f"Average Precision:  {results['test_precision'].mean():.2%}")
     print(f"Average Recall:     {results['test_recall'].mean():.2%}")
+
+def mod_walk_forward_validation(model, train_size: int, test_size: int, X_test: pd.DataFrame):
+    pass

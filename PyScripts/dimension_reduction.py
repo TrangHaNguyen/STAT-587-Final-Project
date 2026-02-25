@@ -58,7 +58,7 @@ def step_wise_reg_wfv(model, X_train: pd.DataFrame, y_train: pd.DataFrame, X_tes
 def LASSO(X_train: pd.DataFrame, y_train: pd.DataFrame) -> pd.DataFrame:
     print("------- Applying LASSO")
     alphas=np.logspace(-7, 2, 100)
-    lasso_cv=LassoCV(alphas=alphas, cv=4, random_state=42, n_jobs=-1)
+    lasso_cv=LassoCV(alphas=alphas, cv=4, random_state=42, n_jobs=-1, tol=1e-2)
     lasso_cv.fit(X_train, y_train)
     print("Finished Applying LASSO -------")
     return X_train[X_train.columns[lasso_cv.coef_!=0]]

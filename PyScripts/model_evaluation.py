@@ -69,5 +69,40 @@ def classification_wfv_eval(model, X_train: pd.DataFrame, y_train: pd.DataFrame,
     print(f"Average Precision:  {results['test_precision'].mean():.2%}")
     print(f"Average Recall:     {results['test_recall'].mean():.2%}")
 
-def mod_walk_forward_validation(model, train_size: int, test_size: int, X_test: pd.DataFrame):
-    pass
+# Model Results Comparison
+class ModelResults:
+    """Class to store and compare classification model results"""
+    def __init__(self):
+        self.results_df = pd.DataFrame(columns=['Model', 'Accuracy', 'Precision', 'Recall', 'F1-Score'])
+    
+    def add_result(self, model_name: str, accuracy: float, precision: float, recall: float, f1_score: float):
+        """Add model results to the comparison dataframe"""
+        new_result = pd.DataFrame({
+            'Model': [model_name],
+            'Accuracy': [accuracy],
+            'Precision': [precision],
+            'Recall': [recall],
+            'F1-Score': [f1_score]
+        })
+        self.results_df = pd.concat([self.results_df, new_result], ignore_index=True)
+    
+    def display_results(self):
+        """Display all model results in a formatted table"""
+        print("\n" + "="*80)
+        print("MODEL COMPARISON RESULTS")
+        print("="*80)
+        print(self.results_df.to_string(index=False))
+        print("="*80 + "\n")
+    
+    def save_results(self, filepath: str):
+        """Save results to CSV file"""
+        self.results_df.to_csv(filepath, index=False)
+        print(f"Results saved to {filepath}")
+    
+    def get_best_model(self, metric: str = 'F1-Score'):
+        """Get the best model based on specified metric"""
+        if metric in self.results_df.columns:
+            best_idx = self.results_df[metric].idxmax()
+            return self.results_df.loc[best_idx]
+        else:
+            print(f"Metric '{metric}' not found in results")

@@ -19,7 +19,7 @@ if __name__=="__main__":
     # ------- RIDGE(External)->LASSO(Internal) APPLICATION -------
     X_train, X_test=RIDGE(X_train, X_test, y_train, n_features=100)
     tscv=TimeSeriesSplit(n_splits=3)
-    Log_Reg_R_L=LogisticRegressionCV(Cs=10, cv=tscv, penalty='l1', solver='saga', random_state=1, n_jobs=-1, max_iter=500)
+    Log_Reg_R_L=LogisticRegressionCV(Cs=10, cv=tscv, penalty='l1', solver='saga', random_state=1, n_jobs=-1, max_iter=500, tol=1e-2)
     
     Log_Reg_model_pipeline_R_L = Pipeline([('scaler', StandardScaler()), ('classifier', Log_Reg_R_L)])
 
@@ -34,7 +34,7 @@ if __name__=="__main__":
     X_train=LASSO(X_train, y_train)
     X_test=X_test[X_train.columns]
     tscv=TimeSeriesSplit(n_splits=3)
-    Log_Reg_L_R=LogisticRegressionCV(Cs=10, cv=tscv, penalty='l2', solver='saga', random_state=1, n_jobs=-1, max_iter=500)
+    Log_Reg_L_R=LogisticRegressionCV(Cs=10, cv=tscv, penalty='l2', solver='saga', random_state=1, n_jobs=-1, max_iter=500, tol=1e-2)
     
     Log_Reg_model_pipeline_L_R = Pipeline([('scaler', StandardScaler()), ('classifier', Log_Reg_L_R)])
 
@@ -49,7 +49,7 @@ if __name__=="__main__":
     X_train, X_test=apply_PCA(X_train, X_test, n_comp=0.9)
     tscv=TimeSeriesSplit(n_splits=3)
     
-    Log_Reg_PCA=LogisticRegression(solver='saga', max_iter=5000, random_state=1, n_jobs=-1)
+    Log_Reg_PCA=LogisticRegression(solver='saga', max_iter=5000, random_state=1, n_jobs=-1, tol=1e-2)
 
     Log_Reg_PCA.fit(X_train, y_train)
 

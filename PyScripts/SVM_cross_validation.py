@@ -43,14 +43,14 @@ pipeline = Pipeline([
 ])
 
 # param_grid = {
-#     'svc__C': [0.001, 0.01, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+#     'svc__C': [0.1, 0.2, 0.3, 0.4, 0.5]
 # }
-
+# Finished CV search. Best params: {'svc__C': 0.1}
 param_grid = {
-    'svc__C': [0.3]
+    'svc__C': [0.1]
 }
-cv = KFold(n_splits=5, shuffle=True, random_state=1)
-grid = GridSearchCV(pipeline, param_grid, cv=cv, scoring='f1', n_jobs=-1, verbose=1, return_train_score=True)
+cv = KFold(n_splits=10, shuffle=True, random_state=1)
+grid = GridSearchCV(pipeline, param_grid, cv=cv, scoring='f1', n_jobs=2, verbose=1, return_train_score=True)
 grid.fit(X_train, y_train)
 
 print("Finished CV search. Best params:", grid.best_params_)
@@ -65,12 +65,6 @@ y_pred_svm = best_model.predict(X_test)
 print("Finished Applying SVM Model -------")
 
 
-
-
-
-
-
-go
 print("------- SVM Model Performance")
 accuracy = accuracy_score(y_test, y_pred_svm)
 precision = precision_score(y_test, y_pred_svm, zero_division=0)
@@ -86,19 +80,11 @@ print("\nClassification Report:")
 print(classification_report(y_test, y_pred_svm, zero_division=0))
 print("------- SVM Model Performance Completed -------")
 
-# Store results in ModelResults for comparison with other models
-print("------- Saving SVM Results for Model Comparison")
-model_results = ModelResults()
-model_results.add_result('Support Vector Machine (SVM)', accuracy, precision, recall, f1)
-model_results.display_results()
-model_results.save_results(cwd / "output" / "svm_results.csv")
-print("------- SVM Results Saved -------")
+# # Store results in ModelResults for comparison with other models
+# print("------- Saving SVM Results for Model Comparison")
+# model_results = ModelResults()
+# model_results.add_result('Support Vector Machine (SVM)', accuracy, precision, recall, f1)
+# model_results.display_results()
+# model_results.save_results(cwd / "output" / "svm_results.csv")
+# print("------- SVM Results Saved -------")
 
-# # Export X and y_regression to files
-# print("------- Exporting Data to Files")
-# # Export as Parquet (much faster than CSV for large datasets)
-# X.to_parquet(cwd / "output" / "X_features.parquet", compression='gzip')
-# y_regression.to_frame().to_parquet(cwd / "output" / "y_regression.parquet", compression='gzip')
-# print("Finished Exporting Data -------")
-# print(f"X exported to: {cwd / 'output' / 'X_features.parquet'}")
-# print(f"y_regression exported to: {cwd / 'output' / 'y_regression.parquet'}")

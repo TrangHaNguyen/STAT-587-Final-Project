@@ -101,6 +101,6 @@ if __name__=="__main__":
     print("Average Direction (Test):", avg_dir)
 
     classification_wfv_eval(RFClassifier_red_sw_wfv, X_train, y_train)
-    classification_cv_eval(RFClassifier_red_sw_wfv, X_train, y_train)
+    # classification_cv_eval(RFClassifier_red_sw_wfv, X_train, y_train)
 
     input("Press Enter to Finish...")

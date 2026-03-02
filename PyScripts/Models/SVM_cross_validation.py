@@ -69,11 +69,11 @@ print("\nClassification Report:")
 print(classification_report(y_test, y_pred_svm, zero_division=0))
 print("------- SVM Model Performance Completed -------")
 
-# # Store results in ModelResults for comparison with other models
-print("------- Saving SVM Results for Model Comparison")
-model_results = ModelResults()
-model_results.add_result('Support Vector Machine (SVM)', accuracy, precision, recall, f1)
-model_results.display_results()
-model_results.save_results(cwd / "output" / "svm_results.csv")
-print("------- SVM Results Saved -------")
+# # # Store results in ModelResults for comparison with other models
+# print("------- Saving SVM Results for Model Comparison")
+# model_results = ModelResults()
+# model_results.add_result('Support Vector Machine (SVM)', accuracy, precision, recall, f1)
+# model_results.display_results()
+# model_results.save_results(cwd / "output" / "svm_results.csv")
+# print("------- SVM Results Saved -------")
 

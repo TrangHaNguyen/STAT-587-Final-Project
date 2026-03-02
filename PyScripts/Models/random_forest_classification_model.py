@@ -3,7 +3,7 @@ from typing import Any, cast
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from dimension_reduction import apply_PCA, LASSO, RIDGE, step_wise_reg_wfv
-from model_evaluation import classification_accuracy, classification_cv_eval, display_feat_importances, classification_wfv_eval
+from model_evaluation import classification_accuracy, display_feat_importances, classification_wfv_eval
 from data_preprocessing_and_cleaning import clean_data
 
 if __name__=="__main__":
@@ -40,7 +40,6 @@ if __name__=="__main__":
     print("Accuracy (Test):", acc)
     print("Average Direction (Test):", avg_dir)
 
-    # classification_cv_eval(RFClassifier_red_PCA, X_train, y_train)
     classification_wfv_eval(RFClassifier_red_PCA, X_train, y_train)
 
     input("Press Enter to continue...")
@@ -101,6 +100,5 @@ if __name__=="__main__":
     print("Average Direction (Test):", avg_dir)
 
     classification_wfv_eval(RFClassifier_red_sw_wfv, X_train, y_train)
-    # classification_cv_eval(RFClassifier_red_sw_wfv, X_train, y_train)
 
     input("Press Enter to Finish...")

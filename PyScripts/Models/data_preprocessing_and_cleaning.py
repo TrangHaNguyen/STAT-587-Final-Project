@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import pandas as pd
-from pathlib import Path
 import pyarrow.parquet as pq
 from PyScripts.helper_functions import get_cwd
 

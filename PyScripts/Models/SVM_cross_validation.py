@@ -39,7 +39,7 @@ print("------- Training Support Vector Machine with 10-fold CV to select C")
 # Use a pipeline with scaling and SVC. Perform 10-fold CV to select C.
 pipeline = Pipeline([
     ('scaler', StandardScaler()),
-    ('svc', SVC(kernel='rbf', gamma='scale', random_state=1, tol=1e-2))
+    ('svc', SVC(cache_size=1000, class_weight='balanced', gamma='scale', random_state=1, tol=5e-2))
 ])
 
 # param_grid = {
@@ -63,7 +63,6 @@ print("Finished Training SVM (best estimator selected) -------")
 print("------- Applying SVM Model to Test Set")
 y_pred_svm = best_model.predict(X_test)
 print("Finished Applying SVM Model -------")
-
 
 print("------- SVM Model Performance")
 accuracy = accuracy_score(y_test, y_pred_svm)

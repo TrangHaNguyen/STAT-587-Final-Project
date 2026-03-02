@@ -2,19 +2,12 @@
 import pandas as pd
 from pathlib import Path
 import pyarrow.parquet as pq
-import ast
+from PyScripts.helper_functions import get_cwd
 
 pd.set_option('display.max_rows', 100)
 pd.set_option('display.max_columns', 8)
 
-cwd=Path.cwd()
-for _ in range(5): 
-    if cwd.name!="STAT-587-Final-Project":
-        cwd=cwd.parent
-    else:
-        break
-else:
-    raise FileNotFoundError("Could not find correct workspace folder.")
+cwd = get_cwd("STAT-587-Final-Project")
 
 def clean_data():
     # Hyperparameters

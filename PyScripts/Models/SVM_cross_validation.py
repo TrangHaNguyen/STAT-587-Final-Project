@@ -1,27 +1,17 @@
 import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
 from data_preprocessing_and_cleaning import clean_data
 from model_evaluation import ModelResults
-from pathlib import Path
 from sklearn.model_selection import train_test_split, GridSearchCV, KFold
 from sklearn.svm import SVC
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, classification_report
-import numpy as np
+from PyScripts.helper_functions import get_cwd
+
 
 pd.set_option('display.max_rows', 100)
 pd.set_option('display.max_columns', 8)
-
-cwd=Path.cwd()
-for _ in range(5): 
-    if cwd.name!="STAT-587-Final-Project":
-        cwd=cwd.parent
-    else:
-        break
-else:
-    raise FileNotFoundError("Could not find correct workspace folder.")
+cwd = get_cwd("STAT-587-Final-Project")
 
 lookup_df = pd.read_csv(cwd / "PyScripts" / "stock_lookup_table.csv")
 
@@ -80,10 +70,10 @@ print(classification_report(y_test, y_pred_svm, zero_division=0))
 print("------- SVM Model Performance Completed -------")
 
 # # Store results in ModelResults for comparison with other models
-# print("------- Saving SVM Results for Model Comparison")
-# model_results = ModelResults()
-# model_results.add_result('Support Vector Machine (SVM)', accuracy, precision, recall, f1)
-# model_results.display_results()
-# model_results.save_results(cwd / "output" / "svm_results.csv")
-# print("------- SVM Results Saved -------")
+print("------- Saving SVM Results for Model Comparison")
+model_results = ModelResults()
+model_results.add_result('Support Vector Machine (SVM)', accuracy, precision, recall, f1)
+model_results.display_results()
+model_results.save_results(cwd / "output" / "svm_results.csv")
+print("------- SVM Results Saved -------")
 

@@ -25,7 +25,7 @@ from sklearn.metrics import (
     precision_score,
     recall_score,
     f1_score,
-    roc_auc_score,
+    roc_auc_score
 )
 
 from basic_model_original_data import load_original_data

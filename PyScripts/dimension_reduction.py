@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-from pathlib import Path
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from mlxtend.feature_selection import SequentialFeatureSelector as MFS

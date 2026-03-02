@@ -6,6 +6,6 @@
 
 /PyScripts/env/
 /PyScripts/*.csv
-/PyScripts/__pycache__
+**/__pycache__/
 /PyScripts/.devcontainer
 /PyScripts/Ignore/

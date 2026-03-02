@@ -2,7 +2,7 @@
 from typing import Any, cast
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
-from PyScripts.dimension_reduction import apply_PCA, LASSO, RIDGE, step_wise_reg_wfv
+from dimension_reduction import apply_PCA, LASSO, RIDGE, step_wise_reg_wfv
 from model_evaluation import classification_accuracy, display_feat_importances, classification_wfv_eval
 from data_preprocessing_and_cleaning import clean_data
 
@@ -15,7 +15,7 @@ if __name__=="__main__":
     y_test=to_binary_class(y_test)
     
     # ------- BASE APPLICATION -------
-    RFClassifier_base=RandomForestClassifier(max_features=100, random_state=1, n_jobs=-1)
+    RFClassifier_base=RandomForestClassifier(random_state=1, n_jobs=-1)
     RFClassifier_base.fit(X_train, y_train)
 
     display_feat_importances(RFClassifier_base, X_train)

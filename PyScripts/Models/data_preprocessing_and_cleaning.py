@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 import pandas as pd
-from pathlib import Path
 import pyarrow.parquet as pq
-from PyScripts.helper_functions import get_cwd
+import numpy as np
+from helper_functions import get_cwd
+from sklearn.cluster import KMeans
 
 pd.set_option('display.max_rows', 100)
 pd.set_option('display.max_columns', 8)
 
 cwd = get_cwd("STAT-587-Final-Project")
 
-def clean_data():
+def clean_data(cluster: bool =False):
     # Hyperparameters
     lag=[1, 3, 7, 14]
     ema_windows=[7, 14, 28]
@@ -19,7 +20,7 @@ def clean_data():
     idx = pd.IndexSlice
 
     print("------- Downloading Data")
-    table = pq.read_table(cwd / "PyScripts" / "raw_data.parquet")
+    table = pq.read_table(cwd / "PyScripts" / "Data" / "raw_data_2_years.parquet")
     DATA = table.to_pandas()
     print("Finished Downloading Data -------")
     print("Initial shape:", DATA.shape[0], "rows,", DATA.shape[1], "columns.")
@@ -44,8 +45,28 @@ def clean_data():
 
     # Generating percent change from day before to current day. 
     features=DATA.loc[:, idx[['Close', 'Open', 'High', 'Low'], 'Stocks', :]].copy().pct_change().rename(columns={metric: f"{metric} PC" for metric in ['Close', 'Open', 'High', 'Low']}, level=0)
-    features=pd.concat([features, DATA.loc[:, idx[['Close', 'Open', 'High', 'Low', 'Volume'], :, :]].copy()], axis=1)
     print("Created Percent Changes.")
+
+    if (cluster):
+        X_stocks=features.xs('Close PC', level=0, axis=1).droplevel('Type', axis=1).dropna(axis=0, how='all').T
+
+        n_clusters=100 
+        kmeans=KMeans(n_clusters=n_clusters, random_state=1, n_init=10)
+        clusters=kmeans.fit_predict(X_stocks)
+
+        representative_stocks=[]
+        centers=kmeans.cluster_centers_
+
+        for i in range(n_clusters):
+            indices = np.where(clusters == i)[0] # Get all stocks in this cluster
+            distances = np.linalg.norm(X_stocks.iloc[indices].values - centers[i], axis=1) # Find the one stock closest to the cluster center
+            representative_stocks.append(X_stocks.index[indices[np.argmin(distances)]])
+
+        features=features.loc[:, idx[:, 'Stocks', representative_stocks]]
+        features=pd.concat([features, DATA.loc[:, idx[['Close', 'Open', 'High', 'Low', 'Volume'], 'Stocks', representative_stocks]].copy()], axis=1)
+        print("Finished clustering and selected representative stocks.")
+    else: 
+        features=pd.concat([features, DATA.loc[:, idx[['Close', 'Open', 'High', 'Low', 'Volume'], 'Stocks', :]].copy()], axis=1)
 
     features["Day of Week"]=features.index.dayofweek
     print("Created Day of Week.")
@@ -150,4 +171,5 @@ def pull_features(dataframe, feature_name, include=False):
                 new_dataframe = pd.concat([new_dataframe, dataframe.loc[:, idx[metric, :, :]]], axis=1)
         return new_dataframe
 
-
+if __name__ == "__main__":
+    clean_data(cluster=True)

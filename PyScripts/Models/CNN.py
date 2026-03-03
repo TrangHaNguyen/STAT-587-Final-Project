@@ -10,10 +10,8 @@ Note: This uses a simplified CNN approach by:
 3. Training a neural network with conv-like behavior via hidden layers
 """
 
-import pandas as pd
 import numpy as np
 from pathlib import Path
-import sys
 import warnings
 warnings.filterwarnings('ignore')
 

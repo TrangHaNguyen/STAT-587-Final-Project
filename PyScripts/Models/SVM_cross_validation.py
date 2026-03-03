@@ -1,19 +1,15 @@
 import pandas as pd
 from data_preprocessing_and_cleaning import clean_data
-from model_evaluation import ModelResults
-from sklearn.model_selection import train_test_split, GridSearchCV, KFold
+from sklearn.model_selection import train_test_split, GridSearchCV, TimeSeriesSplit
 from sklearn.svm import SVC
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, classification_report
-from PyScripts.helper_functions import get_cwd
-
+from helper_functions import get_cwd
 
 pd.set_option('display.max_rows', 100)
 pd.set_option('display.max_columns', 8)
 cwd = get_cwd("STAT-587-Final-Project")
-
-lookup_df = pd.read_csv(cwd / "PyScripts" / "stock_lookup_table.csv")
 
 # X, y=clean_data()
 X, y_regression = clean_data()
@@ -32,16 +28,23 @@ pipeline = Pipeline([
     ('svc', SVC(cache_size=1000, class_weight='balanced', gamma='scale', random_state=1, tol=5e-2))
 ])
 
-# param_grid = {
-#     'svc__C': [0.1, 0.2, 0.3, 0.4, 0.5]
-# }
-# Finished CV search. Best params: {'svc__C': 0.1}
-param_grid = {
-    'svc__C': [0.1]
-}
-cv = KFold(n_splits=10, shuffle=True, random_state=1)
-grid = GridSearchCV(pipeline, param_grid, cv=cv, scoring='f1', n_jobs=2, verbose=1, return_train_score=True)
+param_grid = [
+    {
+        'svc__kernel': ['linear'],
+        'svc__C': [0.01, 0.1, 1, 10]
+    },
+    {
+        'svc__kernel': ['rbf'],
+        'svc__C': [0.1, 1, 10],
+        'svc__gamma': ['scale', 'auto', 0.001, 0.01]
+    }
+]
+
+tscv=TimeSeriesSplit(n_splits=3)
+grid = GridSearchCV(pipeline, param_grid, cv=tscv, scoring='balanced_accuracy', n_jobs=-2, verbose=3, return_train_score=True)
 grid.fit(X_train, y_train)
+
+input("Press Enter to continue...")
 
 print("Finished CV search. Best params:", grid.best_params_)
 cv_results_df = pd.DataFrame(grid.cv_results_)
@@ -69,11 +72,11 @@ print("\nClassification Report:")
 print(classification_report(y_test, y_pred_svm, zero_division=0))
 print("------- SVM Model Performance Completed -------")
 
-# # Store results in ModelResults for comparison with other models
-print("------- Saving SVM Results for Model Comparison")
-model_results = ModelResults()
-model_results.add_result('Support Vector Machine (SVM)', accuracy, precision, recall, f1)
-model_results.display_results()
-model_results.save_results(cwd / "output" / "svm_results.csv")
-print("------- SVM Results Saved -------")
+# # # Store results in ModelResults for comparison with other models
+# print("------- Saving SVM Results for Model Comparison")
+# model_results = ModelResults()
+# model_results.add_result('Support Vector Machine (SVM)', accuracy, precision, recall, f1)
+# model_results.display_results()
+# model_results.save_results(cwd / "output" / "svm_results.csv")
+# print("------- SVM Results Saved -------")
 

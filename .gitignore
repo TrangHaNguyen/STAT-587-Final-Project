@@ -3,9 +3,26 @@
 !/PyScripts/
 !/.gitignore
 !/README.md
+!/LaTex/
+!/output/
+!/requirements.txt
 
 /PyScripts/env/
 /PyScripts/*.csv
 **/__pycache__/
 /PyScripts/.devcontainer
+
+# LaTeX build artifacts
+LaTex/*.aux
+LaTex/*.log
+LaTex/*.out
+LaTex/*.fls
+LaTex/*.fdb_latexmk
+LaTex/*.synctex.gz
+LaTex/*.toc
+
+# Large binary/data files
+output/*.parquet
+output/*.pkl
+output/*.csv
 /PyScripts/Ignore/

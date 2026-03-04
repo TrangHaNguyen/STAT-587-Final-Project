@@ -1,0 +1,59 @@
+======================================================================
+SVM WITH 7-DAY LAGGED FEATURES - RESULTS
+======================================================================
+
+DATA SUMMARY
+----------------------------------------------------------------------
+Original data shape: (2009, 2396)
+Number of lags: 7 (t-1 to t-7)
+Features after lagging: 19049
+Samples after removing NaN: 2002
+Train/Test split: 1601/401
+  - Training samples: 1601
+    * Down: 740 (46.2%)
+    * Up: 861 (53.8%)
+  - Test samples: 401
+    * Down: 185 (46.1%)
+    * Up: 216 (53.9%)
+
+MODEL CONFIGURATION
+----------------------------------------------------------------------
+Algorithm: Support Vector Machine (SVM)
+Kernel: RBF (Radial Basis Function - Nonlinear)
+Probability: False (using decision function for ROC-AUC)
+Parameter Grid:
+  - C: [0.01, 0.1, 10]
+Cross-Validation: 5-fold Stratified
+Scoring Metric: F1-Score
+
+CROSS-VALIDATION RESULTS
+----------------------------------------------------------------------
+C= 0.01 | Mean F1-Score: 0.6994 (+/- 0.0005)
+C=  0.1 | Mean F1-Score: 0.6994 (+/- 0.0005)
+C=   10 | Mean F1-Score: 0.5804 (+/- 0.0265)
+
+Optimal C: 0.01
+Best CV F1-Score: 0.6994
+
+TEST SET PERFORMANCE
+----------------------------------------------------------------------
+Accuracy:  0.5387
+Precision: 0.5387
+Recall:    1.0000
+F1-Score:  0.7002
+ROC-AUC:   0.4917
+
+Confusion Matrix:
+               Predicted Down  Predicted Up
+Actual Down:                 0          185
+Actual Up:                   0          216
+
+Classification Report:
+              precision    recall  f1-score   support
+
+        Down       0.00      0.00      0.00       185
+          Up       0.54      1.00      0.70       216
+
+    accuracy                           0.54       401
+   macro avg       0.27      0.50      0.35       401
+weighted avg       0.29      0.54      0.38       401

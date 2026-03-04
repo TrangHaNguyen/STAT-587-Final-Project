@@ -1,0 +1,22 @@
+================================================================================
+LOGISTIC REGRESSION FEATUREENGINEARING 24H - L1
+================================================================================
+
+Total features: 7920
+Train samples: 3749
+Test samples: 938
+Optimal C: 1291.549665
+Accuracy:  0.4680
+Precision: 0.5000
+Recall:    0.4830
+F1-Score:  0.4913
+ROC-AUC:   0.4829
+
+              precision    recall  f1-score   support
+
+        Down       0.43      0.45      0.44       439
+          Up       0.50      0.48      0.49       499
+
+    accuracy                           0.47       938
+   macro avg       0.47      0.47      0.47       938
+weighted avg       0.47      0.47      0.47       938

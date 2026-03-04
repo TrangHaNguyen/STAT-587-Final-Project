@@ -1,0 +1,184 @@
+\documentclass[aspectratio=43]{beamer} % 4:3 like your 128mm:96mm
+% If you want widescreen use: \documentclass[aspectratio=169]{beamer}
+
+% --- Colors ---
+\usepackage{xcolor}
+\definecolor{mygreen}{RGB}{109, 141, 36}
+\definecolor{myblue}{RGB}{34,31,217}
+\definecolor{mybrown}{RGB}{194,164,113}
+\definecolor{myred}{RGB}{255,66,56}
+
+% --- Fonts/encoding ---
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usefonttheme{professionalfonts}
+
+% --- Packages ---
+\usepackage{amsmath,amsthm,bm}
+\usepackage{graphicx}
+\usepackage{booktabs,multicol}
+\usepackage{tikz}
+
+\usetikzlibrary{positioning}
+\usepackage[english]{babel}
+\usepackage{microtype}
+\usepackage{apacite}
+
+% --- Presentation info ---
+\title{Data Science - Final Project}
+\author{Trang Nguyen and Takeshi Stormer}
+\institute{PSU}
+\date{\today}
+
+% --- Remove default navigation symbols ---
+\setbeamertemplate{navigation symbols}{}
+
+% --- Custom header (headline) ---
+\setbeamertemplate{headline}{%
+  \begin{tikzpicture}[remember picture,overlay]
+    % thinner header bar (adjust 0.35cm)
+    \fill[mygreen] (current page.north west) rectangle ([yshift=-0.40cm]current page.north east);
+
+    \node[anchor=west, text=white, font=\bfseries\small, xshift=0.35cm, yshift=-0.2cm]
+      at (current page.north west) {STAT 587 - Final Project};
+  \end{tikzpicture}
+  \vspace{0.15cm} % small spacing under header
+}
+
+\setbeamertemplate{footline}{%
+  \begin{tikzpicture}[remember picture,overlay]
+    % thicker footer bar (adjust 0.55cm)
+    \fill[mygreen] (current page.south west) rectangle ([yshift=0.40cm]current page.south east);
+
+    % footer text placed ON the green bar
+    \node[anchor=west, text=white, font=\scriptsize, xshift=0.35cm, yshift=0.18cm]
+      at (current page.south west)
+      {\insertshortauthor\ \raisebox{0.2mm}{$\bm{\vert}$}\ PSU};
+
+    \node[anchor=east, text=white, font=\scriptsize, xshift=-0.35cm, yshift=0.18cm]
+      at (current page.south east)
+      {\insertframenumber/\inserttotalframenumber};
+  \end{tikzpicture}
+  \vspace{0.05cm}
+}
+
+
+% --- Optional: a simple highlight box command ---
+\newcommand{\mybox}[1]{%
+  \begin{beamercolorbox}[rounded=true,shadow=false,sep=6pt,wd=\linewidth]{block body}
+    \color{black}#1
+  \end{beamercolorbox}
+}
+
+\begin{document}
+
+% --- Title slide ---
+\begin{frame}[plain]
+\begin{tikzpicture}[remember picture,overlay]
+  % ---- Rectangle size (edit these) ----
+  \def\BoxW{\paperwidth}
+  \def\BoxH{0.45\paperheight}
+
+  % ---- Green rectangle centered on the page ----
+  \fill[mygreen] 
+    ([xshift=-0.5*\BoxW,yshift=-0.5*\BoxH]current page.center)
+    rectangle
+    ([xshift= 0.5*\BoxW,yshift= 0.5*\BoxH]current page.center);
+
+  % ---- Centered text within the rectangle ----
+  \node[
+    align=center,
+    text=white,
+    font=\sffamily,
+    text width=0.75\paperwidth
+  ] at (current page.center) {%
+    {\Large\bfseries \inserttitle\par}
+    \vspace{0.4cm}
+    {\normalsize \insertauthor\par}
+    {\normalsize \insertdate\par}
+  };
+\end{tikzpicture}
+\end{frame}
+
+
+
+
+
+% --- Outline slide ---
+\begin{frame}{Outline}
+  \tableofcontents
+\end{frame}
+
+% --- Slides ---
+\section{Requirement}
+\begin{frame}{Requirement}
+\begin{itemize}
+    \item Presentation Guidelines (10 minutes)
+    \item Motivation & research question (1 min)
+    \item Dataset & preprocessing (1 min)
+    \item Methods overview tied to ESL (3 min)
+    \item Key results & visualizations (3 min)
+    \item Limitations & next steps (1 min)
+    \item Final summary (1 min)
+
+\end{itemize}
+Presentation must include:
+\begin{itemize}
+    \item 1–2 clear plots per model type
+    \item Model comparison graphic
+    \item Clear labeling and readable visuals
+\end{itemize}
+\end{frame}
+
+
+
+
+\section{Motivation & research question}
+\begin{frame}{Motivation & research question}
+\begin{itemize}
+  \item Goal of the project
+  \item Data source
+  \item Main modeling approach
+\end{itemize}
+\end{frame}
+
+\section{Dataset & preprocessing}
+\begin{frame}{Methods}
+\begin{multicols}{2}
+\begin{itemize}
+  \item Preprocessing
+  \item Features
+  \item Model(s)
+\end{itemize}
+\columnbreak
+\mybox{Example highlight box.}
+\end{multicols}
+\end{frame}
+
+\section{Methods overview tied to ESL}
+\begin{frame}{Results}
+Put plots/tables here.
+\end{frame}
+
+
+
+
+
+\section{Key results & visualizations}
+\begin{frame}{Results}
+\end{frame}
+\section{Limitations & next steps}
+\begin{frame}{Limitation}
+\end{frame}
+\section{Final summary}
+\begin{frame}{Summary}
+\end{frame}
+
+
+
+% --- References ---
+\begin{frame}{References}
+\bibliographystyle{apacite}
+\bibliography{Bibliography}
+\end{frame}
+\end{document}

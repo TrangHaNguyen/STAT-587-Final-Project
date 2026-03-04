@@ -1,0 +1,34 @@
+======================================================================
+RNN MODEL RESULTS - TIME SERIES CLASSIFICATION
+======================================================================
+
+MODEL CONFIGURATION
+----------------------------------------------------------------------
+Architecture: SimpleRNN(64) + Dropout(0.3) + Dense(1, sigmoid)
+Sequence length: 7 timesteps (10-day window)
+Input features: 2396
+Train/Test split: 80% training / 20% test
+Validation: 20% split from training data (for early stopping)
+Train/Test sizes: 1602/401
+
+TEST SET PERFORMANCE
+----------------------------------------------------------------------
+Accuracy:  0.5461
+Precision: 0.5535
+Recall:    0.8148
+F1-Score:  0.6592
+
+Confusion Matrix:
+               Predicted Down  Predicted Up
+Actual Down:                43          142
+Actual Up:                  40          176
+
+Classification Report:
+              precision    recall  f1-score   support
+
+        Down       0.52      0.23      0.32       185
+          Up       0.55      0.81      0.66       216
+
+    accuracy                           0.55       401
+   macro avg       0.54      0.52      0.49       401
+weighted avg       0.54      0.55      0.50       401

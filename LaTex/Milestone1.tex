@@ -1,0 +1,112 @@
+\documentclass[11pt]{article}
+\usepackage[utf8]{inputenc}  
+\usepackage[english]{babel}    
+\usepackage{hyperref}        
+\usepackage{booktabs}		 
+\usepackage{a4wide}          
+\pagestyle{empty}            
+
+
+\title{STAT 587: Final Project \\
+Milestone 1 - Proposal}
+\author{Trang Nguyen and Takeshi Stormer}
+\date{\today}
+
+
+\begin{document}
+
+\maketitle
+\thispagestyle{empty}       
+
+\section{Project Title}
+Predicting the Direction of the S\&P500 Index
+\section{Research Questions}
+Determining the direction of the market on the following day (on a day-to-day basis).
+\section{Dataset Source and Description}
+\begin{itemize}
+    \item Upload location: https://github.com/Sabuchan123/STAT-587-Final-Project
+    
+    \item \LaTeX \ folder: https://www.overleaf.com/read/bpdvnbmwzqhc\#6b670c
+
+    \item Data include price metrics of stocks that are part of the S\&P 500 index spanning January 1st, 2024, to December 31st, 2025. Some cleaning was performed to remove stocks that were listed on a date past January 1st.
+    \item Variables: \begin{itemize}
+        \item Base features (raw data dowloaded): 
+        \begin{itemize}
+            \item Open Price (OP)
+            \item Close Price (CP)
+            \item High Price (HP)
+            \item Low Price (LP)
+            \item Traded Volume (TV)
+        \end{itemize}
+        \item Generated Features (for Price metrics): 
+        \begin{itemize}
+            \item OP, CP, HP, LP Percent Change (PC)
+            \item Lag (over varying periods)
+            \item Exponential Moving Average (over varying windows)
+            \item Volatility (over varying periods)
+            \item Max/Min Channel Position (over varying windows)
+            \item Rolling Volume Weighted Average Prices (VWAP) (over varying windows)
+            \item Rolling Z-Scores (over varying windows)
+            \item Daily Range
+            \item If time permits, we will attempt to add average stock price and standard deviation of a stock price within a day, and day of week analysis. 
+        \end{itemize}
+        \item Note on Generated Features:
+        \begin{itemize}
+            \item Percent change is utilized to have stationary data. Without this, we can run into issues where a method involving decision trees utilize outdated prices that are not relevant to future prices (i.e. the value of a share goes from \$10 to \$100, an internal node with condition [Close $<$ \$25] will never be activated if the relevant price as of present is \$100)
+            \item Lag captures momentum, which will allow us to see if past data has any impact on future values.
+            \item Volatility looks to capture how much a stock can be expected to move within a certain day. For the extent of this project, volatility can be seen as the standard deviation of price movements.
+            \item The exponential moving average captures more recent price movements quicker than a normal moving average by recursively generating a new average with a weight that emphasizes the new price point. This allows for an increased ability to analyze short-term trends as we are looking to predict the following day while maintaining the benefits of a moving average.
+            \item A Max/Min channel position allows for identification of support and resistant lines, which can further provide insight of potential breakouts.
+            \item The rolling volume weighted average price looks to portray the value of share based on the amount people are willing to pay for it. This ensures that price points where investors are primarily buying or selling shares at is reflected, as opposed to seeing potentially a misleading share price.
+            \item The rolling z-score utilizes the exponential moving average and volatility in order to generate z-scores of a price movement. It is good to note that a t-distribution will probably fit this projects use-case, as there are days influenced by external events that cause price movements you would be believe to not occur given a z-score.
+            \item \textbf{IMPORTANT}: Features involving non-stationary metrics (EMA, OP, CP, HP, LP, VWAP) will be removed when K-fold cross-validation is introduced.
+        \end{itemize}
+    \end{itemize}
+    \item Size: The raw data contains 501 rows, and 2520 columns (roughly around 20 megabytes worth of data). The sizable number of columns is explained by each stock (503) and index (1) having their own price metrics for CP, OP, HP, LP and TV $([503+1] * 5)=2520$. The number of rows is explained by the exclusion of 19 holidays and 211 weekend days.
+    \item Domain context: Financial Economics
+\end{itemize}
+
+\newpage
+
+\section{Motivation}
+Beyond the pursuit of generating infinite wealth by predicting the future values of the stock market (or inadvertently collapsing any concept of having a financial market to begin with), simply being content with being able to predict the direction of the market (emphasis on the US stock market) of the following day allows for individuals to trade and/or invest more wisely. The motivation behind understanding this problem, and subsequently attempting to solve it, is given by the consequences it could bring to the financial industry. The conclusion of this paper will give insight as to whether or not the aforementioned data is adequate towards predicting the direction of the US stock market, and if not, gives rise to the question of whether or not it is possible to find any amount of data that will. 
+\section{Planned methods}
+\begin{itemize}
+    \item Method 1 - Logistic Regression (Chapter 4, section 4.4): This method would result in a predicted response that measures the probability of the following day being a positive day. It also requires that $p<n$, which would result in the need for dimensional reduction. Some dimensionality reduction methods include regularization methods, Ridge and LASSO regression, along with Principal Component Analysis. This necessity to use dimensional reduction techniques is further emphasized by the fact that multiple features are secondary indicators constructed from the raw data, resulting in an issue of inevitable multicollinearity. This is another reason for the use of PCA and Ridge regression within logistic regression. Though the loss of interpretability could discourage us from using PCA, our primary focus is on the prediction of the market direction. 
+    % Comment by Trang: When it is already more features than data points, we cannot use Backward Elimination/ forward selection/ best subset
+    % Comment by Takeshi: You can use Forward Selection to select up to 50 features, use Backwards Elimination to reduce down to 21. However, the one issue that I am seeing with this is that it can select 21 features that best fit the training data, which could impact overall model performance. An alternative is to utilize the SelectKBest method from sklearn.feature_selection and apply a F-test filter to reduce the features from ~36000 columns down to the best 1000 columns. This will help reduce the possibility of selecting 21 features that just happen to coincidentally fit the training data very well.
+    \item Method 2 - Random Forest Classifier (Chapter 5 and Chapter 15): This method would directly forecast the direction. A perk of this method is that it does not inherently require that $p<n$, which will allow us to fit it to all features, and through feature-importance, deduce which features carry the biggest weight. 
+    % Comment from Takeshi: I don't think we need to mention that a random forest classifier is part of the family of tree classification models.
+    % We need some further explanation why random forest is preferred to bagging and boosting here
+    \item Method 3 - Support Vector Machine (Chapter 12): This method is straight forward to a binary classification problem. It is highly applicable to the case of high dimensional data with smaller number of data points. As there are many feature, we will start with a linear kernel. If time allows, we may consider a non-linear kernel in addition.
+    
+    %\item Exploration: Neural Network: Since this method requires a greater deal of data points, once the prior two methods are utilized, resulting in a select amount of important features, we can extend the look back period from 2 years to 10 years. With this, an issue arises when we take into consideration that the market regime changes over time. This trade-off, however, allows for us to potentially incorporate hidden patterns that aren't dependent on market regimes. 
+    
+\end{itemize}
+
+{\flushleft If time permits, we will look to apply a Neural Network model and/or a Fuzzy Time-Series model on the data.\par}
+
+Model selection: 
+\begin{itemize}
+    \item Cross validation (Chapter 7): K-Folds CV.
+    \item Walk-Forward Validation: Average performance over different consecutive periods of time allows for models to be tested on otherwise unaccounted for time-based features.
+\end{itemize}
+% Walk-Forward Validation is when you take the first x amount of days as a training set, test your model on the test set, then add some n amount of days to the prior training set, then test against whatever test set remains. 
+% It alternatively can be utilized as follows. Given some time period, x, you want to train on n_1*x worth of consecutive data points. You then want to test it against n_2*x consecutive data points following the last entry in the test set. An example of this could be training on Month 1 and Month 2, then testing it against Month 3, then training it against Month 2 and Month 3, then testing it against Month 4. 
+% With these methods, you can obtain an average success rate (since we are doing binary classification), amongst all tests. This will sort of ensure that the features we selected are still relevant if there is a market regime shift. It can also ensure that the method of selecting features between models are consistently chosen well (the best model is the one that can predict the market direction the best; if our only test is that of training the entire model on all but a certain period of time for which we train on, then selecting the best model for that select period of time only tells us which models best performed during that time, not which model performed best over time).
+% Could you please explain more about Walk-Forward validation? 
+
+\newpage
+
+\section{Expected challenges}
+
+\begin{itemize}
+    \item Given the nature of the features, we should be able to utilize K-Fold Cross Validation for model selection. However, because we are utilizing time-series data, it would also be a good idea to utilize Walk-Forward Validation to allow certain models to potentially capture market regimes and adapt to them as so.
+    \item Intensive computation given by the sheer number of features being created. A rough estimate of the size of the data set after feature creation is: 473 rows, and 35928 columns. 
+    \item Ensuring created features represent what it is intended to mean.
+    \item Ensuring no data leakage.
+\end{itemize}
+
+
+
+\end{document}

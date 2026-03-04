@@ -1,0 +1,205 @@
+======================================================================
+MODEL PERFORMANCE COMPARISON - ALL MODELS
+======================================================================
+Comparison Date: February 26, 2026
+Data: S&P 500 Binary Direction Prediction (Up/Down)
+Train/Test Split: 80/20 (standardized across all models)
+Window Size: 7 DAYS (standardized for all temporal models)
+Evaluation Metrics: Accuracy, Precision, Recall, F1-Score, ROC-AUC
+
+======================================================================
+OVERALL COMPARISON TABLE
+======================================================================
+
+Model              | Accuracy | Precision | Recall  | F1-Score | ROC-AUC | Architecture Notes
+-------------------|----------|-----------|---------|----------|---------|------------------------------------------
+SVM (RBF)          | 0.5387   | 0.5387    | 1.0000  | 0.7002   | 0.4917  | 7-day lags, 19K features, C=0.01
+RNN                | 0.5461   | 0.5535    | 0.8148  | 0.6592   | N/A     | SimpleRNN(64), 7-day window
+LSTM               | 0.5212   | 0.5349    | 0.8519  | 0.6571   | N/A     | Stacked (64→32), 7-day window
+Logistic L1        | 0.5486   | 0.5745    | 0.6250  | 0.5987   | 0.5342  | LASSO, 7-day lags, C=0.046416
+CNN (MLP)          | 0.5116   | 0.5393    | 0.6358  | 0.5836   | N/A     | 128→64 hidden, 7-day window
+Logistic L2        | 0.5012   | 0.5339    | 0.5833  | 0.5575   | 0.4888  | Ridge, 7-day lags, C=0.000774
+
+======================================================================
+PERFORMANCE RANKINGS
+======================================================================
+
+BY F1-SCORE (balances precision and recall):
+1. SVM (RBF):      0.7002  ⚠️  WARNING: Degenerate classifier (predicts all "Up")
+2. RNN:            0.6592
+3. LSTM:           0.6571
+4. Logistic L1:    0.5987
+5. CNN (MLP):      0.5836
+6. Logistic L2:    0.5575
+
+BY ACCURACY (overall correctness):
+1. Logistic L1:    0.5486
+2. RNN:            0.5461
+3. SVM (RBF):      0.5387
+4. LSTM:           0.5212
+5. CNN (MLP):      0.5116
+6. Logistic L2:    0.5012
+
+BY PRECISION (minimize false positives):
+1. Logistic L1:    0.5745
+2. RNN:            0.5535
+3. CNN (MLP):      0.5393
+4. SVM (RBF):      0.5387
+5. LSTM:           0.5349
+6. Logistic L2:    0.5339
+
+BY RECALL (minimize false negatives):
+1. SVM (RBF):      1.0000  ⚠️  Predicts all "Up" - misleading metric
+2. LSTM:           0.8519
+3. RNN:            0.8148
+4. CNN (MLP):      0.6358
+5. Logistic L1:    0.6250
+6. Logistic L2:    0.5833
+
+BY ROC-AUC (discrimination ability):
+1. Logistic L1:    0.5342
+2. SVM (RBF):      0.4917  ⚠️  Below random (0.50) - degenerate behavior
+3. Logistic L2:    0.4888  ⚠️  Below random (0.50)
+4-6. Neural nets:  N/A (not computed for Keras models)
+
+======================================================================
+MODEL-SPECIFIC DETAILS
+======================================================================
+
+1. CONVOLUTIONAL NEURAL NETWORK (CNN/MLP)
+   - Architecture: Dense(128, ReLU) → Dense(64, ReLU) → Dense(1, Sigmoid)
+   - Input: 7-day sequences (16,772 features flattened)
+   - Features: 2,396 per day × 7 days = 16,772
+   - Strengths: Good F1-score (0.5836), moderate recall (0.6358)
+   - Weaknesses: Lower accuracy (0.5116) compared to other models
+   - Training: Standard feedforward with 7-day temporal window
+   - Train/Val/Test: 1402/300/301 samples
+
+2. RECURRENT NEURAL NETWORK (RNN)
+   - Architecture: SimpleRNN(64, tanh) → Dropout(0.3) → Dense(1, sigmoid)
+   - Input: 7-day sequences (2,396 features per timestep)
+   - Strengths: BEST ACCURACY among neural networks (0.5461), high F1 (0.6592)
+   - High recall (0.8148) indicates good at catching "Up" movements
+   - Training: 13 epochs with early stopping
+   - Train/Test: 1602/401 samples
+   - Notes: Captures sequential patterns effectively with 7-day window
+
+3. LONG SHORT-TERM MEMORY (LSTM)
+   - Architecture: LSTM(64) → Dropout(0.2) → LSTM(32) → Dropout(0.2) → Dense(16) → Dense(1, sigmoid)
+   - Input: 7-day sequences (2,396 features per timestep)
+   - Parameters: 642,977 (stacked architecture)
+   - Strengths: Very high recall (0.8519), good F1 (0.6571)
+   - Training: 17 epochs completed, 19.4 seconds
+   - Train/Test: 1602/401 samples
+   - Notes: Best at detecting "Up" movements, may over-predict positive class
+
+4. SUPPORT VECTOR MACHINE (SVM - RBF Kernel)
+   - Kernel: Radial Basis Function (nonlinear)
+   - Features: 19,049 (7-day lagged: 2,381 stocks × 7 lags + 17 temporal)
+   - Optimal C: 0.01 (strong regularization)
+   - Strengths: Highest F1-score (0.7002) on paper
+   - ⚠️  CRITICAL ISSUE: Degenerate classifier behavior
+      * Predicts ALL samples as "Up" (Recall = 1.0)
+      * Confusion Matrix: 0 predicted "Down", 401 predicted "Up"
+      * ROC-AUC = 0.4917 (below random 0.50)
+      * High F1 is misleading due to class imbalance exploitation
+   - Notes: Model collapsed to majority class, not useful for prediction
+
+5. LOGISTIC REGRESSION (L1 - LASSO)
+   - Penalty: L1 (LASSO regularization)
+   - Features: 19,049 (7-day lagged)
+   - Optimal C: 0.046416
+   - Strengths: BEST LINEAR MODEL - highest accuracy (0.5486), precision (0.5745), ROC-AUC (0.5342)
+   - Training: 108 seconds
+   - Notes: Sparse solution, feature selection, best ROC-AUC among computed
+
+6. LOGISTIC REGRESSION (L2 - Ridge)
+   - Penalty: L2 (Ridge regularization)
+   - Features: 19,049 (7-day lagged)
+   - Optimal C: 0.000774 (very strong regularization)
+   - Weaknesses: Lowest accuracy (0.5012), ROC-AUC below random (0.4888)
+   - Training: 70 seconds
+   - Notes: Dense solution, all features retained with shrinkage
+
+======================================================================
+KEY INSIGHTS & RECOMMENDATIONS
+======================================================================
+
+BEST MODEL FOR DEPLOYMENT: RNN (Simple Recurrent Neural Network)
+- Reason: Highest accuracy (0.5461) and best F1-score (0.6592) among legitimate models
+- Strong recall (0.8148) for detecting market "Up" movements
+- Simpler architecture than LSTM - faster inference and training
+- Good balance between precision and recall without degenerate behavior
+
+ALTERNATIVE RECOMMENDATION: LSTM (Long Short-Term Memory)
+- Close second with F1=0.6571, excellent recall (0.8519)
+- Best for capturing complex temporal dependencies
+- More parameters (642,977) but still computationally feasible
+- Highest recall useful if prioritizing detection of upward movements
+
+BEST LINEAR MODEL: Logistic Regression L1 (LASSO)
+- Reason: Best accuracy (0.5486), precision (0.5745), and ROC-AUC (0.5342)
+- Interpretable coefficients with feature selection
+- Computationally efficient for production
+- Only model with ROC-AUC > 0.50 (actual discrimination ability)
+
+MODELS TO AVOID:
+1. SVM (RBF): Degenerate behavior - predicts all "Up" despite high F1
+2. Logistic L2: ROC-AUC below random (0.4888), overly regularized
+3. CNN: Lowest accuracy (0.5116) among all models
+
+OVERALL PERFORMANCE CONTEXT:
+- All models operate near 50-55% accuracy (slightly better than random)
+- S&P 500 direction prediction remains inherently difficult
+- With standardized 7-day windows, RNN emerged as most balanced performer
+- Neural networks (RNN, LSTM) show high recall but lower precision
+- Logistic L1 provides best discrimination ability (ROC-AUC=0.5342)
+
+PRECISION-RECALL TRADEOFF:
+- High Recall (capture most "Up" days): LSTM (0.8519), RNN (0.8148)
+- Balanced F1-Score: RNN (0.6592), LSTM (0.6571)
+- Better Precision (fewer false alarms): Logistic L1 (0.5745)
+
+ARCHITECTURE CONSIDERATIONS:
+- Sequential Models (RNN, LSTM): Benefit from 7-day temporal patterns
+- Feedforward (CNN/MLP): Simpler but less effective with this window size
+- Linear (Logistic): Most interpretable, feature importance accessible
+- Nonlinear SVM: Failed in this application due to degenerate collapse
+
+======================================================================
+TECHNICAL NOTES
+======================================================================
+
+Data Standardization:
+- All models use identical data pipeline (basic_model_original_data.py)
+- Features: 2,396 (2,380 stocks + 1 SPX Open + 6 day-of-week + 11 month dummies)
+- Target: y_binary (1=Up if next day SPX close ≥ open, 0=Down)
+- Class balance: ~46% Down, ~54% Up (slight imbalance)
+
+Feature Engineering:
+- Lagged models (SVM, Logistic): 7-day lag creates 19,049 features
+- Sequential models (LSTM, RNN, CNN): Use temporal sequences (7-day window standardized)
+- CNN flattens 7-day sequences: 2,396 × 7 = 16,772 features
+- RNN/LSTM process 7 timesteps with 2,396 features each
+- Temporal dummies (day-of-week, month): NOT lagged (categorical reference)
+- SPX Open: Included as predictor (lagged like stocks)
+
+Memory Optimizations:
+- float32 dtype throughout
+- Manual CV loops (avoid GridSearchCV overhead)
+- Single-threading for memory-intensive operations
+
+ROC-AUC Computation:
+- Only available for models with decision_function or predict_proba
+- Neural networks used binary output without probability calibration
+- Could be added to Keras models with additional sigmoid interpretation
+
+Reproducibility:
+- Random seeds set in all scripts
+- 80:20 train/test split consistent
+- Cross-validation: 5-fold stratified for hyperparameter tuning
+- All results exported to /workspaces/STAT-587-Final-Project/output/
+
+======================================================================
+END OF COMPARISON
+======================================================================

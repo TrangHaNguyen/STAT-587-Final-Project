@@ -1,0 +1,130 @@
+\documentclass[11pt]{article}
+\usepackage[utf8]{inputenc}  
+\usepackage{graphicx}
+\usepackage[english]{babel}    
+\usepackage{hyperref}        
+\usepackage{booktabs}		 
+\usepackage{a4wide}          
+\pagestyle{empty}            
+
+
+\title{STAT 587: Final Project \\
+Milestone 2 - Preliminary Results}
+\author{Due on February 22nd \\
+Trang Nguyen and Takeshi Stormer}
+\date{\today}
+
+
+\begin{document}
+
+\maketitle
+\thispagestyle{empty}       
+
+\section*{Worksheet Section — Fill In}
+\section{Data Preparation Summary:}
+\begin{itemize}
+    \item Missing values handling: Missing values were mostly attributed to the existence of stock ticker name changes (when merges occurred) or when a stock was either delisted or listed onto the stock exchange during the period for which the specific stock data is retrieved. For stocks that had a ticker name change, forward filling was applied from the prior day. This instance happened once. A handful of stocks were listed onto the stock exchange during the target period, and were entirely removed from the dataset.
+    \item Feature engineering: Features that were created include: percent changes, daily range, lag, exponential moving average, rolling volatility, max/min channel positions, rolling volume weighted average prices, rolling z-score, and open metric forward lagging features. We also 
+    \item Data transformations: 501 rows by 2520 columns to 473 rows by 41392 columns (after feature engineering, not from dimensionality reduction methods applied later).
+\end{itemize}
+
+\newpage
+
+\section{Initial EDA and Visualizations}
+The following heatmaps are created utilizing the engineered feature `Close PC' and the volatility time-series is created utilizing the engineered feature `Close VOL 28'.
+\begin{itemize}
+    \item Correlation Heatmap (All Sectors):
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.5\linewidth]{Milestone2 pictures/Sector Heatmap (All).png}
+    \caption{Sector Heatmap (All)}
+    \label{fig:placeholder}
+\end{figure}
+    \item Correlation Heatmap (Technology)
+    \begin{figure}[h]
+        \centering
+        \includegraphics[width=0.5\linewidth]{Milestone2 pictures/Sector Heatmap (Technology).png}
+        \caption{Sector Heatmap (Technology)}
+        \label{fig:placeholder}
+    \end{figure}
+\end{itemize} 
+\newpage
+\begin{itemize}
+    \item Correlation Heatmap (Real Estate)
+    \begin{figure}[h]
+        \centering
+        \includegraphics[width=0.5\linewidth]{Milestone2 pictures/Sector Heatmap (Real Estate).png}
+        \caption{Sector Heatmap (Real Estate)}
+        \label{fig:placeholder}
+    \end{figure}
+    \item Correlation Heatmap (Financial Services)
+    \begin{figure}[h]
+        \centering
+        \includegraphics[width=0.5\linewidth]{Milestone2 pictures/Sector Heatmap (Financial Services).png}
+        \caption{Sector Heatmap (Financial Services)}
+        \label{fig:placeholder}
+    \end{figure}
+\end{itemize}
+\newpage
+\begin{itemize}
+    \item Volatility Time-Series of All Sectors.
+    \begin{figure}[h]
+        \centering
+        \includegraphics[width=0.65\linewidth]{Milestone2 pictures/Sector Volatility (All).png}
+        \caption{Sector Volatility (All)}
+        \label{fig:placeholder}
+    \end{figure}
+    \item Volatility Time-Series of All Sectors (Smoothed)
+    \begin{figure}[h]
+        \centering
+        \includegraphics[width=0.6\linewidth]{Milestone2 pictures/Sector Volatility (All) (Smoothed).png}
+        \caption{Sector Volatility (All) (Smoothed)}
+        \label{fig:placeholder}
+    \end{figure}
+\end{itemize}
+\newpage
+
+\section{Baseline Models and Rationale}
+\begin{itemize}
+    \item Preliminary notes: There are a few dimensionality reduction methods included in the code including PCA, Ridge Regression, LASSO regression and step-wise regression using both the standard cross-validation method and the walk-forward validation method. The following models were tested using any combination of these dimension reduction methods. In almost all cases, there was data scaling (via StandardScaler provided by scikit-learn) performed when doing dimensionality reduction.
+    \item Model 1 - Logistic Regression (Chapter 4, section 4.4): 
+    Given the nature of logistic regression in classification, the method was chosen to help predict the direction of the following day. However, since this method requires that there only exists a number of parameters less than the number of observations, it was necessary for some dimensionality reduction methods to be applied. With the available logistic regression method provided by the library scikit-learn, LogisticRegressionCV and LogisticRegression, a penalty term was inherently already a part of initializing the model. However, there was still a necessity to reduce the amount of features (columns), since it would otherwise take an extended period of time to run (especially since convergence would be impossible with stocks or engineered features that experienced a great deal of multicollinearity; PCA and Ridge regression could [and were used in the code] to reduce some of the multicolinearity beforehand).
+    \item Model 2 - Random Forest Classifier (Chapter 5 and Chapter 15): 
+    There was some initial exploration into utilizing a random forest regressor then converting it's predictions into a binary response by checking for a positive or negative prediction. However, due to time-constraints, the exploration was stopped and only the random forest classifier was continued with. In this case, though the random forest classifier did not enforce that the number of parameters be less than that of the number of observations, there is no indication in the code that it was explored as a viable model. Instead, other dimensionality reduction methods were applied standalone (no combination of such methods), including: PCA, Ridge regression, LASSO regression, and Step-wise Regression utilizing walk forward validation.
+    \item Model 3 - Support Vector Machine (Chapter 12): This method is straight forward to a binary classification problem. It is highly applicable to the case of high dimensional data with smaller number of data points. As there are many feature, 
+    
+    
+    
+    
+    we will start with a linear kernel. If time allows, we may consider a non-linear kernel in addition..
+
+\end{itemize}
+
+\section{Evaluation Metrics (cite ESL Ch. 7)}
+\begin{itemize}
+    \item A train/test split had been used with the following ratio of 80-20 respectively. This was performed with a uniform random state and executed once after each application of a dimensionality reduction method to avoid the storing of large amounts of data each time a new method was introduced.
+    \item Model evaluation methods (functions) were programmed in to include:
+    \begin{itemize}
+        \item Generic classification accuracy to provide test accuracy and test average direction predicted. Average direction predicted is utilized to ensure that the model is simply not predicting a dominant direction of a specific market regime.
+        \item Displaying feature importance (specifically for random forests) to ensure that there is no blatant data leakage that would provide the model access to future data (which would also be seen through having spectacular classification accuracy). There was a variant of this made to display regression coefficients after logistic regression was applied.
+        \item Lastly, there is the standard cross-validation and walk-forward validation evaluation which utilizes cross\_validate (and cross\_val\_score) from scikit-learn to calculate the average accuracy, standard deviation amongst all folds, average precision and average recall.
+    \end{itemize}
+    \item Some results from performing these tests is that:
+    \begin{itemize}
+        \item The average accuracy tends to float around 45\% to 60\%, which is within an acceptable range. However, the standard deviation ranges from around 8\% to 25\%, which would otherwise mean that the performance of these models is too volatile to ever be used to model next-day market direction. However, this does not mean that these models cannot be further developed to reduce the standard deviation. 
+        \item Another note on the average accuracy being between 45\% and 60\% is that that could emphasize the fact that modeling the direction of the market could almost be done by simply flipping a coin.
+    \end{itemize}
+\end{itemize}
+% Receiver Operating Characteristic (ROC) curve will be plotted for different method to visualize their comparison while Area Under the Curve (AUC) will be used as one of the indices in model selection. The indices for model selection also include test error rate, specificity, and sensitivity.
+\section{Obstacles / Observations}
+Besides for obstacles that were mentioned in the prior milestone, there are some arising obstacles such as:
+\begin{itemize}
+    \item Verifying that the engineered features are 100\% valid with any amount of certainty.
+    \item Since most methods of model creation utilizes preexisting functions from libraries, there is some concern as to whether or not the application of the functions is also valid. 
+\end{itemize}
+
+\section{Reference}
+
+GitHub Repository - \href{https://github.com/Sabuchan123/STAT-587-Final-Project/tree/main}{Click Here}
+
+\end{document}

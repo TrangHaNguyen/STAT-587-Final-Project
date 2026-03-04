@@ -15,7 +15,7 @@ from model_evaluation import get_final_metrics_grid, rolling_window_backtest, cl
 VERBOSE=0
 
 if __name__=="__main__":
-    X, y_regression=cast(Any, clean_data(cluster=True))
+    X, y_regression=cast(Any, clean_data()) # You can set cluster=True and sector=True for different variations.
     X_train, X_test, y_train, y_test=train_test_split(X, y_regression, test_size=0.2, random_state=1)
     def to_binary_class(y):
         return (y>=0).astype(int)

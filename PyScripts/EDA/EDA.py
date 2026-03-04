@@ -1,11 +1,7 @@
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from data_preprocessing_and_cleaning import clean_data
 from pathlib import Path
-
-pd.set_option('display.max_rows', 100)
-pd.set_option('display.max_columns', 8)
 
 cwd=Path.cwd()
 for _ in range(5): 
@@ -16,7 +12,16 @@ for _ in range(5):
 else:
     raise FileNotFoundError("Could not find correct workspace folder.")
 
-lookup_df = pd.read_csv(cwd / "PyScripts" / "stock_lookup_table.csv")
+import sys
+import os
+sys.path.append(os.path.abspath(cwd / "PyScripts" / "Models"))
+from data_preprocessing_and_cleaning import clean_data
+
+
+pd.set_option('display.max_rows', 100)
+pd.set_option('display.max_columns', 8)
+
+lookup_df = pd.read_csv(cwd / "PyScripts" / "Data" / "stock_lookup_table.csv")
 
 X, y=clean_data()
 

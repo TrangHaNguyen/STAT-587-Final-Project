@@ -10,7 +10,7 @@ pd.set_option('display.max_columns', 8)
 
 cwd = get_cwd("STAT-587-Final-Project")
 
-def clean_data(cluster: bool =False):
+def clean_data(cluster: bool =False, sector: bool =False, corr: bool =False):
     # Hyperparameters
     lag=[1, 3, 7, 14]
     ema_windows=[7, 14, 28]
@@ -46,6 +46,11 @@ def clean_data(cluster: bool =False):
     # Generating percent change from day before to current day. 
     features=DATA.loc[:, idx[['Close', 'Open', 'High', 'Low'], 'Stocks', :]].copy().pct_change().rename(columns={metric: f"{metric} PC" for metric in ['Close', 'Open', 'High', 'Low']}, level=0)
     print("Created Percent Changes.")
+
+    if (corr):
+        X_stocks=features.xs('Close PC', level=0, axis=1).droplevel('Type', axis=1).dropna(axis=0, how='all')
+        corr_matrix=X_stocks.corr().abs()
+        pass
 
     if (cluster):
         X_stocks=features.xs('Close PC', level=0, axis=1).droplevel('Type', axis=1).dropna(axis=0, how='all').T
@@ -153,6 +158,16 @@ def clean_data(cluster: bool =False):
 
     y_regression=X[('Target', 'Index', 'Regression')].rename("Target Regression")
     X=X.drop(columns=['Target'], level=0)
+
+    if (sector):
+        lookup_df = pd.read_csv(cwd / "PyScripts" / "Data" / "stock_lookup_table.csv")
+        sector_map = lookup_df.set_index('Ticker')['Sector'].to_dict()
+
+        metrics = X.columns.get_level_values(0)
+        sectors = X.columns.get_level_values(2).map(sector_map)
+        
+        X = X.T.groupby([metrics, sectors]).mean().T
+
     print("Predictors, and Target (Regression) successfully split.")
 
     print("Finished Generating Features -------")
@@ -172,4 +187,4 @@ def pull_features(dataframe, feature_name, include=False):
         return new_dataframe
 
 if __name__ == "__main__":
-    clean_data(cluster=True)
+    clean_data(sector=True)

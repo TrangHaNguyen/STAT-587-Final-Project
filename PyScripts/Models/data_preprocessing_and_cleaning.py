@@ -10,18 +10,22 @@ pd.set_option('display.max_columns', 8)
 
 cwd = get_cwd("STAT-587-Final-Project")
 
-def clean_data(cluster: bool =False):
+def clean_data(cluster: bool =False, n_clusters: int =100, sector: bool =False, corr: bool =False, corr_threshold: float =0.95, corr_level: int =1, testing: bool =False):
     # Hyperparameters
     lag=[1, 3, 7, 14]
     ema_windows=[7, 14, 28]
     vol_windows=[7, 14, 28]
     max_min_windows=[7, 21]
     rol_VWAP_windows=[7, 14, 21]
-    idx = pd.IndexSlice
+    idx=pd.IndexSlice
 
+    table=None
     print("------- Downloading Data")
-    table = pq.read_table(cwd / "PyScripts" / "Data" / "raw_data_2_years.parquet")
-    DATA = table.to_pandas()
+    if (testing):
+        table=pq.read_table(cwd / "PyScripts" / "Data" / "raw_data_2_years.parquet")
+    else:
+        table=pq.read_table(cwd / "PyScripts" / "Data" / "raw_data_8_years.parquet")
+    DATA=table.to_pandas()
     print("Finished Downloading Data -------")
     print("Initial shape:", DATA.shape[0], "rows,", DATA.shape[1], "columns.")
 
@@ -33,13 +37,14 @@ def clean_data(cluster: bool =False):
         TEMP_DATA[(TEMP_DATA.isna().sum().sort_values(ascending=False)==1).index]=TEMP_DATA[(TEMP_DATA.isna().sum().sort_values(ascending=False)==1).index].ffill()
         # Remove any columns that still contain NA's (usually tickers that were listed on any exchange after Jan 1st, 2024)
         TEMP_DATA=TEMP_DATA.dropna(how="any", axis=1)
-        DATA = DATA.drop(columns=type, level=1).join(TEMP_DATA)
+        DATA=DATA.drop(columns=type, level=1).join(TEMP_DATA)
 
     # Dropping all rows where the Stocks observe a holiday in alignment with predicting if SPX will go up or down.
     stocks=DATA.loc[:, idx[:, 'Stocks', :]]
     to_drop=stocks.index[stocks.isna().all(axis=1)]
     DATA=DATA.drop(index=to_drop)
     print("Finished Cleaning Data -------")
+    print("Current shape:", DATA.shape[0], "rows,", DATA.shape[1], "columns.")
 
     print("------- Generating Necessary Features")
 
@@ -50,7 +55,7 @@ def clean_data(cluster: bool =False):
     if (cluster):
         X_stocks=features.xs('Close PC', level=0, axis=1).droplevel('Type', axis=1).dropna(axis=0, how='all').T
 
-        n_clusters=100 
+        n_clusters=n_clusters 
         kmeans=KMeans(n_clusters=n_clusters, random_state=1, n_init=10)
         clusters=kmeans.fit_predict(X_stocks)
 
@@ -64,9 +69,24 @@ def clean_data(cluster: bool =False):
 
         features=features.loc[:, idx[:, 'Stocks', representative_stocks]]
         features=pd.concat([features, DATA.loc[:, idx[['Close', 'Open', 'High', 'Low', 'Volume'], 'Stocks', representative_stocks]].copy()], axis=1)
-        print("Finished clustering and selected representative stocks.")
+        print("---EXTRA---: Applied clustering and selected representative stocks.")
+        print("Current shape:", features.shape[0], "rows,", features.shape[1], "columns.")
     else: 
         features=pd.concat([features, DATA.loc[:, idx[['Close', 'Open', 'High', 'Low', 'Volume'], 'Stocks', :]].copy()], axis=1)
+
+    if (corr):
+        if (corr_level not in [1, 2, 3]): raise ValueError("If corr=True, then corr_level must be 1 or 2 (default 1).")
+        elif (corr_level == 1 or corr_level == 3):
+            X_stocks=features.xs('Close PC', level=0, axis=1).droplevel('Type', axis=1).dropna(axis=0, how='all')
+            corr_matrix=X_stocks.corr().abs()
+
+            upper=corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool)) # Upper diagonal matrix where main diagonal is zero.
+
+            to_drop=[column for column in upper.columns if any(upper[column]>corr_threshold)]
+
+            features=features.drop(columns=to_drop, level='Ticker')
+            print(f"---EXTRA---: (corr_level={corr_level}) Dropped {len(to_drop)} highly correlated stocks by closing percent change.")
+            print("Current shape:", features.shape[0], "rows,", features.shape[1], "columns.")
 
     features["Day of Week"]=features.index.dayofweek
     print("Created Day of Week.")
@@ -140,6 +160,8 @@ def clean_data(cluster: bool =False):
             features=pd.concat([features, features.loc[:, idx[metric, :, :]].shift(-1).rename(columns={metric: f"{metric} Forward Lag"})], axis=1)
     print("Created Open Metrics Forward Lag.")
 
+
+    features=features.sort_index(axis=1)
     features.drop(columns=["Close", "Open", "High", "Low"], inplace=True)
     print("Cleaned up Unnecessary Columns.")
 
@@ -153,6 +175,47 @@ def clean_data(cluster: bool =False):
 
     y_regression=X[('Target', 'Index', 'Regression')].rename("Target Regression")
     X=X.drop(columns=['Target'], level=0)
+
+    if (sector):
+        if (corr or cluster): print("!!!WARNING!!!: Since dimensionality was reduced before grouping by sector, the sector feature averages may no longer reflect the sector itself.")
+        lookup_df = pd.read_csv(cwd / "PyScripts" / "Data" / "stock_lookup_table.csv")
+        sector_map = lookup_df.set_index('Ticker')['Sector'].to_dict()
+
+        metrics = X.columns.get_level_values(0)
+        sectors = X.columns.get_level_values(2).map(sector_map)
+        
+        X = X.T.groupby([metrics, sectors]).mean().T
+        print("---EXTRA---: Grouped Features by Sector Averages.")
+        print("Current shape:", features.shape[0], "rows,", features.shape[1], "columns.")
+
+    if (corr and (corr_level == 2 or corr_level == 3)):
+        cols_to_remove=[]
+        if (not sector):
+            for feature in X.columns.get_level_values(0).unique():
+                X_stocks=X.xs(feature, level=0, axis=1).droplevel('Type', axis=1)
+                corr_matrix=X_stocks.corr().abs()
+
+                upper=corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool)) # Upper diagonal matrix where main diagonal is zero.
+
+                to_drop=[column for column in upper.columns if any(upper[column]>corr_threshold)]
+
+                for ticker in to_drop:
+                    cols_to_remove.append((feature, 'Stocks', ticker))
+        else:
+            for feature in X.columns.get_level_values(0).unique():
+                X_stocks=X.xs(feature, level=0, axis=1)
+                corr_matrix=X_stocks.corr().abs()
+
+                upper=corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool)) # Upper diagonal matrix where main diagonal is zero.
+
+                to_drop=[column for column in upper.columns if any(upper[column]>corr_threshold)]
+
+                for ticker in to_drop:
+                    cols_to_remove.append((feature, ticker))
+        X=X.drop(columns=cols_to_remove)
+        print(f"---EXTRA---: (corr_level={corr_level}) Dropped {len(cols_to_remove)} highly correlated feature columns.")
+            
+
     print("Predictors, and Target (Regression) successfully split.")
 
     print("Finished Generating Features -------")
@@ -172,4 +235,4 @@ def pull_features(dataframe, feature_name, include=False):
         return new_dataframe
 
 if __name__ == "__main__":
-    clean_data(cluster=True)
+    clean_data(sector=True, cluster=True, corr=True, corr_level=3)

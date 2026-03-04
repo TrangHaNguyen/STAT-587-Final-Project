@@ -10,19 +10,19 @@ from sklearn.pipeline import Pipeline
 
 from dimension_reduction import step_wise_reg_wfv
 from data_preprocessing_and_cleaning import clean_data
-from model_evaluation import get_final_metrics_grid, rolling_window_backtest, classification_accuracy
+from model_evaluation import get_final_metrics_grid, rolling_window_backtest, get_final_metrics
 
 VERBOSE=0
 
 if __name__=="__main__":
-    X, y_regression=cast(Any, clean_data()) # You can set cluster=True and sector=True for different variations.
+    X, y_regression=cast(Any, clean_data(cluster=True, sector=True, corr=True, corr_level=3, corr_threshold=0.9, testing=True)) # You can set cluster=True and sector=True for different variations.
     X_train, X_test, y_train, y_test=train_test_split(X, y_regression, test_size=0.2, random_state=1)
     def to_binary_class(y):
         return (y>=0).astype(int)
     y_regression=to_binary_class(y_regression)
     y_train=to_binary_class(y_train)
     y_test=to_binary_class(y_test)
-    tscv=TimeSeriesSplit(n_splits=3)
+    tscv=TimeSeriesSplit(n_splits=3) # CHANGEABLE
     
     # ------- BASE APPLICATION -------
     print("\n\n------- Base RF Model -------")
@@ -38,7 +38,9 @@ if __name__=="__main__":
     grid_search_base=GridSearchCV(RF_pipeline_base, param_grid, cv=tscv, n_jobs=-1, return_train_score=True, verbose=VERBOSE)
     grid_search_base.fit(X_train, y_train)
 
-    rolling_window_backtest(grid_search_base, X, y_regression, verbose=1)
+    optimized_base_=grid_search_base.best_estimator_
+
+    rolling_window_backtest(optimized_base_, X, y_regression, verbose=1)
 
     get_final_metrics_grid(grid_search_base, X_test, y_test)
 
@@ -60,7 +62,9 @@ if __name__=="__main__":
     grid_search_PCA=GridSearchCV(RF_pipeline_PCA, param_grid, cv=tscv, n_jobs=-1, return_train_score=True, verbose=VERBOSE)
     grid_search_PCA.fit(X_train, y_train)
 
-    rolling_window_backtest(grid_search_PCA, X, y_regression, verbose=1)
+    optimized_PCA_=grid_search_PCA.best_estimator_
+
+    rolling_window_backtest(optimized_PCA_, X, y_regression, verbose=1)
 
     get_final_metrics_grid(grid_search_PCA, X_test, y_test)
 
@@ -83,7 +87,9 @@ if __name__=="__main__":
     grid_search_LASSO=GridSearchCV(RF_pipeline_lasso, param_grid, cv=tscv, n_jobs=-1, return_train_score=True, verbose=VERBOSE)
     grid_search_LASSO.fit(X_train, y_train)
 
-    rolling_window_backtest(grid_search_LASSO, X, y_regression, verbose=1)
+    optimized_LASSO_=grid_search_LASSO.best_estimator_
+
+    rolling_window_backtest(optimized_LASSO_, X, y_regression, verbose=1)
 
     get_final_metrics_grid(grid_search_LASSO, X_test, y_test)
 
@@ -106,7 +112,9 @@ if __name__=="__main__":
     grid_search_ridge=GridSearchCV(RF_pipeline_ridge, param_grid, cv=tscv, n_jobs=-1, return_train_score=True, verbose=VERBOSE)
     grid_search_ridge.fit(X_train, y_train)
 
-    rolling_window_backtest(grid_search_ridge, X, y_regression, verbose=1)
+    optimized_ridge_=grid_search_ridge.best_estimator_
+
+    rolling_window_backtest(optimized_ridge_, X, y_regression, verbose=1)
 
     get_final_metrics_grid(grid_search_ridge, X_test, y_test)
 
@@ -150,8 +158,6 @@ if __name__=="__main__":
 
     rolling_window_backtest(RFClassifier_red_sw_wfv, X[X_train_final.columns], y_regression, verbose=1)
 
-    acc, avg=classification_accuracy(RFClassifier_red_sw_wfv.predict(X_test_final), y_test)
-    print("Accuracy (Test):", acc)
-    print("Average Direction:", avg)
+    get_final_metrics(RFClassifier_red_sw_wfv, X_train_final, y_train, X_test_final, y_test)
 
     input("Press Enter to Finish...")

@@ -34,60 +34,39 @@ Trang Nguyen and Takeshi Stormer}
 \section*{Final Report Requirements}
 
 \section{Introduction}
-\textit{Motivation} Beyond the pursuit of generating infinite wealth by predicting the future values of the stock market (or inadvertently collapsing any concept of having a financial market to begin with), simply being content with being able to predict the direction of the market (emphasis on the US stock market) of the following day allows for individuals to trade and/or invest more wisely. The motivation behind understanding this problem, and subsequently attempting to solve it, is given by the consequences it could bring to the financial industry. The conclusion of this paper will give insight as to whether or not the aforementioned data is adequate towards predicting the direction of the US stock market, and if not, gives rise to the question of whether or not it is possible to find any amount of data that will.     
+\textit{Motivation} Beyond the pursuit of generating infinite wealth by predicting the future values of the stock market (or inadvertently collapsing any concept of having a financial market to begin with), simply being content with being able to predict the direction of the market (emphasis on the US stock market) of the following day allows for individuals to trade and/or invest more wisely. The motivation behind understanding this problem, and subsequently attempting to solve it, is given by the consequences it could bring to the financial industry. 
 
-Domain context: Financial Economics
-Our model with different window of time may answer the question how efficient the market is. That is, if the prediction using the hourly data is better than they daily data, we can say that the market efficiency is much better today.
+In addition, there is an interesting discussion on how efficient the market is. If the market is efficient, then it should be impossible to predict the direction of the market with any amount of data. If the market is not efficient, then it should be possible to predict the direction of the market with some amount of data. The real world data might indicate a stage between the two extremes, which is also interesting to analyze: morderate past information may contribute to the prediction of the market direction, but the predictive power of such data may diminish as more longer past values is added.
+
+This paper will shed a light on whether or not the aforementioned data is adequate towards predicting the direction of the US stock market, and if not, gives rise to the question of whether or not it is possible to find any amount of data that will.     
+
 \subsection{Research problem}
-Our project aim at predicting the Direction of the S\&P500 Index. More specifically, we're interested in determining the direction of the market on the following day (on a day-to-day basis).
+
+Our project aim at predicting the Direction of the S\&P500 Index. More specifically, we're interested in determining the direction of the market on the following day (on a day-to-day basis). Along with the prediction, we indirectly answer the question of how efficiency of the market is, and whether or not there are any patterns in the data that can be utilized to predict the market direction.
+
 \subsection{Background context}
+
+The S\&P 500 Index is a stock market index that measures the stock performance of 500 largest companies in terms of market capitalization listed on the stock exchanges in the United States. This index is one of the most commonly followed equity indices and is often used as a benchmark for the overall performance of the U.S. stock market. The index includes companies from various sectors, such as technology, healthcare, financial services, consumer discretionary, and more. The S\&P 500 Index is widely regarded as a leading indicator of the health of the U.S. economy and is closely watched by investors, analysts, and policymakers.
+
+The computation of the index employ the float-adjusted market capitalization (FMC), which accounts for only the shares that can actually be traded in the market, in the weighting process. This means that the companies with larger market caps are weighted more heavily, making their positive/negative share price movements much more impactful on the broader index.
+
+Predicting the direction of the stock market is a complex task that has been studied extensively in the field of finance and economics. The stock market is influenced by a wide range of factors, including economic indicators, company performance, geopolitical events, and investor sentiment. As a result, accurately predicting the direction of the stock market can be challenging, and there is no single method that can guarantee success. This project will explore various machine learning techniques to predict the direction of the S\&P 500 Index, and evaluate their performance based on historical data.
+
 \subsection{Dataset description}
-Data include price metrics and volumn traded of stocks that are part of the S\&P 500 index spanning January 1st, 2024, to December 31st, 2025. It needs to be noted that holidays in the US, Germany and Japan do not necessarily coincide. Front-filling was applied to indexes to account for these holidays. We removed rows based on whether or not a holiday was observed by all stocks (in other words, all values in one row for stocks were NA). The resulting preprocessed dataset should contain no NAs. Some further cleaning was performed to remove stocks that were listed on a date past January 1st.
+
+Data include price metrics and volumn traded of stocks that are part of the S\&P 500 index spanning January 1st, 2018, to December 31st, 2025. We removed rows based on whether or not a holiday was observed by all stocks (in other words, all values in one row for stocks were NA). The resulting preprocessed dataset should contain no NAs. Some further cleaning was performed to remove stocks that were listed on a date past January 1st.
+
+The raw data loaded from Yahoo Finance contains open price, close price, high price, low price, and traded volume for each stock. The data is then engineered to create additional features that are commonly used in financial analysis and trading strategies. These features include lag values, percent change, volatility, max/min channel position, rolling volume weighted average prices, rolling z-scores, daily range, and day of week. 
+
+Lag captures momentum, which will allow us to see if past data has any impact on future values. Except for the setting of the neural network methods to include each data points in the model, all other methods for prediction requires additional predictors of lag values to be created before the training process. Different lag periods are used and the results will be compared to see if there is any significant difference in the performance of the model. This feature is particularly important for the machine learning method that is different from tradditional economic time series analysis method, as it allows us to capture the relationship between past and future values in a more flexible way.
+
+Regarding other created features, the percent change is a common way to measure the relative change in price over time, which can be more informative than absolute price changes. The volatility feature captures the variability of price movements, which can be an important factor in predicting future price movements. The max/min channel position can help identify potential support and resistance levels, which can be useful for predicting future price movements. The rolling volume weighted average price (VWAP) can provide insight into the average price at which a stock has traded over a certain period of time, which can be useful for predicting future price movements. The rolling z-score can help identify outliers in the data, which can be useful for predicting future price movements. The daily range can provide insight into the volatility of a stock, which can be useful for predicting future price movements. Finally, the day of week feature can capture any potential patterns in stock price movements that may occur on specific days of the week. 
+
+% At the end of our analysis, features involving non-stationary metrics (EMA, OP, CP, HP, LP, VWAP) are not included in the final model as they do not contribute to the prediction of the market direction. The final model will only include features that are stationary and have a significant impact on the prediction of the market direction.
 
 
+The raw data loaded contains 501 rows, and 2520 columns (roughly around 20 megabytes worth of data). The sizable number of columns is explained by each stock (503) and index (1) having their own price metrics for CP, OP, HP, LP and TV $([503+1] * 5)=2520$. The number of rows is explained by the exclusion of 19 holidays and 211 weekend days.
 
-
-\begin{itemize}
-    \item 
-    \item Variables: \begin{itemize}
-        \item Base features (raw data dowloaded): 
-        \begin{itemize}
-            \item Open Price (OP)
-            \item Close Price (CP)
-            \item High Price (HP)
-            \item Low Price (LP)
-            \item Traded Volume (TV)
-            \item Day of the week
-            \item Month of the year
-        \end{itemize}
-        \item Generated Features (for Price metrics): 
-        \begin{itemize}
-            \item Lag (over varying periods). Due to the nature of time series data, the lag values are important in predicting the direction of the market next day. Except for the setting of the neural network methods to include each data points in the model, all other methods for prediction requires additional predictors of lag values to be created before the training process. The lag period is 21 days for some methods and 7 days for the others due to computationally intensive nature of the latter and our group's time and resource constraints 
-            
-            \item OP, CP, HP, LP Percent Change (PC)
-            \item Exponential Moving Average (over varying windows)
-            \item Volatility (over varying periods)
-            \item Max/Min Channel Position (over varying windows)
-            \item Rolling Volume Weighted Average Prices (VWAP) (over varying windows)
-            \item Rolling Z-Scores (over varying windows)
-            \item Daily Range
-            \item If time permits, we will attempt to add average stock price and standard deviation of a stock price within a day, and day of week analysis. 
-        \end{itemize}
-        \item Note on Generated Features:
-        \begin{itemize}
-            \item Percent change is utilized to have stationary data. Without this, we can run into issues where a method involving decision trees utilize outdated prices that are not relevant to future prices (i.e. the value of a share goes from \$10 to \$100, an internal node with condition [Close $<$ \$25] will never be activated if the relevant price as of present is \$100)
-            \item Lag captures momentum, which will allow us to see if past data has any impact on future values.
-            \item Volatility looks to capture how much a stock can be expected to move within a certain day. For the extent of this project, volatility can be seen as the standard deviation of price movements.
-            \item The exponential moving average captures more recent price movements quicker than a normal moving average by recursively generating a new average with a weight that emphasizes the new price point. This allows for an increased ability to analyze short-term trends as we are looking to predict the following day while maintaining the benefits of a moving average.
-            \item A Max/Min channel position allows for identification of support and resistant lines, which can further provide insight of potential breakouts.
-            \item The rolling volume weighted average price looks to portray the value of share based on the amount people are willing to pay for it. This ensures that price points where investors are primarily buying or selling shares at is reflected, as opposed to seeing potentially a misleading share price.
-            \item The rolling z-score utilizes the exponential moving average and volatility in order to generate z-scores of a price movement. It is good to note that a t-distribution will probably fit this projects use-case, as there are days influenced by external events that cause price movements you would be believe to not occur given a z-score.
-            \item \textbf{IMPORTANT}: Features involving non-stationary metrics (EMA, OP, CP, HP, LP, VWAP) will be removed when K-fold cross-validation is introduced.
-        \end{itemize}
-    \end{itemize}
-    \item Size: The raw data contains 501 rows, and 2520 columns (roughly around 20 megabytes worth of data). The sizable number of columns is explained by each stock (503) and index (1) having their own price metrics for CP, OP, HP, LP and TV $([503+1] * 5)=2520$. The number of rows is explained by the exclusion of 19 holidays and 211 weekend days.
-
-\end{itemize}
 
 \textbf{Key points}: Large number of features, higher than number of observation. Data is time series
 

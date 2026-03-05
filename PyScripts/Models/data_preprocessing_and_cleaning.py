@@ -10,13 +10,13 @@ pd.set_option('display.max_columns', 8)
 
 cwd = get_cwd("STAT-587-Final-Project")
 
-def clean_data(lookback_period: int =5, lag_period: int =1, extra_features: bool =True, raw: bool =False, cluster: bool =False, n_clusters: int =100, sector: bool =False, corr: bool =False, corr_threshold: float =0.95, corr_level: int =1, testing: bool =False):
+def clean_data(lookback_period: int =5, lag_period: list =[1], extra_features: bool =True, raw: bool =False, cluster: bool =False, n_clusters: int =100, sector: bool =False, corr: bool =False, corr_threshold: float =0.95, corr_level: int =1, testing: bool =False):
     if (lookback_period < 5): 
         if (lookback_period!=0):
             raise ValueError("lookback_period must be greater than  or equal to 2.")
     
     # Hyperparameters
-    lag=[lag_period]
+    lag=lag_period
     ema_windows=[lookback_period]
     vol_windows=[lookback_period]
     max_min_windows=[lookback_period]
@@ -105,10 +105,11 @@ def clean_data(lookback_period: int =5, lag_period: int =1, extra_features: bool
         print("---EXTRA---: Created Daily Range.")
 
     if (not raw):
-        for metric in ['Close PC', 'Open PC']:
-            for lag_period in lag:
-                features=pd.concat([features, features.loc[:, idx[metric, :, :]].shift(lag_period).rename(columns={metric: f"{metric} Lag {lag_period}"}, level=0)], axis=1)
-        print("Created Lag.")
+        if (lag_period!=0 or lag_period==[0]):
+            for metric in ['Close PC', 'Open PC']:
+                for lag_period in lag:
+                    features=pd.concat([features, features.loc[:, idx[metric, :, :]].shift(lag_period).rename(columns={metric: f"{metric} Lag {lag_period}"}, level=0)], axis=1)
+            print("Created Lag.")
 
         if (lookback_period != 0):
             for metric in ['Close', 'Open']:

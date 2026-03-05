@@ -1,0 +1,40 @@
+\begin{table}[htbp]
+\centering
+\caption{Comprehensive Model Performance Comparison for S\&P 500 Binary Direction Prediction}
+\label{tab:model_comparison}
+\small
+\begin{tabular}{lcccccc}
+\toprule
+\textbf{Model} & \textbf{Accuracy} & \textbf{Precision} & \textbf{Recall} & \textbf{F1-Score} & \textbf{ROC-AUC} & \textbf{Notes} \\
+\midrule
+\multicolumn{7}{l}{\textit{Neural Network Models (7-day sequential window)}} \\
+\midrule
+RNN$^\star$ & 0.5461 & 0.5535 & 0.8148 & 0.6592 & N/A & SimpleRNN(64), best overall \\
+LSTM & 0.5212 & 0.5349 & 0.8519 & 0.6571 & N/A & Stacked (64$\to$32) \\
+CNN (MLP) & 0.5116 & 0.5393 & 0.6358 & 0.5836 & N/A & Dense(128$\to$64) \\
+\midrule
+\multicolumn{7}{l}{\textit{Support Vector Machine (7-day lagged features, 19K dims)}} \\
+\midrule
+SVM (RBF)$^\dagger$ & 0.5387 & 0.5387 & 1.0000 & 0.7002 & 0.4917 & C=0.01, degenerate \\
+\midrule
+\multicolumn{7}{l}{\textit{Logistic Regression Models (7-day lagged features, 19K dims)}} \\
+\midrule
+Logistic L1 (LASSO)$^\star$ & 0.5486 & 0.5745 & 0.6250 & 0.5987 & 0.5342 & C=0.046416, best linear \\
+Logistic L2 (Ridge) & 0.5012 & 0.5339 & 0.5833 & 0.5575 & 0.4888 & C=0.000774 \\
+\midrule
+\multicolumn{7}{l}{\textit{Dimensionality Reduction Models (PCA + Feature Selection)}} \\
+\midrule
+PCA + Classifier & 0.5368 & 0.5660 & 0.7438 & 0.5167 & N/A & 41K$\to$PCA features \\
+LASSO (Reduced) & 0.4632 & 0.5583 & 0.7049 & 0.5167 & N/A & Feature selection \\
+Ridge (Reduced) & 0.5158 & 0.6104 & 0.7951 & 0.5750 & N/A & Regularized \\
+\bottomrule
+\end{tabular}
+\par\medskip
+\footnotesize
+\textbf{Notes:}
+$^\star$ Recommended models for deployment. 
+$^\dagger$ SVM (RBF) exhibits degenerate behavior, predicting all samples as ``Up'' (Recall=1.0, ROC-AUC$<$0.50).
+All models use 80/20 train/test split. Neural networks use 7-day sequential windows; 
+lagged models create 7-day lag features. ROC-AUC not computed for neural networks.
+``Reduced'' models use dimensionality reduction (PCA or feature selection) on 41K features.
+\end{table}

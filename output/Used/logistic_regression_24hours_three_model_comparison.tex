@@ -5,6 +5,7 @@
 \centering
 \caption{Logistic Regression Comparison: Base L2 vs Elastic Net vs Feature-Engineered L2 (24-hour lag features)}
 \label{tab:logreg_l2_elasticnet_24h}
+\resizebox{\textwidth}{!}{%
 \begin{tabular}{lccc}
 \hline
 \textbf{Metric / Parameter} & \textbf{L2 (Ridge)} & \textbf{Elastic Net} & \textbf{FeatureEng L2} \\
@@ -21,5 +22,6 @@ Cross-validation & 5-fold stratified & 5-fold stratified & 5-fold stratified \\
 Optimal $C$ & 166.810054 & 166.810054 & 0.000100 \\
 $l1\_ratio$ & N/A & 0.90 & N/A \\
 \hline
-\end{tabular}
+\end{tabular}%
+}
 \end{table}

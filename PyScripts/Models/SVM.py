@@ -1,5 +1,4 @@
 import pandas as pd
-from data_preprocessing_and_cleaning import clean_data
 from sklearn.model_selection import train_test_split, GridSearchCV, TimeSeriesSplit
 from sklearn.svm import SVC
 from sklearn.base import clone
@@ -7,8 +6,10 @@ from typing import Any, cast
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, classification_report
-from helper_functions import get_cwd
-from model_evaluation import rolling_window_backtest, get_final_metrics, get_final_metrics_grid
+
+from H_prep import clean_data
+from H_helpers import get_cwd
+from H_eval import rolling_window_backtest, get_final_metrics
 
 pd.set_option('display.max_rows', 100)
 pd.set_option('display.max_columns', 8)

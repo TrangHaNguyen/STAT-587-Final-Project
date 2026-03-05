@@ -9,9 +9,9 @@ from sklearn.decomposition import PCA
 from sklearn.feature_selection import SelectFromModel
 from sklearn.pipeline import Pipeline
 
-from dimension_reduction import step_wise_reg_wfv
-from data_preprocessing_and_cleaning import clean_data
-from model_evaluation import get_final_metrics_grid, rolling_window_backtest, get_final_metrics
+from H_reduce import step_wise_reg_wfv
+from H_prep import clean_data
+from H_eval import get_final_metrics_grid, rolling_window_backtest, get_final_metrics
 
 VERBOSE=0
 

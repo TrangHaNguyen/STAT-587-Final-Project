@@ -67,77 +67,84 @@ Regarding other created features, the percent change is a common way to measure 
 
 The raw data loaded contains 501 rows, and 2520 columns (roughly around 20 megabytes worth of data). The sizable number of columns is explained by each stock (503) and index (1) having their own price metrics for CP, OP, HP, LP and TV $([503+1] * 5)=2520$. The number of rows is explained by the exclusion of 19 holidays and 211 weekend days.
 
-
-\textbf{Key points}: Large number of features, higher than number of observation. Data is time series
+Overall, the data is characterized by a large number of features (columns) compared to the number of observations (rows), which can pose challenges for traditional statistical methods. Additionally, the data is time series in nature, which means that there may be temporal dependencies and patterns that need to be accounted for in the analysis. These characteristics of the data will influence the choice of methods and techniques used for prediction and analysis in this project.
 
 \subsection{Exploratory Data Analysis}
-The following heatmaps are created utilizing the engineered feature `Close PC' and the volatility time-series is created utilizing the engineered feature `Close VOL 28'.
-\begin{itemize}
-    \item Correlation Heatmap (All Sectors):
+The following heatmaps are created utilizing the engineered feature `Close PC' and the volatility time-series is created utilizing the engineered feature `Close VOL 28'. T
+
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.5\linewidth]{../output/sector_correlation.png}
-    \caption{Sector Heatmap (All)}
+    \includegraphics[width=0.75\linewidth]{../output/2yrs_sector_correlation.png}
+    \caption{Pairwise Pearson correlation of mean daily returns (Close PC) across all GICS sectors,
+             computed over the sample period. Hierarchical clustering (Ward linkage) reorders
+             the axes to group sectors with similar return dynamics together.}
     \label{fig:sector-correlation}
 \end{figure}
-    \item Correlation Heatmap (Technology)
-    \begin{figure}[h]
-        \centering
-        \includegraphics[width=0.5\linewidth]{../output/sector_Technology_clustered.png}
-        \caption{Sector Heatmap (Technology)}
-        \label{fig:sector-tech}
-    \end{figure}
-\end{itemize} 
-\newpage
-\begin{itemize}
-    \item Correlation Heatmap (Industrial)
-    \begin{figure}[h]
-        \centering
-        \includegraphics[width=0.5\linewidth]{../output/sector_Industrials_clustered.png}
-        \caption{Sector Heatmap (Industrial)}
-        \label{fig:sector-industrials}
-    \end{figure}
-    \item Correlation Heatmap (Financial Services)
-    \begin{figure}[h]
-        \centering
-        \includegraphics[width=0.5\linewidth]{../output/sector_Financial_Services_clustered.png}
-        \caption{Sector Heatmap (Financial Services)}
-        \label{fig:sector-financials}
-    \end{figure}
-\end{itemize}
-\newpage
-\begin{itemize}
-    \item Volatility Time-Series of All Sectors.
-    \begin{figure}[h]
-        \centering
-        \includegraphics[width=0.65\linewidth]{../output/sector_volatility_over_time.png}
-        \caption{Sector Volatility (All)}
-        \label{fig:sector-vol}
-    \end{figure}
-    \item Volatility Time-Series of All Sectors (Smoothed)
-    \begin{figure}[h]
-        \centering
-        % Figure file not yet available in output/
-        % \includegraphics[width=0.6\linewidth]{../output/sector_volatility_smoothed.png}
-        \caption{Sector Volatility (All) (Smoothed)}
-        \label{fig:sector-vol-smooth}
-    \end{figure}
-\end{itemize}
-\newpage
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.85\linewidth]{../output/2yrs_sector_sp500_correlation.png}
+    \caption{Pearson correlation of each sector's mean daily return with the S\&P 500 daily return
+             ranked by absolute correlation magnitude. Bars highlighted
+             in green (Technology, Healthcare, Consumer Defensive) are the top 3 sectors most
+             strongly co-moving with the broader market.}
+    \label{fig:sector-sp500-corr}
+\end{figure}
+
+Figure \ref{fig:sector-correlation} shows the correlation of mean daily returns across all sectors \footnote{GICS: Global Industry Classification Standard - a standardized sector taxonomy developed jointly by MSCI and S&P Dow Jones Indices. It groups companies into 11 sectors. See more at https://www.msci.com/gics}. Certain sectors, such as Technology, Healthcare, and Consumer Defensive, exhibit stronger positive correlations with each other while sectors like Utilities and Real Estate show weaker correlations with other sectors. In addition, the sectors' correlation with the S\&P 500 Index (Figure~\ref{fig:sector-sp500-corr}) indicates that Technology, Healthcare, and Consumer Defensive sectors also have the strongest absolute correlations with the overall market while Utilities and Real Estate show weaker correlations.
 
 
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.75\linewidth]{../output/2yrs_sector_Technology_clustered.png}
+    \caption{Intra-sector correlation matrix for the Technology sector (80 stocks, 2-year window).
+             Technology is the sector with the highest absolute correlation with SP500 returns
+             ($|r| = 0.116$). Stocks are ordered by hierarchical clustering; warm colours indicate
+             strong positive co-movement while cool colours indicate divergence.}
+    \label{fig:sector-tech}
+\end{figure}
 
 
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.75\linewidth]{../output/2yrs_sector_Healthcare_clustered.png}
+    \caption{Intra-sector correlation matrix for the Healthcare sector (2-year window).
+             Healthcare ranks 2nd by absolute correlation with SP500 returns ($|r| = 0.106$).
+             Hierarchical clustering reveals sub-groups such as large-cap pharma, biotech,
+             and medical device companies.}
+    \label{fig:sector-healthcare}
+\end{figure}
 
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.75\linewidth]{../output/2yrs_sector_Consumer_Defensive_clustered.png}
+    \caption{Intra-sector correlation matrix for the Consumer Defensive sector (36 stocks, 2-year
+             window). Consumer Defensive ranks 3rd by absolute correlation with SP500 returns
+             ($|r| = 0.097$). Hierarchical clustering groups staples retailers, beverage firms,
+             and household product companies.}
+    \label{fig:sector-consumer-defensive}
+\end{figure}
+Figure \ref{fig:sector-tech}, \ref{fig:sector-healthcare}, and \ref{fig:sector-consumer-defensive} show the intra-sector correlation matrices for the Technology, Healthcare, and Consumer Defensive sectors, respectively. The tickers in those plots are sorted by hierarchical clustering, which reveals sub-groups of stocks that tend to move together, such as large-cap tech giants, semiconductor companies, and software firms. This suggests that certain segments within these sectors may be driving their overall correlation with the broader market. In addition, it suggest that there might be a high degree of redundancy in the data, which could pose challenges for traditional statistical methods and motivate the use of dimensionality reduction techniques or regularization.
 
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.85\linewidth]{../output/2yrs_sector_volatility_over_time.png}
+    \caption{Rolling 21-day average cross-sectional volatility (standard deviation of daily returns)
+             for each GICS sector. Spikes correspond to broad
+             market stress events affecting multiple sectors simultaneously.}
+    \label{fig:sector-vol}
+\end{figure}
 
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.85\linewidth]{../output/2yrs_smoothed_sector_volatility.png}
+    \caption{Smoothed sector volatility obtained by applying a 40-day rolling mean to the
+             21-day rolling volatility series. The additional smoothing removes short-term noise
+             and highlights persistent structural differences in risk across sectors.}
+    \label{fig:sector-vol-smooth}
+\end{figure}
 
-
-
-
-
-
-
+Figure \ref{fig:sector-vol} and \ref{fig:sector-vol-smooth} show the rolling 21-day average cross-sectional volatility for each GICS sector and the smoothed version obtained by applying a 40-day rolling mean, respectively. The volatility series reveal that certain sectors, such as Energy and Financials, tend to exhibit higher volatility compared to others like Utilities and Consumer Staples. This support our earlier construction of volatility features for initially all stocks (before dimensionality reduction) rather than just a single index, as it suggests that there may be important information contained in the volatility of individual stocks that could contribute to predicting the overall market direction. In addition, the smoothed volatility series highlight persistent structural differences in risk across sectors, which could also be informative for prediction. Nevertheless, some similarity in these patterns across sectors suggest that dimensionality reduction techniques or regularization may be necessary to effectively capture the underlying structure of the data.
 
 \section{Methods}
 As our data set is time series and has a large number of features compared to the number of data points, some methods prove to have more merits, namely random forest tree classification, support vector machine, and neural networks (CNN, simple RNN, LSTM). These methods, however, require a certain level of computational capacity, which is not very extensive giving our constraints of time and resources. At the same time, basic generalized linear model like logistic regression is still applicable with additional dimensional reduction technique (Ridge, LASSO, and PCA). We have not concluded which are 3 methods should be focus in this project. Instead, we provided all preliminary result and seek for further advices. 
@@ -155,17 +162,14 @@ The third method employed is Support Vector Machine. Similar to Random Forest me
 
 Additional  method employed in our analysis is neural network with the focus on convolutional, simple recurrent, and LSTM ones (7 days window). As the neural network learning algorithm already use all data points in constructing each nodes, it is not necessary to use lag values as predictors in these models. Among CNN, simple RNN, and LSTM, the most natural option among them is the last one because its nature is very close to the market reaction in time series data. The other networks are included partly because of our concern about LSTM computing time and partly due to our curiosity of their application for time series. More specifically, 2D-CNN is possible for a time relationship between data points while a simple RNN model can reflect somehow the relationship of market movement at different times. Overall, the neural network method are feasible when we extended the time period for the data loaded. This method, however, is a black box and is not interpretable.   
 
-Regarding to the selection of optimal parameters for the above mentioned methods,  standard cross-validation are used for all models while walk-forward validation are employed in some feasible ones. For the models that is computationally intensive, the number of fold is set to be 5 while our previous milestone indicate 10-fold cross validation. The general selection of hyperparameter is based on the model with highest average train accuracy/ F1 score while attain an acceptable level of standard deviation. Detailed of optimal hyperparameter for each model is in included in the appendix.
+Regarding to the selection of optimal parameters for the above mentioned methods,  beside standard k-fold cross-validation provided in the textbook that we are used for all models, walk-forward validation are employed in some feasible ones. For the models that is computationally intensive, the number of fold is set to be 5 while our previous milestone indicate 10-fold cross validation. The general selection of hyperparameter is based on the model with highest average train accuracy/ F1 score while attain an acceptable level of standard deviation. Detailed of optimal hyperparameter for each model is in included in the appendix.
 
 
 \textbf{Further part need to be addressed:
 Baseline model is RF, Logistic, SVM with indexes only.
 • Mathematical formulation (optional but encouraged) 
-• Why methods are appropriate
-• Hyperparameter choices 
 • Python implementation details
-• Textbook citation: “See ESL Chapter 
-X, Section Y”}
+• Textbook citation: “See ESL Chapter X, Section Y”}
 
 
 

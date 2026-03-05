@@ -3,13 +3,15 @@
 Simple EDA script generating correlation and volatility plots.
 """
 
+import argparse
 import pandas as pd
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 from scipy.cluster.hierarchy import dendrogram, linkage
 from pathlib import Path
-import pyarrow.parquet as pq
+import sys
+import os
 
 pd.set_option('display.max_rows', 100)
 pd.set_option('display.max_columns', 8)
@@ -27,32 +29,47 @@ else:
 output_dir = cwd / "output"
 output_dir.mkdir(exist_ok=True)
 
-print("Loading raw data...")
-table = pq.read_table(cwd / "PyScripts" / "raw_data.parquet")
-DATA = table.to_pandas()
+sys.path.append(os.path.abspath(cwd / "PyScripts" / "Models"))
+from data_preprocessing_and_cleaning import clean_data
 
-lookup_df = pd.read_csv(cwd / "PyScripts" / "stock_lookup_table.csv")
+# ── Command-line parameters (mirrors clean_data signature) ──────────────────
+parser = argparse.ArgumentParser(description="EDA plots with configurable clean_data options.")
+parser.add_argument("--lookback_period",  type=int,   default=5,    help="Lookback window for EMA/VOL/VWAP features (default: 5)")
+parser.add_argument("--lag_period",       type=int,   nargs="+",    default=[1], help="Lag periods, e.g. --lag_period 1 2 (default: [1])")
+parser.add_argument("--no_extra_features",action="store_true",      help="Disable extra features (day of week, daily range, forward lags)")
+parser.add_argument("--raw",              action="store_true",       help="Return raw OHLCV data without engineered features")
+parser.add_argument("--cluster",          action="store_true",       help="Apply KMeans clustering to reduce stocks")
+parser.add_argument("--n_clusters",       type=int,   default=100,  help="Number of KMeans clusters (default: 100)")
+parser.add_argument("--corr",             action="store_true",       help="Drop highly correlated stocks/features")
+parser.add_argument("--corr_threshold",   type=float, default=0.95, help="Correlation threshold for dropping (default: 0.95)")
+parser.add_argument("--corr_level",       type=int,   default=1,    choices=[1, 2, 3], help="Correlation drop level: 1=before features, 2=after, 3=both (default: 1)")
+parser.add_argument("--testing",          action="store_true",       help="Use 2-year dataset instead of 8-year dataset")
+parser.add_argument("--prefix",           type=str,   default="",   help="Prefix for saved plot filenames, e.g. '8yrs_'")
+args = parser.parse_args()
+args.extra_features = not args.no_extra_features
+prefix = args.prefix
+# ────────────────────────────────────────────────────────────────────────────
 
-# Get index for data selection
-idx = pd.IndexSlice
+lookup_df = pd.read_csv(cwd / "PyScripts" / "Data" / "stock_lookup_table.csv")
 
-# Remove holiday rows (all stocks are NaN)
-stocks = DATA.loc[:, idx[:, 'Stocks', :]]
-to_drop = stocks.index[stocks.isna().all(axis=1)]
-DATA = DATA.drop(index=to_drop)
+print("Loading data via clean_data...")
+X, y = clean_data(
+    lookback_period=args.lookback_period,
+    lag_period=args.lag_period,
+    extra_features=args.extra_features,
+    raw=args.raw,
+    cluster=args.cluster,
+    n_clusters=args.n_clusters,
+    corr=args.corr,
+    corr_threshold=args.corr_threshold,
+    corr_level=args.corr_level,
+    testing=args.testing,
+)
 
-# Extract close prices for stocks only
-close_prices = DATA.loc[:, idx['Close', 'Stocks', :]].copy()
-close_prices.columns = close_prices.columns.droplevel(0).droplevel(0)
-
-# Drop columns with NaN
-close_prices = close_prices.dropna(axis=1, how='any')
-
-print(f"Data shape: {close_prices.shape}")
-print(f"Available stocks: {close_prices.shape[1]}")
-
-# Calculate daily returns
-returns = close_prices.pct_change().dropna()
+# Extract daily returns (Close PC = percent change of close price)
+returns_df = X.xs(key='Close PC', axis=1, level=0)
+returns_df.columns = returns_df.columns.droplevel(0)
+returns = returns_df.dropna()
 
 print(f"Returns shape: {returns.shape}")
 
@@ -60,7 +77,7 @@ print(f"Returns shape: {returns.shape}")
 sector_map = lookup_df.set_index('Ticker')['Sector'].to_dict()
 
 # Get sector information for available stocks
-available_tickers = close_prices.columns.tolist()
+available_tickers = returns.columns.tolist()
 stock_sectors = {}
 for ticker in available_tickers:
     if ticker in sector_map:
@@ -102,9 +119,9 @@ plt.setp(g.ax_heatmap.get_xticklabels(), rotation=45, ha='right', fontsize=10)
 plt.setp(g.ax_heatmap.get_yticklabels(), rotation=0, fontsize=10)
 
 plt.tight_layout()
-plt.savefig(output_dir / "sector_correlation.png", dpi=300, bbox_inches='tight')
+plt.savefig(output_dir / f"{prefix}sector_correlation.png", dpi=300, bbox_inches='tight')
 plt.close()
-print("✓ Saved: sector_correlation.png")
+print(f"✓ Saved: {prefix}sector_correlation.png")
 
 # Plot 2-4: Individual sector correlations sorted by market cap
 print("\nGenerating individual sector correlation heat maps...")
@@ -165,7 +182,7 @@ def plot_sector_with_marketcap(sector_name, stocks_in_sector, returns_df, output
     
     plt.tight_layout()
     
-    filename = f"sector_{sector_name.replace(' ', '_')}_clustered.png"
+    filename = f"{prefix}sector_{sector_name.replace(' ', '_')}_clustered.png"
     plt.savefig(output_dir / filename, dpi=300, bbox_inches='tight')
     plt.close()
     print(f"✓ Saved: {filename}")
@@ -206,9 +223,26 @@ plt.ylabel("Volatility (Std Dev of Returns)")
 plt.legend(loc='best')
 plt.grid(True, alpha=0.3)
 plt.tight_layout()
-plt.savefig(output_dir / "sector_volatility_over_time.png", dpi=300, bbox_inches='tight')
+plt.savefig(output_dir / f"{prefix}sector_volatility_over_time.png", dpi=300, bbox_inches='tight')
 plt.close()
-print("✓ Saved: sector_volatility_over_time.png")
+print(f"✓ Saved: {prefix}sector_volatility_over_time.png")
+
+# Plot 5b: Smoothed Sector Volatility Over Time
+print("\nGenerating smoothed sector volatility plot...")
+smoothed_sector_vol = vol_df.rolling(window=40).mean()
+
+plt.figure(figsize=(14, 8))
+for sector in smoothed_sector_vol.columns:
+    plt.plot(smoothed_sector_vol.index, smoothed_sector_vol[sector], label=sector)
+plt.title("Smoothed Sector Volatility Over Time")
+plt.xlabel("Date")
+plt.ylabel("Volatility")
+plt.legend(loc='best')
+plt.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.savefig(output_dir / f"{prefix}smoothed_sector_volatility.png", dpi=300, bbox_inches='tight')
+plt.close()
+print(f"✓ Saved: {prefix}smoothed_sector_volatility.png")
 
 # Plot 6: Sector volatility by day of week (seasonal impact)
 print("\nGenerating day-of-week volatility plot...")
@@ -243,9 +277,9 @@ plt.ylabel("Average Volatility (Std Dev of Returns)")
 plt.legend(loc='best', ncol=2)
 plt.grid(True, alpha=0.3, axis='y')
 plt.tight_layout()
-plt.savefig(output_dir / "sector_volatility_by_day_of_week.png", dpi=300, bbox_inches='tight')
+plt.savefig(output_dir / f"{prefix}sector_volatility_by_day_of_week.png", dpi=300, bbox_inches='tight')
 plt.close()
-print("✓ Saved: sector_volatility_by_day_of_week.png")
+print(f"✓ Saved: {prefix}sector_volatility_by_day_of_week.png")
 
 # Remove day_of_week columns before final processing
 if 'day_of_week' in returns.columns:
@@ -284,9 +318,9 @@ plt.ylabel("Average Volatility (Std Dev of Returns)")
 plt.legend(loc='best', ncol=2)
 plt.grid(True, alpha=0.3, axis='y')
 plt.tight_layout()
-plt.savefig(output_dir / "sector_volatility_by_month.png", dpi=300, bbox_inches='tight')
+plt.savefig(output_dir / f"{prefix}sector_volatility_by_month.png", dpi=300, bbox_inches='tight')
 plt.close()
-print("✓ Saved: sector_volatility_by_month.png")
+print(f"✓ Saved: {prefix}sector_volatility_by_month.png")
 
 # Plot 9: Heatmap showing volatility pattern by sector and month
 print("\nGenerating monthly volatility heatmap...")
@@ -316,9 +350,49 @@ plt.title("Sector Volatility Heatmap by Month\n(Showing Seasonal/Monthly Pattern
 plt.xlabel("Month")
 plt.ylabel("Sector")
 plt.tight_layout()
-plt.savefig(output_dir / "sector_volatility_heatmap_monthly.png", dpi=300, bbox_inches='tight')
+plt.savefig(output_dir / f"{prefix}sector_volatility_heatmap_monthly.png", dpi=300, bbox_inches='tight')
 plt.close()
-print("✓ Saved: sector_volatility_heatmap_monthly.png")
+print(f"✓ Saved: {prefix}sector_volatility_heatmap_monthly.png")
+
+# Plot 10: Top 3 sectors by correlation with SP500
+print("\nGenerating SP500 sector correlation ranking...")
+
+# Align SPX returns with the returns index
+spx_returns = y.reindex(returns.index).dropna()
+common_index = returns.index.intersection(spx_returns.index)
+
+sector_spx_corr = {}
+for sector in sector_dict.keys():
+    sector_stocks = [t for t in available_tickers if stock_sectors.get(t) == sector]
+    sector_ret = returns.loc[common_index, sector_stocks].mean(axis=1)
+    sector_spx_corr[sector] = sector_ret.corr(spx_returns.loc[common_index])
+
+corr_series = pd.Series(sector_spx_corr).sort_values(key=lambda x: x.abs(), ascending=False)
+top3_sectors = corr_series.head(3)
+
+print("\nTop 3 sectors by absolute correlation with SP500:")
+for i, (sector, corr_val) in enumerate(top3_sectors.items(), 1):
+    print(f"  {i}. {sector}: {corr_val:.4f} (|{abs(corr_val):.4f}|)")
+
+colors = ['#2ecc71' if s in top3_sectors.index else '#95a5a6' for s in corr_series.index]
+plt.figure(figsize=(12, 6))
+plt.bar(corr_series.index, corr_series.values, color=colors, edgecolor='white', linewidth=0.8)
+plt.axhline(0, color='black', linewidth=0.8, linestyle='--')
+plt.xticks(rotation=45, ha='right')
+plt.title("Sector Correlation with SP500 Returns\n(Top 3 by Absolute Correlation Highlighted in Green)")
+plt.xlabel("Sector")
+plt.ylabel("Pearson Correlation")
+plt.tight_layout()
+plt.savefig(output_dir / f"{prefix}sector_sp500_correlation.png", dpi=300, bbox_inches='tight')
+plt.close()
+print(f"✓ Saved: {prefix}sector_sp500_correlation.png")
+
+# Generate individual heatmaps for top 3 sectors by absolute SP500 correlation
+print("\nGenerating individual heatmaps for top 3 SP500-correlated sectors...")
+for sector in top3_sectors.index:
+    sector_stocks = [t for t in available_tickers if stock_sectors.get(t) == sector]
+    print(f"\nProcessing {sector} ({len(sector_stocks)} stocks, SP500 corr={sector_spx_corr[sector]:.4f})...")
+    plot_sector_with_marketcap(sector, sector_stocks, returns, output_dir)
 
 print("\n" + "="*60)
 print("✓ All graphs successfully exported to output folder!")

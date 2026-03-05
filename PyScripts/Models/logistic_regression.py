@@ -13,6 +13,8 @@ from H_eval import rolling_window_backtest, get_final_metrics
 '''No need for hyperparameter tuning for Logistic Regression via GridSearchCV since LogisticRegressionCV performs internal CV to select the best C value. We will just use the default 10 values of C that LogisticRegressionCV tests.'''
 
 VERBOSE=0
+WINDOW_SIZE=121
+HORIZON=21
 
 if __name__=="__main__":
     X, y_regression=cast(Any, clean_data(lag_period=[1, 2, 3], lookback_period=0, sector=True, corr=True, corr_level=2, testing=False))
@@ -44,7 +46,7 @@ if __name__=="__main__":
     coefs = optimized_Log_Reg_R_.named_steps['classifier'].coef_
     print(f"Non-zero coefficients: {np.count_nonzero(coefs)}")
 
-    rolling_window_backtest(optimized_Log_Reg_R_, X, y_classification, verbose=1, window_size=220, horizon=21)
+    rolling_window_backtest(optimized_Log_Reg_R_, X, y_classification, verbose=1, window_size=WINDOW_SIZE, horizon=HORIZON)
 
     optimized_Log_Reg_R_=clone(optimized_Log_Reg_R_)
     optimized_Log_Reg_R_.fit(X_train, y_train)
@@ -71,7 +73,7 @@ if __name__=="__main__":
     coefs = optimized_Log_Reg_L_.named_steps['classifier'].coef_
     print(f"Non-zero coefficients: {np.count_nonzero(coefs)}")
 
-    rolling_window_backtest(optimized_Log_Reg_L_, X, y_classification, verbose=1, window_size=220, horizon=21)
+    rolling_window_backtest(optimized_Log_Reg_L_, X, y_classification, verbose=1, window_size=WINDOW_SIZE, horizon=HORIZON)
 
     optimized_Log_Reg_L_=clone(Opt_Log_Reg_model_pipeline_L)
     optimized_Log_Reg_L_.fit(X_train, y_train)
@@ -100,7 +102,7 @@ if __name__=="__main__":
     optimized_Log_Reg_PCA_ridge_=clone(grid_search_PCA_ridge.best_estimator_)
     optimized_Log_Reg_PCA_ridge_.fit(X_train, y_train)
     
-    rolling_window_backtest(optimized_Log_Reg_PCA_ridge_, X, y_classification, verbose=1, window_size=220, horizon=21)
+    rolling_window_backtest(optimized_Log_Reg_PCA_ridge_, X, y_classification, verbose=1, window_size=WINDOW_SIZE, horizon=HORIZON)
 
     optimized_Log_Reg_PCA_ridge_=clone(grid_search_PCA_ridge.best_estimator_)
     optimized_Log_Reg_PCA_ridge_.fit(X_train, y_train)
@@ -108,6 +110,8 @@ if __name__=="__main__":
     get_final_metrics(optimized_Log_Reg_PCA_ridge_, X_train, y_train, X_test, y_test, n_splits=10)
 
     input("Press Enter to Finish...")
+
+
 
     # ------- EXPORT: CV Regularization Selection Figure -------
     import matplotlib

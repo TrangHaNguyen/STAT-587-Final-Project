@@ -8,7 +8,7 @@ from sklearn.pipeline import Pipeline
 import numpy as np
 
 from H_prep import clean_data
-from H_eval import rolling_window_backtest, classification_accuracy, get_final_metrics
+from H_eval import rolling_window_backtest, get_final_metrics
 
 '''No need for hyperparameter tuning for Logistic Regression via GridSearchCV since LogisticRegressionCV performs internal CV to select the best C value. We will just use the default 10 values of C that LogisticRegressionCV tests.'''
 

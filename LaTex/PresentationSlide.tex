@@ -17,6 +17,7 @@
 \usepackage{amsmath,amsthm,bm}
 \usepackage{graphicx}
 \usepackage{booktabs,multicol}
+\usepackage{placeins}
 \usepackage{tikz}
 
 \usetikzlibrary{positioning}
@@ -109,76 +110,260 @@
   \tableofcontents
 \end{frame}
 
+
 % --- Slides ---
-\section{Requirement}
-\begin{frame}{Requirement}
-\begin{itemize}
-    \item Presentation Guidelines (10 minutes)
-    \item Motivation & research question (1 min)
-    \item Dataset & preprocessing (1 min)
-    \item Methods overview tied to ESL (3 min)
-    \item Key results & visualizations (3 min)
-    \item Limitations & next steps (1 min)
-    \item Final summary (1 min)
+% \section{Requirement}
+% \begin{frame}{Requirement}
+% \begin{itemize}
+  
+%    \item Motivation \& research question (1 min)
+%    \item Dataset \& preprocessing (1 min)
+%    \item Methods overview tied to ESL (3 min)
+%    \item Key results \& visualizations (3 min)
+%    \item Limitations \& next steps (1 min)
+%    \item Final summary (1 min)
 
-\end{itemize}
-Presentation must include:
+%\end{itemize}
+%Presentation must include:
+%\begin{itemize}
+%    \item 1–2 clear plots per model type
+%    \item Model comparison graphic
+%    \item Clear labeling and readable visuals
+%\end{itemize}
+%\end{frame}
+
+
+
+
+\section{Introduction}
+\subsection{Motivation \& research question}
+\begin{frame}{Motivation \& research question}
 \begin{itemize}
-    \item 1–2 clear plots per model type
-    \item Model comparison graphic
-    \item Clear labeling and readable visuals
+  \item Goal: Predicting the \textbf{direction} of the US stock market (rather than exact values) enables individuals to trade and invest more wisely
+  \item Data source: Yahoo Finance (publicly available historical data)
+  \item Research Problem: Will S\&P 500 will go up or down tomorrow based on data up till now?
+  \item Main modeling approach: Compare traditional statistical models (e.g., logistic regression) with modern statistical learning techniques (e.g., random forests, SVM, neural networks) to evaluate their predictive performance and implications for market efficiency
+\end{itemize}
+\end{frame}
+\subsection{Background}
+\begin{frame}{Background}
+\begin{itemize}
+  \item The \textbf{S\&P 500} tracks the top 500 US companies by market capitalization and serves as the leading benchmark for the health of the US economy
+  \item Index values are computed using \textbf{float-adjusted market capitalization (FMC)}, so larger companies have a proportionally greater impact on the index
+  \item Forecasting stock market direction is \textbf{complex}: prices are influenced by company performance, economic indicators, geopolitical events, and investor sentiment
+  \item This project uses \textbf{historical data only}, as when markets close at the end of the day, it already reflects economic and political conditions, and concurrent indicators are typically unavailable at prediction time.
 \end{itemize}
 \end{frame}
 
 
 
-
-\section{Motivation & research question}
-\begin{frame}{Motivation & research question}
+\section{Dataset \& preprocessing}
+\subsection{Dataset \& preprocessing}
+\begin{frame}{Data collection and preprocessing}
 \begin{itemize}
-  \item Goal of the project
-  \item Data source
-  \item Main modeling approach
+  \item Data retrieved via Yahoo Finance's API (\texttt{yfinance}): open, close, high, low prices, and traded volume
+  \item Covers S\&P 500 stocks from \textbf{January 1, 2018} to \textbf{December 31, 2025}
+  \item Cleaning steps: ticker changes (mergers), invalid/frozen-state entries, market holidays, and delisted/newly-listed stocks --- resulting dataset contains no NAs
+  \item \textbf{501 trading days} $\times$ \textbf{2,520 features} (503 stocks/indices, each having 5 price metrics $([503+1]\times 5)$
 \end{itemize}
 \end{frame}
 
-\section{Dataset & preprocessing}
+\subsection{Feature Engineering}
+\begin{frame}{Feature Engineering and target variable}
+\begin{itemize}
+  \item Target variable: \textbf{binary} indicator (whether the S\&P 500 index will go up (1) or down (0) the next day, based on the closing value)
+  \item Predictors: Raw Prices (Open, High, Low, Close) and Volume traded data is extended with:
+  \begin{itemize}
+    \item \textbf{Lag values} --- capture momentum; required since time-series structure is not built into the architectures used
+    \item \textbf{Day-to-day \% change} \& \textbf{daily range} --- relative price movement and intraday volatility
+    \item \textbf{Volatility} \& \textbf{rolling z-score} --- variability and outlier/event detection
+    \item \textbf{Max/min channel position} --- support/resistance levels for breakout signals
+    \item \textbf{Rolling VWAP} \& \textbf{day of week} --- volume-weighted context and seasonlity patterns
+  \end{itemize}
+  \item Non-stationary features (OP, CP, HP, LP, EMA) are \textbf{removed} after engineering to reduce model complexity
+\end{itemize}
+\end{frame}
+
+\subsection{Exploratory Data Analysis}
+
+\begin{frame}{Exploratory Data Analysis}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.45\linewidth]{../output/Used/2yrs_sector_correlation.png}
+    \includegraphics[width=0.45\linewidth]{../output/Used/2yrs_sector_sp500_correlation.png}
+    \caption{Correlation across sectors and that of each sector with the S\&P 500 daily return}
+    \label{fig:sector-correlation}
+\end{figure}
+\end{frame}
+
+\begin{frame}{Exploratory Data Analysis (2)}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.32\linewidth]{../output/Used/2yrs_sector_Technology_clustered.png}
+    \includegraphics[width=0.32\linewidth]{../output/Used/2yrs_sector_Healthcare_clustered.png} 
+    \includegraphics[width=0.32\linewidth]{../output/Used/2yrs_sector_Consumer_Defensive_clustered.png}
+    \caption{Intra-sector correlation matrices for the top three sectors by absolute correlation with S\&P 500 returns. From left to right: Technology ($|r| = 0.116$), Healthcare ($|r| = 0.106$), and Consumer Defensive ($|r| = 0.097$) sectors. Hierarchical clustering reveals sub-groups of stocks with similar return dynamics. Warm colours indicate strong positive co-movement while cool colours indicate divergence.}
+    \label{fig:top-sectors}
+\end{figure}
+\end{frame}
+
+\begin{frame}{Exploratory Data Analysis (3)}
+  \begin{figure}[h]
+    \centering
+    \includegraphics[width=0.45\linewidth]{../output/Used/2yrs_sector_volatility_over_time.png}
+    \includegraphics[width=0.45\linewidth]{../output/Used/2yrs_smoothed_sector_volatility.png}
+    \caption{Sector volatility}
+    \label{fig:sector-vol}
+\end{figure}
+\end{frame}
+\begin{frame}{Exploratory Data Analysis (4)}
+  Key findings from EDA:
+  \begin{itemize}
+    \item 
+    Certain sectors exhibit stronger positive correlations with each other while sectors show weaker correlations 
+    \item Certain segments within these sectors may be driving their overall correlation with the broader market: there might be a high degree of redundancy 
+    \item different volatility level, persistent structural differences: there may be important information contained in the volatility of individual stocks 
+    \item similar time trend: potential data redundancy
+  \end{itemize}
+\end{frame}
+
+
+
+\section{Methods}
+ 
 \begin{frame}{Methods}
-\begin{multicols}{2}
 \begin{itemize}
-  \item Preprocessing
-  \item Features
-  \item Model(s)
+  \item Data Characteristics: 
+  \begin{itemize}
+    \item \textbf{many features} $\to$ Dimensionality reduction: (PCA), regularization (Ridge, LASSO), 
+    \item  \textbf{multicollinearity} $\to$ Collinearity Reduction: Grouping by Sector Feature Average, K-Means Clustering, PCA.(on Stock Closing Percent Change and Features)
+    \item \textbf{time-series} in nature $\to$ Lag-based modeling
+  \end{itemize}
+  \item Models used based on data nature
+  \begin{itemize}
+    \item Logistic Regression
+    \item Random Forest Classification
+    \item Support Vector Machines
+  \end{itemize}
+  \item Model selection (Hyperparameter selection also)
+  \begin{itemize}
+    \item combination of available metric for different methods test accuracy, F1, ROC-AUC
+    \item the more \textbf{parsimonious} one is preferred when similar performances happen
+    \item cross validation: k-fold and Walk-forward
+  \end{itemize}
 \end{itemize}
-\columnbreak
-\mybox{Example highlight box.}
-\end{multicols}
-\end{frame}
-
-\section{Methods overview tied to ESL}
-\begin{frame}{Results}
-Put plots/tables here.
 \end{frame}
 
 
 
-
-
-\section{Key results & visualizations}
-\begin{frame}{Results}
+\section{Results}
+\subsubsection{Baseline Models with raw features}
+\begin{frame}{Results (1)}
+\textbf{Logistic Regression Models}\\
+\input{../output/Used/base_logistic_comparison.tex}
+\FloatBarrier
 \end{frame}
-\section{Limitations & next steps}
+
+\begin{frame}{Results (1)}
+\textbf{Take away}\\
+\begin{itemize}
+  \item Overall accuracy around 50\%, only slightly better than random guessing
+  \item Raw OHLCV features may not contain strong predictive signals 
+  \item Relationship likely complex and non-linear
+  \item Regularization techniques do not significantly improve performance
+  \item PCA-based model suffers from the loss of information
+  \item $\to$ sophisticated models or additional feature engineering may be necessary 
+\end{itemize}
+\end{frame}
+
+\subsubsection{Random Forest Models}
+\begin{frame}{Results (2)}
+\textbf{Random Forest Models}\\
+\input{../output/Used/base_rf_comparison.tex}
+\FloatBarrier
+\end{frame}
+
+\begin{frame}{Results (2)}
+\textbf{Take away}\\
+\begin{itemize}
+  \item The random forest using raw features outperforms the PCA-based logistic regression
+  \item Applying PCA before the random forest improves performance even further (accuracy in the test set increased to 54 \%). 
+  \item LASSO and Ridge application in feature selections for random forest does not improve performance compared to PCA. 
+  \item the standard deviation of both train and test cross validation accuracy is higher $\to$ sensitive method. 
+\end{itemize}
+\end{frame}
+
+
+\subsubsection{Extended Feature Models}
+\begin{frame}{Results (3)}
+\input{model_comparison_table.tex}
+\end{frame}
+
+\begin{frame}{Results (3)}
+\textbf{Take away}\\
+\begin{itemize}
+  \item Sequential models (RNN and LSTM) achieve the best overall performance 
+  \item Simple RNN emerges as the recommended model for deployment
+  \item LASSO regularization (L1) demonstrates superior highest accuracy (0.5486) and the only ROC-AUC above 0.50 (0.5342)
+  \item  SVM with RBF kernel exhibits degenerate behavior, predicting all samples as ``Up'' 
+  \item The dimensionality reduction models (PCA, LASSO-reduced, Ridge-reduced) show moderate performance, potentially due to losing important predictive signals. O
+  \item Recommend: logistic regression with Ridge and LASSO regularization for the predictors included engineered features.
+\end{itemize}
+\end{frame}
+
+\subsubsection{Hourly Models}
+\begin{frame}{Results (4)}
+\input{../output/Used/logistic_regression_24hours_three_model_comparison.tex}
+\FloatBarrier
+\end{frame}
+
+\begin{frame}{Results (4)}
+\textbf{Take away}\\
+\begin{itemize}
+  \item To further investigate the temporal dependencies of the market, we also experimented with similar models for the hourly data. 
+  \item The performance of the hourly models is better than the daily models, with the best performing model  with an accuracy of 0.5478 and ROC-AUC value around 60 \%. 
+  \item \textbf{Key: a clearer short window of dependencies rather than by days/ weeks.}
+\end{itemize}
+\end{frame}
+
+
+
+\section{Limitations \& next steps}
 \begin{frame}{Limitation}
+  \begin{itemize}
+    \item Data limitations: only historical price and volume data, no sentiment analysis, macroeconomic indicators, or alternative data sources
+    \item Model limitations: did not explore mix model methods, more complicated deep learning architectures
+    \item Evaluation limitations: only used accuracy, F1-score, and ROC-AUC mainly based on wark-forward validation and cross validation. Other rules may be applied in extension of this project (1SE rule)
+    \item Time constraints: limited time for extensive hyperparameter tuning and model experimentation
+    \item Resource constraints: computational resources limited the ability to train more complex models or perform extensive cross-validation
+    \end{itemize}
 \end{frame}
+
+\begin{frame}{Next steps}
+\begin{itemize}
+  \item Conduct more extensive hyperparameter tuning and model experimentation
+  \item Implement a more comprehensive evaluation framework, including additional metrics and validation techniques
+  \item Include more political and economic indicators, sentiment analysis, and alternative data sources to enhance predictive power
+  \item Explore more sophisticated models (more complicated deep learning architectures) and some combination with economic method of time series forecasting (e.g., ARIMA, GARCH)
+\end{itemize}
+\end{frame}
+
 \section{Final summary}
 \begin{frame}{Summary}
+\begin{itemize}
+  \item Predicting the direction of the stock market is a complex task with many influencing factors. 
+  \item While some models can achieve slightly better than random performance, there is still significant room for improvement. 
+  \item Relying solely on historical daily price and volume data may not be sufficient for making informed trading decisions
+  \item Better result for short time windows suggests implications for high-frequency trading strategies and intraday trading.
+  \item Future work could focus on short-time dependencies, more sophisticated models, additional features (e.g., sentiment analysis, macroeconomic indicators), and alternative modeling approaches (e.g., ensemble methods, deep learning architectures).
+  \end{itemize}
 \end{frame}
 
 
 
 % --- References ---
 \begin{frame}{References}
-\bibliographystyle{apacite}
-\bibliography{Bibliography}
+%\bibliographystyle{apacite}
+%\bibliography{Bibliography}
 \end{frame}
 \end{document}

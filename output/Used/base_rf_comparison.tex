@@ -1,6 +1,8 @@
 \begin{table}
 \caption{Random Forest Model Comparison: Raw OHLCV vs +Day-of-Week vs +Lag1--7}
 \label{tab:base_rf_comparison}
+\centering
+\resizebox{\textwidth}{!}{%
 \begin{tabular}{lrrrrrrrr}
 \toprule
  & Avg Train Acc & Std Train Acc & Avg CV Test Acc & Std CV Test Acc & Hold-out Test Acc & Precision & Recall & F1 \\
@@ -19,5 +21,6 @@ PCA RF+Lags & 0.9434 & 0.0127 & 0.5578 & 0.0488 & 0.5253 & 0.5422 & 0.8333 & 0.6
 LASSO-sel RF+Lags & 1.0000 & 0.0000 & 0.5238 & 0.0255 & 0.4848 & 0.5224 & 0.6481 & 0.5785 \\
 Ridge-sel RF+Lags & 1.0000 & 0.0000 & 0.5476 & 0.0192 & 0.4949 & 0.5294 & 0.6667 & 0.5902 \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}

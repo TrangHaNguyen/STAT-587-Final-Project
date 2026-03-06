@@ -6,6 +6,7 @@
 \usepackage{booktabs}		 
 \usepackage{a4wide}  
 \usepackage{graphicx} % for \scalebox
+\usepackage{subcaption} % for subfigures
 
 \usepackage{tabularx} 
 \usepackage{threeparttable}
@@ -34,185 +35,183 @@ Trang Nguyen and Takeshi Stormer}
 \section*{Final Report Requirements}
 
 \section{Introduction}
-\textit{Motivation} Beyond the pursuit of generating infinite wealth by predicting the future values of the stock market (or inadvertently collapsing any concept of having a financial market to begin with), simply being content with being able to predict the direction of the market (emphasis on the US stock market) of the following day allows for individuals to trade and/or invest more wisely. The motivation behind understanding this problem, and subsequently attempting to solve it, is given by the consequences it could bring to the financial industry. 
 
-In addition, there is an interesting discussion on how efficient the market is. If the market is efficient, then it should be impossible to predict the direction of the market with any amount of data. If the market is not efficient, then it should be possible to predict the direction of the market with some amount of data. The real world data might indicate a stage between the two extremes, which is also interesting to analyze: morderate past information may contribute to the prediction of the market direction, but the predictive power of such data may diminish as more longer past values is added.
+Beyond the pursuit of generating infinite wealth by predicting the future values of the stock market (or inadvertently collapsing any concept of having a financial market to begin with), simply being content with being able to predict the direction of the market (emphasis on the US stock market) of the following day allows for individuals to trade and/or invest more wisely. The motivation behind understanding this problem, and subsequently attempting to solve it, is given by the consequences it could bring to the financial industry. 
 
-This paper will shed a light on whether or not the aforementioned data is adequate towards predicting the direction of the US stock market, and if not, gives rise to the question of whether or not it is possible to find any amount of data that will.     
+% In addition, there is an interesting discussion on how efficient the market is. If the market is efficient, then it should be impossible to predict the direction of the market with any amount of data. If the market is not efficient, then it should be possible to predict the direction of the market with some amount of data. The real world data might indicate a stage between the two extremes, which is also interesting to analyze: morderate past information may contribute to the forecasting of the market direction, but the predictive power of such data may diminish as more longer past values is added.
+
+This paper will shed some light as to whether or not there is public data that is adequate towards forecasting the direction of the US stock market, and if not, gives rise to the question of whether or not it is possible to find any amount of data that will.     
 
 \subsection{Research problem}
 
-Our project aim at predicting the Direction of the S\&P500 Index. More specifically, we're interested in determining the direction of the market on the following day (on a day-to-day basis). Along with the prediction, we indirectly answer the question of how efficiency of the market is, and whether or not there are any patterns in the data that can be utilized to predict the market direction.
+\quad \ Our project looks to forecast the direction of the S\&P500 Index of the following day (on a day-to-day basis). Consequently, we arrive at some potential conclusions regarding the question of how efficient the market is, and whether there are any meaningful patterns in the data that can be utilized to predict the market direction.
 
 \subsection{Background context}
 
-The S\&P 500 Index is a stock market index that measures the stock performance of 500 largest companies in terms of market capitalization listed on the stock exchanges in the United States. This index is one of the most commonly followed equity indices and is often used as a benchmark for the overall performance of the U.S. stock market. The index includes companies from various sectors, such as technology, healthcare, financial services, consumer discretionary, and more. The S\&P 500 Index is widely regarded as a leading indicator of the health of the U.S. economy and is closely watched by investors, analysts, and policymakers.
+\quad \ The S\&P 500 Index is a stock market index that measures the stock performance of the top 500 companies in terms of market capitalization listed on the stock exchanges in the United States. This index is one of the most commonly followed equity indices and is often used as a benchmark for the overall performance of the U.S. stock market. The index includes companies from various sectors, including technology, healthcare, financial services, consumer discretionary, and more. The S\&P 500 Index is widely regarded as a leading indicator of the health of the U.S. economy and is closely watched by investors, analysts, and policymakers.
 
-The computation of the index employ the float-adjusted market capitalization (FMC), which accounts for only the shares that can actually be traded in the market, in the weighting process. This means that the companies with larger market caps are weighted more heavily, making their positive/negative share price movements much more impactful on the broader index.
+The computed valued of the index employs the float-adjusted market capitalization (FMC), which only takes into account the shares that are actually publicly traded on stock exchanges. This means that the companies with larger market caps are weighted more heavily, making the movements in their share price much more impactful on the broader index.
 
-Predicting the direction of the stock market is a complex task that has been studied extensively in the field of finance and economics. The stock market is influenced by a wide range of factors, including economic indicators, company performance, geopolitical events, and investor sentiment. As a result, accurately predicting the direction of the stock market can be challenging, and there is no single method that can guarantee success. This project will explore various machine learning techniques to predict the direction of the S\&P 500 Index, and evaluate their performance based on historical data.
+Forecasting the stock market is a complex task that has been studied extensively in the field of finance and economics. However, given by the fact that the stock market is influenced by a wide range of factors beyond company performance, including economic indicators, geopolitical events, and investor sentiment, accurately predicting the direction of the stock market is challenging. There is no known single method that can guarantee absolute success, but assuredly many that have come just a bit further than their predecessors. This project will explore various statistical learning techniques to attempt to forecast the direction of the S\&P 500 Index, and evaluate their performance based on historical data.
+
+Part of the motivation for using historical data only is that the market already reflect reactions to economic and political environment, and part of the motivation is because the concurrent economic and political indexes affecting market are usually not available for the period of prediction. Futhermore, beside the interest of understanding the market, the key focus of this project is evaluating the performance of different statistical learning models within the context of less than perfect information situation.
 
 \subsection{Dataset description}
 
-Data include price metrics and volumn traded of stocks that are part of the S\&P 500 index spanning January 1st, 2018, to December 31st, 2025. We removed rows based on whether or not a holiday was observed by all stocks (in other words, all values in one row for stocks were NA). The resulting preprocessed dataset should contain no NAs. Some further cleaning was performed to remove stocks that were listed on a date past January 1st.
 
-The raw data loaded from Yahoo Finance contains open price, close price, high price, low price, and traded volume for each stock. The data is then engineered to create additional features that are commonly used in financial analysis and trading strategies. These features include lag values, percent change, volatility, max/min channel position, rolling volume weighted average prices, rolling z-scores, daily range, and day of week. 
+\quad \ The raw data was retrieved via Yahoo Finance's API \verb|yfinance|, containing the open price, close price, high price, low price, and traded volume for each stock. The data utilized contain information on stocks that are and/or were listed on the S\&P 500 index during the time period spanning January 1st, 2018, to December 31st, 2025. The cleaning process pertained to evaluating the data for change in tickers (usually when one or more company merges with another company), invalid data (such as instances that indicated a stock was in a frozen state), holidays where the market was closed, and missing data due to being listed or delisted during the time frame. The resulting cleaned dataset should contain no NAs.
 
-Lag captures momentum, which will allow us to see if past data has any impact on future values. Except for the setting of the neural network methods to include each data points in the model, all other methods for prediction requires additional predictors of lag values to be created before the training process. Different lag periods are used and the results will be compared to see if there is any significant difference in the performance of the model. This feature is particularly important for the machine learning method that is different from tradditional economic time series analysis method, as it allows us to capture the relationship between past and future values in a more flexible way.
+The features are then modified to create additional engineered features that are commonly seen used in quantitative technical analysis and trading strategies. These features include lag values, day-to-day percent change, volatility, max/min channel position, rolling volume weighted average prices, rolling z-scores, daily range, and the day of the week. 
 
-Regarding other created features, the percent change is a common way to measure the relative change in price over time, which can be more informative than absolute price changes. The volatility feature captures the variability of price movements, which can be an important factor in predicting future price movements. The max/min channel position can help identify potential support and resistance levels, which can be useful for predicting future price movements. The rolling volume weighted average price (VWAP) can provide insight into the average price at which a stock has traded over a certain period of time, which can be useful for predicting future price movements. The rolling z-score can help identify outliers in the data, which can be useful for predicting future price movements. The daily range can provide insight into the volatility of a stock, which can be useful for predicting future price movements. Finally, the day of week feature can capture any potential patterns in stock price movements that may occur on specific days of the week. 
+A little emphasis on lag is provided as follows: lag captures momentum, which allows the model to see if past data has any impact on future values. Unlike recurrent neural networks, all other base models, which are being considered in this paper, require lag values to be created before the training process since time-series isn't built directly into their architecture. Different lag periods will be used and the results will be compared to see if there is any significant difference in model performance. This feature is particularly important for statistical learning models that aren't traditional economic time-series analysis models, allowing us to capture the relationship between past and future values in a more flexible way.
+
+Regarding other created features, the day-to-day percent change is a common way to measure the relative change in price over time, which can be more informative than absolute price changes. The volatility feature captures the variability of price movements, which gives the model to potentially perceive highly volatile moments in the market. The max/min channel position helps identify potential levels of support and resistance, which can be used to inform the model on potential breakouts. The rolling z-score can help identify outliers in the data, which allows the model to perceive unnatural price movements (event detection). The daily range provides a glimpse into intraday volatility of a stock, which covers for what day-to-day volatility otherwise misses. Finally, the day of week feature can capture any potential patterns in stock price movements that may occur on specific days of the week. 
+
+At the end of feature engineering, we remove most of the original data (OP, CP, HP, LP) and EMA (used to calculate Z-scores) since they are non-stationary, primarily due to fact that the architecture of Random Forest models will render most of the data obsolete and increase model complexity for no justifiable reason.
 
 % At the end of our analysis, features involving non-stationary metrics (EMA, OP, CP, HP, LP, VWAP) are not included in the final model as they do not contribute to the prediction of the market direction. The final model will only include features that are stationary and have a significant impact on the prediction of the market direction.
 
+The raw data contains 501 rows, and 2520 columns. The sizable number of columns is explained by each stock (501) and index (1) having their own price metrics for CP, OP, HP, LP and TV $([503+1] * 5)=2520$. The number of rows is explained by the exclusion of 19 holidays and 211 weekend days.
 
-The raw data loaded contains 501 rows, and 2520 columns (roughly around 20 megabytes worth of data). The sizable number of columns is explained by each stock (503) and index (1) having their own price metrics for CP, OP, HP, LP and TV $([503+1] * 5)=2520$. The number of rows is explained by the exclusion of 19 holidays and 211 weekend days.
+Overall, the data is characterized by a large number of features (columns) compared to the number of observations (rows), which can pose challenges for traditional statistical methods. Additionally, the data is time series in nature, which means that there may be temporal dependencies and patterns that need to be accounted for in the analysis (such as what use was described for lag values). These characteristics of the data will influence the choice of methods and techniques used for forecasting and analysis in this project.
 
-Overall, the data is characterized by a large number of features (columns) compared to the number of observations (rows), which can pose challenges for traditional statistical methods. Additionally, the data is time series in nature, which means that there may be temporal dependencies and patterns that need to be accounted for in the analysis. These characteristics of the data will influence the choice of methods and techniques used for prediction and analysis in this project.
 
 \subsection{Exploratory Data Analysis}
-The following heatmaps are created utilizing the engineered feature `Close PC' and the volatility time-series is created utilizing the engineered feature `Close VOL 28'. T
+The following heatmaps are created . 
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.75\linewidth]{../output/2yrs_sector_correlation.png}
-    \caption{Pairwise Pearson correlation of mean daily returns (Close PC) across all GICS sectors,
-             computed over the sample period. Hierarchical clustering (Ward linkage) reorders
-             the axes to group sectors with similar return dynamics together.}
+    \includegraphics[width=0.45\linewidth]{../output/Used/2yrs_sector_correlation.png}
+    \includegraphics[width=0.45\linewidth]{../output/Used/2yrs_sector_sp500_correlation.png}
+    \caption{Correlation across sectors and that of each sector with the S\&P 500 daily return}
     \label{fig:sector-correlation}
 \end{figure}
+\FloatBarrier
+
+Figure \ref{fig:sector-correlation} shows the correlation of mean daily returns across all sectors \footnote{GICS: Global Industry Classification Standard - a standardized sector taxonomy developed jointly by MSCI and S\&P Dow Jones Indices. It groups companies into 11 sectors. See more at https://www.msci.com/gics}. The map was constructed using the engineered feature `Close PC'. Certain sectors, such as Technology, Healthcare, and Consumer Defensive, exhibit stronger positive correlations with each other while sectors like Utilities and Real Estate show weaker correlations with other sectors. In addition, the sectors' correlation with the S\&P 500 Index indicates that Technology, Healthcare, and Consumer Defensive sectors also have the strongest absolute correlations with the overall market while Utilities and Real Estate show weaker correlations.
+
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.85\linewidth]{../output/2yrs_sector_sp500_correlation.png}
-    \caption{Pearson correlation of each sector's mean daily return with the S\&P 500 daily return
-             ranked by absolute correlation magnitude. Bars highlighted
-             in green (Technology, Healthcare, Consumer Defensive) are the top 3 sectors most
-             strongly co-moving with the broader market.}
-    \label{fig:sector-sp500-corr}
+    \includegraphics[width=0.32\linewidth]{../output/Used/2yrs_sector_Technology_clustered.png}
+    \includegraphics[width=0.32\linewidth]{../output/Used/2yrs_sector_Healthcare_clustered.png} 
+    \includegraphics[width=0.32\linewidth]{../output/Used/2yrs_sector_Consumer_Defensive_clustered.png}
+    \caption{Intra-sector correlation matrices for the top three sectors by absolute correlation with S\&P 500 returns. From left to right: Technology ($|r| = 0.116$), Healthcare ($|r| = 0.106$), and Consumer Defensive ($|r| = 0.097$) sectors. Hierarchical clustering reveals sub-groups of stocks with similar return dynamics. Warm colours indicate strong positive co-movement while cool colours indicate divergence.}
+    \label{fig:top-sectors}
 \end{figure}
+\FloatBarrier
 
-Figure \ref{fig:sector-correlation} shows the correlation of mean daily returns across all sectors \footnote{GICS: Global Industry Classification Standard - a standardized sector taxonomy developed jointly by MSCI and S&P Dow Jones Indices. It groups companies into 11 sectors. See more at https://www.msci.com/gics}. Certain sectors, such as Technology, Healthcare, and Consumer Defensive, exhibit stronger positive correlations with each other while sectors like Utilities and Real Estate show weaker correlations with other sectors. In addition, the sectors' correlation with the S\&P 500 Index (Figure~\ref{fig:sector-sp500-corr}) indicates that Technology, Healthcare, and Consumer Defensive sectors also have the strongest absolute correlations with the overall market while Utilities and Real Estate show weaker correlations.
-
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.75\linewidth]{../output/2yrs_sector_Technology_clustered.png}
-    \caption{Intra-sector correlation matrix for the Technology sector (80 stocks, 2-year window).
-             Technology is the sector with the highest absolute correlation with SP500 returns
-             ($|r| = 0.116$). Stocks are ordered by hierarchical clustering; warm colours indicate
-             strong positive co-movement while cool colours indicate divergence.}
-    \label{fig:sector-tech}
-\end{figure}
-
+Figure \ref{fig:top-sectors} show the intra-sector correlation matrices for the Technology, Healthcare, and Consumer Defensive sectors, respectively. The tickers in those plots are sorted by hierarchical clustering, which reveals sub-groups of stocks that tend to move together, such as large-cap tech giants, semiconductor companies, and software firms. This suggests that certain segments within these sectors may be driving their overall correlation with the broader market. In addition, it suggest that there might be a high degree of redundancy in the data, which could pose challenges for traditional statistical methods and motivate the use of dimensionality reduction techniques or regularization.
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.75\linewidth]{../output/2yrs_sector_Healthcare_clustered.png}
-    \caption{Intra-sector correlation matrix for the Healthcare sector (2-year window).
-             Healthcare ranks 2nd by absolute correlation with SP500 returns ($|r| = 0.106$).
-             Hierarchical clustering reveals sub-groups such as large-cap pharma, biotech,
-             and medical device companies.}
-    \label{fig:sector-healthcare}
-\end{figure}
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.75\linewidth]{../output/2yrs_sector_Consumer_Defensive_clustered.png}
-    \caption{Intra-sector correlation matrix for the Consumer Defensive sector (36 stocks, 2-year
-             window). Consumer Defensive ranks 3rd by absolute correlation with SP500 returns
-             ($|r| = 0.097$). Hierarchical clustering groups staples retailers, beverage firms,
-             and household product companies.}
-    \label{fig:sector-consumer-defensive}
-\end{figure}
-Figure \ref{fig:sector-tech}, \ref{fig:sector-healthcare}, and \ref{fig:sector-consumer-defensive} show the intra-sector correlation matrices for the Technology, Healthcare, and Consumer Defensive sectors, respectively. The tickers in those plots are sorted by hierarchical clustering, which reveals sub-groups of stocks that tend to move together, such as large-cap tech giants, semiconductor companies, and software firms. This suggests that certain segments within these sectors may be driving their overall correlation with the broader market. In addition, it suggest that there might be a high degree of redundancy in the data, which could pose challenges for traditional statistical methods and motivate the use of dimensionality reduction techniques or regularization.
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.85\linewidth]{../output/2yrs_sector_volatility_over_time.png}
-    \caption{Rolling 21-day average cross-sectional volatility (standard deviation of daily returns)
-             for each GICS sector. Spikes correspond to broad
-             market stress events affecting multiple sectors simultaneously.}
+    \includegraphics[width=0.45\linewidth]{../output/Used/2yrs_sector_volatility_over_time.png}
+    \includegraphics[width=0.45\linewidth]{../output/Used/2yrs_smoothed_sector_volatility.png}
+    \caption{Sector volatility}
     \label{fig:sector-vol}
 \end{figure}
+\FloatBarrier
 
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.85\linewidth]{../output/2yrs_smoothed_sector_volatility.png}
-    \caption{Smoothed sector volatility obtained by applying a 40-day rolling mean to the
-             21-day rolling volatility series. The additional smoothing removes short-term noise
-             and highlights persistent structural differences in risk across sectors.}
-    \label{fig:sector-vol-smooth}
-\end{figure}
-
-Figure \ref{fig:sector-vol} and \ref{fig:sector-vol-smooth} show the rolling 21-day average cross-sectional volatility for each GICS sector and the smoothed version obtained by applying a 40-day rolling mean, respectively. The volatility series reveal that certain sectors, such as Energy and Financials, tend to exhibit higher volatility compared to others like Utilities and Consumer Staples. This support our earlier construction of volatility features for initially all stocks (before dimensionality reduction) rather than just a single index, as it suggests that there may be important information contained in the volatility of individual stocks that could contribute to predicting the overall market direction. In addition, the smoothed volatility series highlight persistent structural differences in risk across sectors, which could also be informative for prediction. Nevertheless, some similarity in these patterns across sectors suggest that dimensionality reduction techniques or regularization may be necessary to effectively capture the underlying structure of the data.
+Figure \ref{fig:sector-vol} shows the rolling 21-day average cross-sectional volatility for each GICS sector and the smoothed version obtained by applying a 40-day rolling mean. This was created utilizing the engineered feature `Close VOL 28'. The volatility series reveal that certain sectors, such as Energy and Financials, tend to exhibit higher volatility compared to others like Utilities and Consumer Staples. This support our earlier construction of volatility features for initially all stocks (before dimensionality reduction) rather than just a single index, as it suggests that there may be important information contained in the volatility of individual stocks that could contribute to predicting the overall market direction. In addition, the smoothed volatility series highlight persistent structural differences in risk across sectors, which could also be informative for prediction. Nevertheless, some similarity in these patterns across sectors suggest that dimensionality reduction techniques or regularization may be necessary to effectively capture the underlying structure of the data.
 
 \section{Methods}
+
 As our data set is time series and has a large number of features compared to the number of data points, some methods prove to have more merits, namely random forest tree classification, support vector machine, and neural networks (CNN, simple RNN, LSTM). These methods, however, require a certain level of computational capacity, which is not very extensive giving our constraints of time and resources. At the same time, basic generalized linear model like logistic regression is still applicable with additional dimensional reduction technique (Ridge, LASSO, and PCA). We have not concluded which are 3 methods should be focus in this project. Instead, we provided all preliminary result and seek for further advices. 
 
+\quad \ Since the data is time-series in fashion and has a large number of features compared to the number of data points by default, some methods of classification prove to be more forgiving, particularly random forest classification and support vector machines (SVMs). However, in certain scenarios, like an unconventionally large feature space, these methods require a large amount of computational capacity, which given by the projects constraints on time and resources, were not always feasible. These issues are mostly alleviated when dimension of the feature space is sufficiently reduced. With this, methods like logistic regression are still applicable.
 
-Logistic Regression with dimensional reduction or feature selections is our simplest model to be implemented. This method would result in a predicted response that measures the probability of the following day being a positive day. As it requires that the number of predictors smaller than the number of data points, we have to apply some dimensional reduction techniques, namely Ridge and LASSO regression, along with Principal Component Analysis. The necessity to use these techniques is further emphasized by the fact that there are systematic market movement making data of different stocks highly correlated. Also, multiple features are secondary indicators constructed from the raw data, resulting in the same issue of multicollinearity. Though the loss of interpretability could discourage us from using PCA and Ridge regression, our primary focus is on the prediction of the market direction is for their use. In almost all cases, there was data scaling (via StandardScaler provided by scikit-learn) performed when doing dimensionality reduction.
+Furthermore, there exists quite a large amount of multicollinearity within the feature space, given straightforwardly by the fact that there are more features than observations, which needs to be addressed. This along with the issue of high dimensionality of the feature space can be addressed by certain dimensionality reduction and regularization methods include stepwise, LASSO and ridge regression, along with principal component analysis (PCA), collinearity reduction on stocks and features, grouping by sector averages and K-Means clustering. Each method provides different, or in some cases no, insight or interpretability of model results. Lastly, the data was scaled prior to fitting and subsequently predicting via StandardScaler implemented through a Pipeline (both provided through \verb|scikit-learn|).
 
- With the available logistic regression method provided by the library scikit-learn, LogisticRegressionCV and LogisticRegression, a penalty term was inherently already a part of initializing the model. However, there was still another motivation for us to reduce the amount of features (columns) before fitting logistic regression, since it would otherwise take an extended period of time to run (especially since convergence would be impossible with stocks or engineered features that experienced a great deal of multicollinearity); PCA, Ridge, and LASSO method are used in this feature selection/engineering. As the number of features is very large, we do not use traditional method of forward-stepwise/ backward-stepwise/ forward-stagewise/ best subset selection. 
+It is good to note, before getting into the models that were utilized, that during implementation, different combinations of dimensionality reduction within the preprocessing of the data (such as the aforementioned grouping by sectors, or collinearity reduction) was applied to reduce computation time. Furthermore, in most cases, many different methods of dimensionality reduction and regularization were used to generate models differing in just that aspect. Lastly, in most cases (besides for when LogisticRegressionCV was used), \verb|GridSearchCV| was utilized to search for the optimal hyperparameters specific in dimensional reduction to each model type.
 
-The second method experimented by our group is Random Forest Tree Classifier. This method would directly forecast the direction and is not restricted by the requirement of $p<n$ like in the  generalized regression model. This allows us to fit the model with all features, and through feature-importance, deduce which features carry the biggest weight. Because of a large number of predictors, we do not start with a base tree classifier. Random Forest model has a merit in this case as it allow us build a tree with a cap of feature number. 
+The first method to be employed is logistic regression. This model was available for use through \verb|scikit-learn| and had two variants: \verb|LogisticRegression| and \verb|LogisticRegressionCV|. In most cases, \verb|LogisticRegressionCV| was used to generate optimal $C$-values, and with a built in penalty flag for both ridge (L2) and LASSO (L1) (also including elasticnet), no external function was needed to reduce dimensionality prior to fitting the pipeline. However, in the case of the utilization of PCA, the ridge (L2) penalty was utilized internally after PCA was applied. In addition, the most basic logistic regression with PCA components and no regularization was also implemented for comparison.
 
-There was some initial exploration into utilizing a random forest regressor then converting it's predictions into a binary response by checking for a positive or negative prediction. However, due to time-constraints, the exploration was stopped and only the random forest classifier was continued with. In this case, though the random forest classifier did not enforce that the number of parameters be less than that of the number of observations, there is no indication in the code that it was explored as a viable model. Instead, other dimensionality reduction methods were applied standalone (no combination of such methods), including: PCA, Ridge regression, LASSO regression, and Step-wise Regression utilizing walk forward validation.
+Though the loss of interpretability could discourage us from using PCA and Ridge regression, our primary focus is on the prediction of the market direction is for their use. In almost all cases, there was data scaling (via StandardScaler provided by scikit-learn) performed when doing dimensionality reduction.
+
+The second method that was utilized was the random forest classifier. This method is not restricted by the requirement of $p<n$ unlike logistic regression. This allowed for the model to be fit with all features. Furthermore, through feature-importance, we could deduce which features carry a meaningful weight. Due to the large number of predictors, we do not start with a decision tree classifier. Random Forest model has a merit in this case as it allow us build a tree with a cap of feature number. 
+
+There was some initial exploration into utilizing a random forest regressor then converting it's predictions into a binary response by checking for a positive or negative prediction. However, due to time-constraints, the exploration was stopped and only the random forest classifier was continued with. Though the random forest classifier did not enforce that the number of parameters be less than that of the number of observations, 
 
 The third method employed is Support Vector Machine. Similar to Random Forest method, it does not require $p<n$. Further more, SVM is a straight forward solution to a binary classification problem with more features than data points as it use kernel to capture data point proximity. We started our SVM model with a linear kernel as large feature number but finally choose RBF kernel due to its better performance. 
 
 Additional  method employed in our analysis is neural network with the focus on convolutional, simple recurrent, and LSTM ones (7 days window). As the neural network learning algorithm already use all data points in constructing each nodes, it is not necessary to use lag values as predictors in these models. Among CNN, simple RNN, and LSTM, the most natural option among them is the last one because its nature is very close to the market reaction in time series data. The other networks are included partly because of our concern about LSTM computing time and partly due to our curiosity of their application for time series. More specifically, 2D-CNN is possible for a time relationship between data points while a simple RNN model can reflect somehow the relationship of market movement at different times. Overall, the neural network method are feasible when we extended the time period for the data loaded. This method, however, is a black box and is not interpretable.   
 
-Regarding to the selection of optimal parameters for the above mentioned methods,  beside standard k-fold cross-validation provided in the textbook that we are used for all models, walk-forward validation are employed in some feasible ones. For the models that is computationally intensive, the number of fold is set to be 5 while our previous milestone indicate 10-fold cross validation. The general selection of hyperparameter is based on the model with highest average train accuracy/ F1 score while attain an acceptable level of standard deviation. Detailed of optimal hyperparameter for each model is in included in the appendix.
+Regarding to the selection of optimal parameters for the above mentioned methods,  beside standard k-fold cross-validation provided in the textbook that we are used for all models, walk-forward validation are employed in some feasible ones. This method utilizes a shifting window of training (\verb|window_size|) and test splits (\verb|horizon|) that look to simulate how an investor and/or trader may view the market before making a decision. Given by the nature of past data becoming holding less predictive power over future events (which can be seen as a diminishing correlation between two days as they spread further apart), a more recent \verb|window_size| and an appropriately short \verb|horizon| would be preferable to stay consistent and in-alignment with the then present market regime. % For some neural network models that is computationally intensive, the number of fold is set to be 5 instead of 10. 
 
+The general selection of hyperparameter is mainly based on the model with highest average cross validation accuracy. In addition, other metrics like ROC-AUC, F1-score, precision-recall, and ROC-AUC are also considered when they are available to specific models. Among several models of similar average cross validation accuracy, the more parsimonious one will be selected. Detailed of optimal hyperparameter for each model is in included in the appendix.
 
-\textbf{Further part need to be addressed:
-Baseline model is RF, Logistic, SVM with indexes only.
-• Mathematical formulation (optional but encouraged) 
-• Python implementation details
-• Textbook citation: “See ESL Chapter X, Section Y”}
-
-
-
+%\textbf{Further part need to be addressed:
+%Baseline model is RF, Logistic, SVM with indexes only.
+%• Mathematical formulation (optional but encouraged) 
+%• Python implementation details
+%• Textbook citation: “See ESL Chapter X, Section Y”}
 \section{Results}
 \subsection{Model Comparison}
-% ModelComparison1.tex and ModelComparison2.tex not yet available in output/
-% \input{../output/ModelComparison1.tex}
-% \FloatBarrier
-
-% \input{../output/ModelComparison2.tex}
-% \FloatBarrier
-
-\input{../output/logistic_regression_24hours_three_model_comparison.tex}
+\subsubsection{Baseline Models with raw features}
+\paragraph{Logistic Regression Models}
+\input{../output/Used/base_logistic_comparison.tex}
 \FloatBarrier
+
+Table~\ref{tab:base_logistic_comparison} presents the performance comparison of baseline logistic regression models with different regularization and dimensional reduction techniques. Overall the accuracy is just around 50\%, which is only slightly better than random guessing. This suggests that the raw OHLCV features may not contain strong predictive signals for the market direction, and that the relationship between these features and the target variable is likely complex and non-linear. The regularization techniques (Ridge and LASSO) do not seem to significantly improve performance compared to the unregularized logistic regression. The PCA-based model performs worse than the other models, which could be due to the loss of potential information when reducing dimensionality. Overall, these results suggest that more sophisticated models or additional feature engineering may be necessary to achieve better predictive performance.
+
+\subsubsection{Random Forest Models}
+
+
+\input{../output/Used/base_rf_comparison.tex}
+\FloatBarrier
+
+Table~\ref{tab:base_rf_comparison} presents the performance comparison of different random forest models with predictors of raw features and of selected PCA components. The depth of the tree and number of estimators are selected based on grid search cross validation. The random forest using raw features outperforms the PCA-based logistic regression, and applying PCA before the random forest improves performance even further (accuracy in the test set increased to 54 \%). LASSO and Ridge application in feature selections for random forest does not improve performance compared to PCA. However, the standard deviation of both train and test cross validation accuracy is higher for the random forest compared to logistic regression, which suggests that the random forest may be more sensitive to the data set used to train. 
+
+
+\subsubsection{Extended Feature Models}
+
+This section will present the performance comparison of models that utilize the engineered features, including lag values, percent change, volatility, max/min channel position, rolling volume weighted average prices, rolling z-scores, daily range, and day of week. The models will include logistic regression with automatic regularization (LASSO and Ridge), random forest classifier, support vector machine with RBF kernel, and neural networks (CNN, simple RNN, LSTM). The performance metrics will include accuracy, precision, recall, F1-score, and ROC-AUC where applicable. The results will be compared to the baseline models that only use raw features to evaluate the impact of feature engineering on predictive performance.
+
+\input{model_comparison_table.tex}
+\FloatBarrier
+
+Table~\ref{tab:model_comparison} reveals that sequential models (RNN and LSTM) achieve the best overall performance with F1-scores of 0.6592 and 0.6571 respectively, benefiting from their ability to capture temporal dependencies in 7-day windows. The Simple RNN emerges as the recommended model for deployment, achieving the highest accuracy (0.5461) among all models while maintaining a good balance between precision (0.5535) and recall (0.8148). Among linear models, LASSO regularization (L1) demonstrates superior performance with the highest accuracy (0.5486) and the only ROC-AUC above 0.50 (0.5342), indicating actual discriminative ability beyond random guessing. Notably, the SVM with RBF kernel exhibits degenerate behavior, predicting all samples as ``Up'' (Recall=1.0) and achieving a ROC-AUC below random chance (0.4917), rendering it unsuitable for practical application despite a misleadingly high F1-score. The dimensionality reduction models (PCA, LASSO-reduced, Ridge-reduced) show moderate performance with accuracies ranging from 0.4632 to 0.5368, suggesting that while dimension reduction techniques help manage the curse of dimensionality with 41K features, they also risk losing important predictive signals. Overall, all models operate near 50-55\% accuracy, confirming that S\&P 500 direction prediction remains inherently challenging even with sophisticated machine learning approaches. Incorporating different metrics beyond accuracy, such as ROC-AUC and standard deviation of the cross validation accuracy, we propose the use of logistic regression with Ridge and LASSO regularization for the predictors included engineered features.
+
+\subsection{Hourly Models}
+
+\input{../output/Used/logistic_regression_24hours_three_model_comparison.tex}
+\FloatBarrier
+
+To further investigate the temporal dependencies of the market, we also experimented with similar models for the hourly data. Table \ref{tab:logreg_l2_elasticnet_24h} presents the performance comparison of logistic regression models with L2 regularization, Elastic Net regularization, and feature-engineered L2 regularization using 24-hour lag features. The results indicate that the performance of the hourly models is better than the daily models, with the best performing model  with an accuracy of 0.5478 and ROC-AUC value around 60 \%. This suggests that a clearer short window of dependencies rather than by days/ weeks.
+
 \subsection{Visualization of predictions}
 
 \subsection{Validation results}
+\quad \ Initially, a \verb|window_size| of 21 days was chosen to represent roughly a month worth of trading days, and a \verb|horizon| of 5 days to represent roughly a week worth of trading days. However, this posed an issue of overfitting (further in detail below) since the feature space would almost always be greater than the \verb|window_size|.
 
 \subsection{Overfitting/underfitting analysis}
 
+
+\quad \ A general note on overfitting and other issues with select models. Given by the fact that the raw data inherently has more features than observations, overfitting was a big issue, especially in earlier implementations of the model. Overfitting results in a train misclassification rate of zero perpetually and no amount of generalization was possible towards validation sets and test splits. Furthermore, partly because of this overfitting, when certain models (most notably logistic regression) would search for an optimal hyperparameter, since the training misclassification rate would be impeccable, if the lower bound of the $C$-values were small enough, the model would degenerate to always guessing 1 or 0 depending on the imbalance in the splits. 
+
+This issue was mostly alleviated by introducing further dimensionality reduction methods (most notably grouping by sector and collinearity reduction), which reduced the dimensionality of the feature space enough for there to be any sense of meaningful training on the training set.
+
 \section{Discussion}
 
-• Interpretation of findings
+% \subsection{Interpretation of findings}
 
-• Real-world implications
+\subsection{Real-world implications}
+ The accuracy of prediction in the best model is around 54\% suggests that there may be some predictive signal in the data. However, it is not very strong to consistently outperform random guessing. This has implications for traders and investors who may be looking for reliable methods to forecast market direction, indicating that relying solely on historical daily price and volume data may not be sufficient for making informed trading decisions. In contrast, the hourly models show better performance, which suggests that there may be more short-term dependencies in the market that can be captured with more granular data. This could have implications for high-frequency trading strategies and intraday trading.
 
-• Limitations: time constraint, resource constraint for computation
-
-• Possible methodological extensions
+%\subsection{Limitations: time constraint, resource constraint for computation}
+%\subsection{Possible methodological extensions}
 
 \section{Reproducibility Requirements}
 
-• Environment file or package list
+\subsection{Environment file or package list}
 
-• Folder structure
+\subsection{Folder structure}
+\subsection{Random seed control}
+\subsection{Clear function/code organization}
 
-• Random seed control
-
-• Clear function/code organization
-
-Additional comments: more features vs just basic:
-- ridge reduces coefficient variance, not the redundancy in the data.
-- Curse of dimensionality / weak signals: extra features increase complexity
+%Additional comments: more features vs just basic:
+%- ridge reduces coefficient variance, not the redundancy in the data.
+%- Curse of dimensionality / weak signals: extra features increase complexity
 n, so the best achievable generalization can decrease.
 \section*{Python Notebook}
  \begin{itemize}
@@ -222,5 +221,59 @@ n, so the best achievable generalization can decrease.
 
 
 
+\section*{Appendix}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.95\textwidth]{../output/Used/base_logistic_bias_variance.png}
+  \caption{Bias-variance tradeoff for logistic regression with regularization using raw OHLCV features.}
+  \label{fig:base-bv-raw}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.95\textwidth]{../output/Used/base_logistic_train_test.png}
+  \caption{Train vs. test error across regularization strengths (direct train/test split) using raw OHLCV features.}
+  \label{fig:base-train-test-raw}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.95\textwidth]{../output/Used/base_logistic_pca_bias_variance.png}
+  \caption{Bias-variance tradeoff using PCA features (90\% explained variance) with regularized logistic regression.}
+  \label{fig:base-bv-pca}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.95\textwidth]{../output/Used/base_logistic_pca_train_test.png}
+  \caption{Train vs. test error across regularization strengths (direct split) using PCA features (90\% explained variance).}
+  \label{fig:base-train-test-pca}
+\end{figure}
+\FloatBarrier
+
+
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.95\textwidth]{../output/Used/base_rf_bias_variance.png}
+  \caption{Bias-variance tradeoff for random forest classifier across different feature sets.}
+  \label{fig:base-rf-bv}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.95\textwidth]{../output/Used/base_rf_train_test.png}
+  \caption{Train vs. test error comparison for random forest models with different feature engineering approaches.}
+  \label{fig:base-rf-train-test}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.95\textwidth]{../output/Used/base_rf_best_tree.png}
+  \caption{Visualization of one decision tree from the best performing random forest model.}
+  \label{fig:base-rf-tree}
+\end{figure}
+\FloatBarrier
 
 \end{document}

@@ -146,7 +146,7 @@ def rolling_window_backtest(model, X, y, window_size=None, horizon=None, verbose
         "mwfv_std_accuracy": round(np.std(accuracy), 3)
     }]
 
-def display_wfv_results(results: list, X_train: pd.DataFrame, X_test: pd.DataFrame, window_size: int, horizon: int) -> None: # Needs train test split ratio to dictate when the data goes from being tested on data that it trained on to data that is new to the model.
+def display_wfv_results(results: list, X_train: pd.DataFrame, X_test: pd.DataFrame, window_size: int, horizon: int, extra_metrics: bool =True, comparison_metric: list =None) -> None: # Needs train test split ratio to dictate when the data goes from being tested on data that it trained on to data that is new to the model.
     plt.figure(figsize=(12, 6))
     n_train=len(X_train)
     n_total=n_train + len(X_test)
@@ -155,9 +155,10 @@ def display_wfv_results(results: list, X_train: pd.DataFrame, X_test: pd.DataFra
     plt.plot(start_of_each_test, results[0], marker='o', linestyle='-', label='Segment Accuracy')
     plt.plot(start_of_each_test, results[1], color='gray',marker='o', linestyle='-', alpha=0.4, label='Prediction Direction')
     plt.plot(start_of_each_test, [0.5 for i in range(len(start_of_each_test))], linestyle="--", label="Base Line")
-    plt.plot(start_of_each_test, [results[2]["mwfv_avg_accuracy"] for i in range(len(start_of_each_test))], color="#8EFF32", alpha=0.8, linestyle="--", label="Mean")
-    plt.plot(start_of_each_test, [results[2]["mwfv_avg_accuracy"] + results[2]["mwfv_std_accuracy"] for i in range(len(start_of_each_test))], color="#B8FF7D", alpha=0.5, linestyle="--", label="+std")
-    plt.plot(start_of_each_test, [results[2]["mwfv_avg_accuracy"] - results[2]["mwfv_std_accuracy"] for i in range(len(start_of_each_test))], color="#B8FF7D", alpha=0.5, linestyle="--", label="-std")
+    if (extra_metrics):
+        plt.plot(start_of_each_test, [results[2]["mwfv_avg_accuracy"] for i in range(len(start_of_each_test))], color="#8EFF32", alpha=0.8, linestyle="--", label="Mean")
+        plt.plot(start_of_each_test, [results[2]["mwfv_avg_accuracy"] + results[2]["mwfv_std_accuracy"] for i in range(len(start_of_each_test))], color="#B8FF7D", alpha=0.5, linestyle="--", label="+std")
+        plt.plot(start_of_each_test, [results[2]["mwfv_avg_accuracy"] - results[2]["mwfv_std_accuracy"] for i in range(len(start_of_each_test))], color="#B8FF7D", alpha=0.5, linestyle="--", label="-std")
 
     plt.axvspan(window_size, n_train, color='lightblue', alpha=0.3, label='In-Sample Rolling')
     

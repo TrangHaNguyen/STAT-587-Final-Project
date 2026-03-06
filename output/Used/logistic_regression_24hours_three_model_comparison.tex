@@ -1,0 +1,27 @@
+% Auto-generated from logistic_regression_24hours_results.txt,
+% logistic_regression_24hours_elasticnet_results.txt,
+% and logistic_regression_featureenginearing_24hours_results.txt
+\begin{table}[htbp]
+\centering
+\caption{Logistic Regression Comparison: Base L2 vs Elastic Net vs Feature-Engineered L2 (24-hour lag features)}
+\label{tab:logreg_l2_elasticnet_24h}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lccc}
+\hline
+\textbf{Metric / Parameter} & \textbf{L2 (Ridge)} & \textbf{Elastic Net} & \textbf{FeatureEng L2} \\
+\hline
+Accuracy & 0.5820 & 0.5841 & 0.5181 \\
+Precision & 0.5877 & 0.5877 & 0.5375 \\
+ROC-AUC & 0.6115 & 0.5975 & 0.5141 \\
+\hline
+Algorithm & Logistic Regression (L2) & Logistic Regression (Elastic Net) & Logistic Regression (L2) \\
+Penalty & l2 & elasticnet & l2 \\
+Solver & lbfgs & saga & lbfgs \\
+Max iterations & 1000 & 2000 & 1000 \\
+Cross-validation & 5-fold stratified & 5-fold stratified & 5-fold stratified \\
+Optimal $C$ & 166.810054 & 166.810054 & 0.000100 \\
+$l1\_ratio$ & N/A & 0.90 & N/A \\
+\hline
+\end{tabular}%
+}
+\end{table}

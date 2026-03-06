@@ -5,7 +5,4 @@ Required Dependencies:
     Python:
 
         - yfinance
-
-    C++:
-
-        - cpr
+        - seaborn

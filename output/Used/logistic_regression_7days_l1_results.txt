@@ -1,0 +1,49 @@
+======================================================================
+LOGISTIC REGRESSION (L1 PENALTY) WITH 7-DAY LAGGED FEATURES
+======================================================================
+
+MODEL CONFIGURATION
+----------------------------------------------------------------------
+Algorithm: Logistic Regression (L1 regularization / LASSO)
+Solver: liblinear
+Max iterations: 1000
+Cross-validation: 5-fold stratified
+Optimal C parameter: 0.046416
+
+FEATURES
+----------------------------------------------------------------------
+Total features: 19049
+  - Current stock features: 2381  (approximately)
+  - Lagged stock features (7 lags): 16667  (approximately)
+  - Temporal features (day/month): 17
+Note: L1 penalty performs feature selection (shrinks coefficients to 0)
+
+DATA SPLIT
+----------------------------------------------------------------------
+Train set: 1601 samples (80%)
+Test set: 401 samples (20%)
+Train target: Down=740, Up=861
+Test target: Down=185, Up=216
+
+TEST SET PERFORMANCE
+----------------------------------------------------------------------
+Accuracy:  0.5486
+Precision: 0.5745
+Recall:    0.6250
+F1-Score:  0.5987
+ROC-AUC:   0.5342
+
+Confusion Matrix:
+               Predicted Down  Predicted Up
+Actual Down:                85          100
+Actual Up:                  81          135
+
+Classification Report:
+              precision    recall  f1-score   support
+
+        Down       0.51      0.46      0.48       185
+          Up       0.57      0.62      0.60       216
+
+    accuracy                           0.55       401
+   macro avg       0.54      0.54      0.54       401
+weighted avg       0.55      0.55      0.55       401

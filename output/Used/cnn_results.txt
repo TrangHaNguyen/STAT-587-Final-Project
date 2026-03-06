@@ -1,0 +1,46 @@
+======================================================================
+NEURAL NETWORK MODEL RESULTS - TIME SERIES CLASSIFICATION
+======================================================================
+
+DATA SUMMARY
+----------------------------------------------------------------------
+Original data shape: (2009, 2395)
+Sequence length: 5 trading days
+Reshaped data shape: (2005, 11975)
+Train/Val/Test split: 1403/301/301
+
+MODEL ARCHITECTURE
+----------------------------------------------------------------------
+Multi-Layer Perceptron (MLP) with temporal sequence features:
+Input Layer: 11975 features
+  (5d sequences × 2395 features, flattened)
+Hidden Layer 1: 128 units (ReLU activation)
+Hidden Layer 2: 64 units (ReLU activation)
+Output Layer: 1 unit (Sigmoid activation, binary classification)
+Regularization: L2 (alpha=0.0001), Early Stopping (patience=15)
+Optimizer: Adam (lr=0.001)
+
+TEST SET PERFORMANCE
+----------------------------------------------------------------------
+Train Accuracy:       0.6251
+Validation Accuracy:  0.5116
+Test Accuracy:        0.5083
+
+Test Precision: 0.5263
+Test Recall:    0.8642
+Test F1-Score:  0.6542
+
+Confusion Matrix:
+               Predicted Down  Predicted Up
+Actual Down:                13          126
+Actual Up:                  22          140
+
+Classification Report:
+              precision    recall  f1-score   support
+
+        Down       0.37      0.09      0.15       139
+          Up       0.53      0.86      0.65       162
+
+    accuracy                           0.51       301
+   macro avg       0.45      0.48      0.40       301
+weighted avg       0.45      0.51      0.42       301

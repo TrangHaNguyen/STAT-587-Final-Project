@@ -1,11 +1,10 @@
 from pathlib import Path
 import os
 import csv
-import datetime
 from sklearn.base import BaseEstimator
 from sklearn.model_selection import GridSearchCV
 
-def get_cwd(base_folder, max_lookback: int =5):
+def get_cwd(base_folder, max_lookback: int =5) -> Path:
     cwd=Path.cwd()
     for _ in range(max_lookback): 
         if cwd.name!=base_folder:
@@ -16,19 +15,18 @@ def get_cwd(base_folder, max_lookback: int =5):
         raise FileNotFoundError("Could not find correct workspace folder.")
     return cwd
 
-def log_result(result_dict: dict, directory: Path, file_name: str):
+def log_result(result_dict: dict, directory: Path, file_name: str) -> None:
     file_exists=os.path.isfile(directory / file_name)
     with open(directory / file_name, 'a', newline='') as f:
         writer=csv.DictWriter(f, fieldnames=result_dict.keys())
         if (not file_exists):
             writer.writeheader()
         writer.writerow(result_dict)
-        print("Wrote to", directory / file_name)
+        print("Downloaded results to", directory / file_name)
 
-def get_model_params(model: BaseEstimator):
+def get_model_params(model: BaseEstimator) -> str:
     params=model.get_params()
-    name=model.__class__.__name__
-    print(name)
+    name=model.__class__.__name__ 
     if (name=='Pipeline'):
         model=model.named_steps['classifier']
         params=model.get_params()
@@ -42,17 +40,20 @@ def get_model_params(model: BaseEstimator):
     else:
         return str(params)
     
-def get_model_params_grid(grid: GridSearchCV):
+def get_model_params_grid(grid: GridSearchCV) -> str:
     params=grid.best_params_
     return_string=""
     for param in params:
         return_string += f"{param}={params[param]}"
     return return_string
 
-def append_params_to_dict(dict_: dict, model: BaseEstimator):
+def append_params_to_dict(dict_: dict, model: BaseEstimator) -> dict:
     dict_['parameters']=get_model_params(model)
     return dict_
 
-def append_grid_params_to_dict(dict_: dict, grid: GridSearchCV):
+def append_grid_params_to_dict(dict_: dict, grid: GridSearchCV) -> dict:
     dict_['parameters']=get_model_params_grid(grid)
     return dict_
+
+def safe_div(n, d):
+    return round(n / d, 3) if (d != 0) else 0

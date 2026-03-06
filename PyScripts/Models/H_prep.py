@@ -10,7 +10,7 @@ pd.set_option('display.max_columns', 8)
 
 cwd=get_cwd("STAT-587-Final-Project")
 
-def clean_data(lookback_period: int =5, lag_period: list =[1], extra_features: bool =True, raw: bool =False, cluster: bool =False, n_clusters: int =100, sector: bool =False, corr: bool =False, corr_threshold: float =0.95, corr_level: int =1, testing: bool =False):
+def clean_data(lookback_period: int =5, lag_period: list =[1], extra_features: bool =True, raw: bool =False, cluster: bool =False, n_clusters: int =100, sector: bool =False, corr: bool =False, corr_threshold: float =0.95, corr_level: int =1, testing: bool =False) -> tuple[dict, dict]:
     if (lookback_period < 5): 
         if (lookback_period!=0):
             raise ValueError("lookback_period must be greater than  or equal to 2.")
@@ -236,7 +236,7 @@ def clean_data(lookback_period: int =5, lag_period: list =[1], extra_features: b
     print("Final shape (y_regression):", y_regression.shape[0], "rows, 1 columns.")
     return X, y_regression
 
-def pull_features(dataframe, feature_name, include=False):
+def pull_features(dataframe, feature_name, include=False) -> dict:
     idx = pd.IndexSlice
     if not include:
         return dataframe.loc[:, idx[feature_name, :, :]]

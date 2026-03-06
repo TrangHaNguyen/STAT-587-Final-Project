@@ -73,7 +73,7 @@ At the end of feature engineering, we remove most of the original data (OP, CP, 
 
 The raw data contains 501 rows, and 2520 columns. The sizable number of columns is explained by each stock (501) and index (1) having their own price metrics for CP, OP, HP, LP and TV $([503+1] * 5)=2520$. The number of rows is explained by the exclusion of 19 holidays and 211 weekend days.
 
-Overall, the data is characterized by a large number of features (columns) compared to the number of observations (rows), which can pose challenges for traditional statistical methods. Additionally, the data is time series in nature, which means that there may be temporal dependencies and patterns that need to be accounted for in the analysis (such as what use was described for lag values). These characteristics of the data will influence the choice of methods and techniques used for forecasting and analysis in this project.
+Overall, the data is characterized by a large number of features (columns) compared to the number of observations (rows), which can pose challenges for traditional statistical methods. Many engineered features are created based on raw features, leading to higher risk of multicollinearity problem. Additionally, the data is time series in nature, which means that there may be temporal dependencies and patterns that need to be accounted for in the analysis (such as what use was described for lag values). These characteristics of the data will influence the choice of methods and techniques used for forecasting and analysis in this project.
 
 
 \subsection{Exploratory Data Analysis}
@@ -101,7 +101,7 @@ Figure \ref{fig:sector-correlation} shows the correlation of mean daily returns 
 \end{figure}
 \FloatBarrier
 
-Figure \ref{fig:top-sectors} show the intra-sector correlation matrices for the Technology, Healthcare, and Consumer Defensive sectors, respectively. The tickers in those plots are sorted by hierarchical clustering, which reveals sub-groups of stocks that tend to move together, such as large-cap tech giants, semiconductor companies, and software firms. This suggests that certain segments within these sectors may be driving their overall correlation with the broader market. In addition, it suggest that there might be a high degree of redundancy in the data, which could pose challenges for traditional statistical methods and motivate the use of dimensionality reduction techniques or regularization.
+Figure \ref{fig:top-sectors} show the intra-sector correlation matrices for the Technology, Healthcare, and Consumer Defensive sectors, respectively. The tickers in those plots are sorted by hierarchical clustering, which reveals sub-groups of stocks that tend to move together, such as large-cap tech giants, semiconductor companies, and software firms. This suggests that certain segments within these sectors may be driving their overall correlation with the broader market and that there might be a high degree of redundancy in the data. This motivate the use of dimensionality reduction techniques or regularization further.
 
 \begin{figure}[h]
     \centering
@@ -112,7 +112,7 @@ Figure \ref{fig:top-sectors} show the intra-sector correlation matrices for the 
 \end{figure}
 \FloatBarrier
 
-Figure \ref{fig:sector-vol} shows the rolling 21-day average cross-sectional volatility for each GICS sector and the smoothed version obtained by applying a 40-day rolling mean. This was created utilizing the engineered feature `Close VOL 28'. The volatility series reveal that certain sectors, such as Energy and Financials, tend to exhibit higher volatility compared to others like Utilities and Consumer Staples. This support our earlier construction of volatility features for initially all stocks (before dimensionality reduction) rather than just a single index, as it suggests that there may be important information contained in the volatility of individual stocks that could contribute to predicting the overall market direction. In addition, the smoothed volatility series highlight persistent structural differences in risk across sectors, which could also be informative for prediction. Nevertheless, some similarity in these patterns across sectors suggest that dimensionality reduction techniques or regularization may be necessary to effectively capture the underlying structure of the data.
+Figure \ref{fig:sector-vol} shows the rolling 21-day average cross-sectional volatility for each GICS sector and the smoothed version obtained by applying a 40-day rolling mean. This was created utilizing the engineered feature `Close VOL 28'. The volatility series reveal that certain sectors, such as Energy and Financials, tend to exhibit higher volatility compared to others like Utilities and Consumer Staples. This support our earlier construction of volatility features for initially all stocks (before dimensionality reduction) rather than just a single index. In addition, the smoothed volatility series highlight persistent structural differences in risk across sectors, which could also be informative for prediction. Nevertheless, the similar time trend across sectors suggest that dimensionality reduction techniques or regularization may be necessary for data redundency.
 
 \section{Methods}
 
@@ -198,8 +198,13 @@ This issue was mostly alleviated by introducing further dimensionality reduction
 \subsection{Real-world implications}
  The accuracy of prediction in the best model is around 54\% suggests that there may be some predictive signal in the data. However, it is not very strong to consistently outperform random guessing. This has implications for traders and investors who may be looking for reliable methods to forecast market direction, indicating that relying solely on historical daily price and volume data may not be sufficient for making informed trading decisions. In contrast, the hourly models show better performance, which suggests that there may be more short-term dependencies in the market that can be captured with more granular data. This could have implications for high-frequency trading strategies and intraday trading.
 
-%\subsection{Limitations: time constraint, resource constraint for computation}
-%\subsection{Possible methodological extensions}
+\subsection{Limitations}
+
+  This study has several limitations. In terms of data, we only used historical price and volume information and did not include sentiment analysis, macroeconomic indicators, or alternative data sources. In terms of modeling, we did not explore mixed-model approaches or more complex deep learning architectures. In terms of evaluation, we mainly relied on accuracy, F1-score, and ROC-AUC under walk-forward validation and cross-validation, while additional selection rules (such as the 1SE rule based on k-fold cross validation) could be considered in future work. Finally, both time and computational resource constraints limited the extent of hyperparameter tuning, model experimentation, and large-scale cross-validation.
+
+\subsection{Possible methodological extensions}
+
+Future methodological extensions include more extensive hyperparameter tuning and broader model experimentation, along with a more comprehensive evaluation framework that incorporates additional metrics and validation techniques. The analysis could also be strengthened by including political and economic indicators, sentiment analysis, and other alternative data sources to improve predictive power. In addition, future work should explore more sophisticated modeling approaches, including deeper neural network architectures and hybrid strategies that combine machine learning with classical economic time-series methods such as ARIMA and GARCH.
 
 \section{Reproducibility Requirements}
 

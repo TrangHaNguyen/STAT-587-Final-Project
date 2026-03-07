@@ -32,7 +32,7 @@ if __name__ == "__main__":
     TEST_SIZE=0.2
 
     X, y_regression=cast(Any, clean_data(**data_clean_params))
-    X_train, X_test, y_train, y_test=train_test_split(X, y_regression, test_size=0.2, random_state=1, shuffle=False)
+    X_train, X_test, y_train, y_test=train_test_split(X, y_regression, test_size=TEST_SIZE, random_state=1, shuffle=False)
 
     def to_binary_class(y):
         return (y>=0).astype(int)

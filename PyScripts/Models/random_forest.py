@@ -114,7 +114,7 @@ if __name__=="__main__":
 
     # ------- LASSO APPLICATION -------
     print("\n\n------- LASSO RF Model -------")
-    lasso_selector=SelectFromModel(LogisticRegression(l1_ratio=1, solver='saga', random_state=1, max_iter=500, tol=5e-2), threshold='mean')
+    lasso_selector=SelectFromModel(LogisticRegression(l1_ratio=1, solver='saga', random_state=1, class_weight='balanced', max_iter=500, tol=5e-2), threshold='mean')
     RFClassifier_red_lasso=RandomForestClassifier(random_state=1, n_jobs=-1, class_weight='balanced')
 
     RF_pipeline_lasso=Pipeline([('scaler', StandardScaler()), 
@@ -147,7 +147,7 @@ if __name__=="__main__":
 
     # ------- RIDGE APPLICATION -------
     print("\n\n------- RIDGE RF Model -------")
-    ridge_selector=SelectFromModel(LogisticRegression(l1_ratio=0, solver="saga", random_state=1, max_iter=500, tol=5e-2), threshold='mean')
+    ridge_selector=SelectFromModel(LogisticRegression(l1_ratio=0, solver="saga", random_state=1, class_weight='balanced', max_iter=500, tol=5e-2), threshold='mean')
     RFClassifier_red_ridge=RandomForestClassifier(random_state=1, n_jobs=-1, class_weight='balanced')
 
     RF_pipeline_ridge=Pipeline([('scaler', StandardScaler()), 
@@ -180,7 +180,7 @@ if __name__=="__main__":
 
     # ------- STEP-WISE REGRESSION APPLICATION -------
     print("\n\n------- LASSO(internal) -> STEP-WISE REGRESSION RF Model -------")
-    lasso_selector=SelectFromModel(LogisticRegression(l1_ratio=1, solver='saga', random_state=1, max_iter=500, tol=5e-2), max_features=100, threshold='mean')
+    lasso_selector=SelectFromModel(LogisticRegression(l1_ratio=1, solver='saga', random_state=1, class_weight='balanced', max_iter=500, tol=5e-2), max_features=100, threshold='mean')
     RFClassifier_red_lasso=RandomForestClassifier(random_state=1, n_jobs=-1, class_weight='balanced')
 
     RF_pipeline_lasso=Pipeline([('scaler', StandardScaler()), 

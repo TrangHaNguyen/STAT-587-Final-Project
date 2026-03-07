@@ -136,22 +136,30 @@
 
 
 \section{Introduction}
-\subsection{Motivation \& research question}
-\begin{frame}{Motivation \& research question}
+\subsection{Research Question}
+\begin{frame}{Research Question}
 \begin{itemize}
-  \item Goal: Predicting the \textbf{direction} of the US stock market (rather than exact values) enables individuals to trade and invest more wisely
-  \item Data source: Yahoo Finance (publicly available historical data)
-  \item Research Problem: Will S\&P 500 will go up or down tomorrow based on data up till now?
-  \item Main modeling approach: Compare traditional statistical models (e.g., logistic regression) with modern statistical learning techniques (e.g., random forests, SVM, neural networks) to evaluate their predictive performance and implications for market efficiency
+  \item Goal: Predicting the \textbf{direction} of the S\&P 500 Index.
+  \item Research Problem: Is there information in publicly available data that can be used to forecast market direction.
+  \item Modeling approach: Perform feature engineering and selection/dimensionality reduction on raw data; fit logistic regression, random forest classification and support vector machine models with optimal hyperparameter values obtained through iterative selection.
+  %Compare traditional statistical models (e.g., logistic regression) with modern statistical learning techniques (e.g., random forests, SVM, neural networks) to evaluate their predictive performance and implications for market efficiency
 \end{itemize}
 \end{frame}
 \subsection{Background}
 \begin{frame}{Background}
 \begin{itemize}
-  \item The \textbf{S\&P 500} tracks the top 500 US companies by market capitalization and serves as the leading benchmark for the health of the US economy
-  \item Index values are computed using \textbf{float-adjusted market capitalization (FMC)}, so larger companies have a proportionally greater impact on the index
-  \item Forecasting stock market direction is \textbf{complex}: prices are influenced by company performance, economic indicators, geopolitical events, and investor sentiment
-  \item This project uses \textbf{historical data only}, as when markets close at the end of the day, it already reflects economic and political conditions, and concurrent indicators are typically unavailable at prediction time.
+  \item The \textbf{S\&P 500} index tracks the top 500 US companies by their \textbf{float-adjusted market capitalization (FMC)} and serves as the leading benchmark for the health of the US economy.
+  % \item Index values are computed using \textbf{float-adjusted market capitalization (FMC)}, so larger companies have a proportionally greater impact on the index
+  \item Forecasting the direction of the S\&P 500 Index is \textbf{complex}: the index point value is influenced by individual company performance, economic indicators, geopolitical events, and investor sentiment.
+  \item The data utilized is purely \textbf{historical}.
+\end{itemize}
+\end{frame}
+
+\subsection{Motivation}
+\begin{frame}{Motivation}
+\begin{itemize}
+  \item If an edge can be found using publicly available data, then there are some grounds to partially reject the \textbf{Efficient Market Hypothesis}.
+  \item Obtaining an edge in forecasting the market direction allows for traders to make more informed decisions about the economy and how they should position thier trade and order sizes.
 \end{itemize}
 \end{frame}
 
@@ -161,10 +169,9 @@
 \subsection{Dataset \& preprocessing}
 \begin{frame}{Data collection and preprocessing}
 \begin{itemize}
-  \item Data retrieved via Yahoo Finance's API (\texttt{yfinance}): open, close, high, low prices, and traded volume
-  \item Covers S\&P 500 stocks from \textbf{January 1, 2018} to \textbf{December 31, 2025}
-  \item Cleaning steps: ticker changes (mergers), invalid/frozen-state entries, market holidays, and delisted/newly-listed stocks --- resulting dataset contains no NAs
-  \item \textbf{501 trading days} $\times$ \textbf{2,520 features} (503 stocks/indices, each having 5 price metrics $([503+1]\times 5)$
+  \item The data is collected through Yahoo Finance's API (\texttt{yfinance}) and contains open, close, high, low prices, and traded volume metrics on stocks listed on the S\&P 500 index, taken from \textbf{January 1, 2018} to \textbf{December 31, 2025}
+  \item Cleaning steps: ticker changes (mergers), invalid/frozen-state entries, market holidays, and delisted/newly-listed stocks.
+  \item Dimensionality: \textbf{2010 trading days} $\times$ \textbf{2,520 features}.
 \end{itemize}
 \end{frame}
 
@@ -189,8 +196,8 @@
 \begin{frame}{Exploratory Data Analysis}
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.45\linewidth]{../output/Used/2yrs_sector_correlation.png}
-    \includegraphics[width=0.45\linewidth]{../output/Used/2yrs_sector_sp500_correlation.png}
+    % \includegraphics[width=0.45\linewidth]{../output/Used/png/2yrs_sector_correlation.png}
+    % \includegraphics[width=0.45\linewidth]{../output/Used/png/2yrs_sector_sp500_correlation.png}
     \caption{Correlation across sectors and that of each sector with the S\&P 500 daily return}
     \label{fig:sector-correlation}
 \end{figure}
@@ -199,9 +206,9 @@
 \begin{frame}{Exploratory Data Analysis (2)}
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.32\linewidth]{../output/Used/2yrs_sector_Technology_clustered.png}
-    \includegraphics[width=0.32\linewidth]{../output/Used/2yrs_sector_Healthcare_clustered.png} 
-    \includegraphics[width=0.32\linewidth]{../output/Used/2yrs_sector_Consumer_Defensive_clustered.png}
+    % \includegraphics[width=0.32\linewidth]{../output/Used/png/2yrs_sector_Technology_clustered.png}
+    % \includegraphics[width=0.32\linewidth]{../output/Used/png/2yrs_sector_Healthcare_clustered.png} 
+    % \includegraphics[width=0.32\linewidth]{../output/Used/png/2yrs_sector_Consumer_Defensive_clustered.png}
     \caption{Intra-sector correlation matrices for the top three sectors by absolute correlation with S\&P 500 returns. From left to right: Technology ($|r| = 0.116$), Healthcare ($|r| = 0.106$), and Consumer Defensive ($|r| = 0.097$) sectors. Hierarchical clustering reveals sub-groups of stocks with similar return dynamics. Warm colours indicate strong positive co-movement while cool colours indicate divergence.}
     \label{fig:top-sectors}
 \end{figure}
@@ -210,8 +217,8 @@
 \begin{frame}{Exploratory Data Analysis (3)}
   \begin{figure}[h]
     \centering
-    \includegraphics[width=0.45\linewidth]{../output/Used/2yrs_sector_volatility_over_time.png}
-    \includegraphics[width=0.45\linewidth]{../output/Used/2yrs_smoothed_sector_volatility.png}
+    % \includegraphics[width=0.45\linewidth]{../output/Used/png/2yrs_sector_volatility_over_time.png}
+    % \includegraphics[width=0.45\linewidth]{../output/Used/png/2yrs_smoothed_sector_volatility.png}
     \caption{Sector volatility}
     \label{fig:sector-vol}
 \end{figure}
@@ -260,7 +267,7 @@
 \subsubsection{Baseline Models with raw features}
 \begin{frame}{Results (1)}
 \textbf{Logistic Regression Models}\\
-\input{../output/Used/base_logistic_comparison.tex}
+% \input{../output/Used/tex/base_logistic_comparison.tex}
 \FloatBarrier
 \end{frame}
 
@@ -279,7 +286,7 @@
 \subsubsection{Random Forest Models}
 \begin{frame}{Results (2)}
 \textbf{Random Forest Models}\\
-\input{../output/Used/base_rf_comparison.tex}
+% \input{../output/Used/tex/base_rf_comparison.tex}
 \FloatBarrier
 \end{frame}
 
@@ -296,7 +303,7 @@
 
 \subsubsection{Extended Feature Models}
 \begin{frame}{Results (3)}
-\input{model_comparison_table.tex}
+% \input{model_comparison_table.tex}
 \end{frame}
 
 \begin{frame}{Results (3)}
@@ -313,7 +320,7 @@
 
 \subsubsection{Hourly Models}
 \begin{frame}{Results (4)}
-\input{../output/Used/logistic_regression_24hours_three_model_comparison.tex}
+% \input{../output/Used/tex/logistic_regression_24hours_three_model_comparison.tex}
 \FloatBarrier
 \end{frame}
 

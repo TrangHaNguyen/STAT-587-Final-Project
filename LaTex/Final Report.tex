@@ -93,7 +93,7 @@ A little emphasis on lag is provided as follows: lag captures momentum, which al
 
 Regarding other created features, the day-to-day percent change is a common way to measure the relative change in price over time, which can be more informative than absolute price changes. The volatility feature captures the variability of price movements, which gives the model to potentially perceive highly volatile moments in the market. The max/min channel position helps identify potential levels of support and resistance, which can be used to inform the model on potential breakouts. The rolling z-score can help identify outliers in the data, which allows the model to perceive unnatural price movements (event detection). The daily range provides a glimpse into intraday volatility of a stock, which covers for what day-to-day volatility otherwise misses. Finally, the day of week feature can capture any potential patterns in stock price movements that may occur on specific days of the week. 
 
-At the end of feature engineering, we remove most of the original data (OP, CP, HP, LP) and EMA (used to calculate Z-scores) since they are non-stationary, primarily due to fact that the architecture of Random Forest models will render most of the data obsolete and increase model complexity for no justifiable reason.
+At the end of feature engineering, we remove most of the original data (OP, CP, HP, LP) since they are non-stationary, primarily due to fact that the architecture of Random Forest models will render most of the data obsolete and increase model complexity for no justifiable reason. % Delete:"and EMA (used to calculate Z-scores) since it is just an intermediate variable to create features. We can mention it in the appendix if needed"
 
 % At the end of our analysis, features involving non-stationary metrics (EMA, OP, CP, HP, LP, VWAP) are not included in the final model as they do not contribute to the prediction of the market direction. The final model will only include features that are stationary and have a significant impact on the prediction of the market direction.
 
@@ -108,7 +108,7 @@ The following heatmaps are created .
     \centering
     \includegraphics[width=0.45\linewidth]{../output/Used/2yrs_sector_correlation.png}
     \includegraphics[width=0.45\linewidth]{../output/Used/2yrs_sector_sp500_correlation.png}
-    \caption{Correlation across sectors and that of each sector with the S\&P 500 daily return}
+    \caption{Correlation across sectors and that of each sector with the S\&P 500 daily return. Highlighted are 3 sectors with highest absolute correlation coefficient with the S\&P 500.}
     \label{fig:sector-correlation}
 \end{figure}
 \FloatBarrier
@@ -132,12 +132,14 @@ Figure \ref{fig:top-sectors} show the intra-sector correlation matrices for the 
     \centering
     \includegraphics[width=0.45\linewidth]{../output/Used/2yrs_sector_volatility_over_time.png}
     \includegraphics[width=0.45\linewidth]{../output/Used/2yrs_smoothed_sector_volatility.png}
-    \caption{Sector volatility}
+    \caption{Sector volatility. Left panel: 21-day-window standard deviation. Right panel: its smoothed version by moving average over 40 days.}
     \label{fig:sector-vol}
 \end{figure}
 \FloatBarrier
 
-Figure \ref{fig:sector-vol} shows the rolling 21-day average cross-sectional volatility for each GICS sector and the smoothed version obtained by applying a 40-day rolling mean. This was created utilizing the engineered feature `Close VOL 28'. The volatility series reveal that certain sectors, such as Energy and Financials, tend to exhibit higher volatility compared to others like Utilities and Consumer Staples. This support our earlier construction of volatility features for initially all stocks (before dimensionality reduction) rather than just a single index. In addition, the smoothed volatility series highlight persistent structural differences in risk across sectors, which could also be informative for prediction. Nevertheless, the similar time trend across sectors suggest that dimensionality reduction techniques or regularization may be necessary for data redundency.
+Figure \ref{fig:sector-vol} shows the rolling 21-day average cross-sectional volatility for each GICS sector and the smoothed version obtained by applying a 40-day rolling mean. This was created utilizing the engineered feature `Close VOL 28'. The volatility series reveal that certain sectors, such as Energy and Financials, tend to exhibit higher volatility compared to others like Utilities and Consumer Staples. This support our earlier construction of volatility features for all stocks (before dimensionality reduction) rather than just a single index. In addition, similar time trend across sectors suggest data redundency.
+
+In summary, certain sectors and their certain segments may have better information for predicting S\&P 500. In addition, information contained in the volatility of individual stocks should be exploited in prediction. Also, there is quite evidence on the redundancy of the data. 
 
 \section{Methods}
 
@@ -253,7 +255,32 @@ n, so the best achievable generalization can decrease.
 \bibliographystyle{apacite}
 \bibliography{Bibliography}
 \section*{Appendix}
+\subsection{Details of Enginearing Features Before Dimensionality Reduction}
 
+% % Copy infor from slide and milestone 1 and 2:
+% \begin{itemize}
+%   \item Target variable: \textbf{binary} indicator (whether the S\&P 500 index will go up (1) or down (0) the next day, based on the closing value)
+%   \item Predictors is extended with:
+%   \begin{itemize}
+%     \item \textbf{Lag values} --- capture momentum and time-series structure.
+%     \item \textbf{Day-to-day \% change} \& \textbf{daily range} --- relative price movement and intraday volatility.
+%     \item \textbf{Volatility} \& \textbf{rolling z-score} --- variability and outlier/event detection.
+%     \item \textbf{Max/min channel position} --- reflect breakout signals.
+%     \item \textbf{Rolling VWAP} \& \textbf{day of week} --- volume-weighted context and seasonlity.
+%   \end{itemize}
+%   \item \textbf{Non-stationary} features (OP, CP, HP, LP) are \textbf{removed} after engineering.
+
+%               \item Percent change is utilized to have stationary data. Without this, we can run into issues where a method involving decision trees utilize outdated prices that are not relevant to future prices (i.e. the value of a share goes from \$10 to \$100, an internal node with condition [Close $<$ \$25] will never be activated if the relevant price as of present is \$100)
+%             \item Lag captures momentum, which will allow us to see if past data has any impact on future values.
+%             \item Volatility looks to capture how much a stock can be expected to move within a certain day. For the extent of this project, volatility can be seen as the standard deviation of price movements.
+%             \item The exponential moving average captures more recent price movements quicker than a normal moving average by recursively generating a new average with a weight that emphasizes the new price point. This allows for an increased ability to analyze short-term trends as we are looking to predict the following day while maintaining the benefits of a moving average.
+%             \item A Max/Min channel position allows for identification of support and resistant lines, which can further provide insight of potential breakouts.
+%             \item The rolling volume weighted average price looks to portray the value of share based on the amount people are willing to pay for it. This ensures that price points where investors are primarily buying or selling shares at is reflected, as opposed to seeing potentially a misleading share price.
+%             \item The rolling z-score utilizes the exponential moving average and volatility in order to generate z-scores of a price movement. It is good to note that a t-distribution will probably fit this projects use-case, as there are days influenced by external events that cause price movements you would be believe to not occur given a z-score.
+% \end{itemize}
+
+
+\subsection{Additional figures and tables}
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=0.95\textwidth]{../output/Used/base_logistic_bias_variance.png}

@@ -134,7 +134,7 @@
 %\end{frame}
 
 
-
+%FORMAT COMMENT:all throughout the presentation, make sure your spacing is proper. Because items are clustered and poorly spaced
 
 \section{Introduction}
 
@@ -161,8 +161,9 @@
   \item \textbf{Weak-form EMH}: past prices/volume should not predict future returns; model performance tests weak-form efficiency.
   \item The \textbf{S\&P 500} index tracks the top 500 US companies by their \textbf{float-adjusted market capitalization (FMC)} and serves as the leading benchmark for the health of the US economy.
   % \item Index values are computed using \textbf{float-adjusted market capitalization (FMC)}, so larger companies have a proportionally greater impact on the index
-  \item Forecasting the direction of the S\&P 500 Index is \textbf{complex}: the index point value is influenced by individual company performance, economic indicators, geopolitical events, and investor sentiment.
-  \item The data utilized is purely \textbf{historical} prices and trading volume.
+  \item Forecasting the direction of the S\&P 500 Index is \textbf{complex} %the index point value is influenced by individual company performance, economic indicators, geopolitical events, and investor sentiment. Comment so that we talk about it but not too much on the slide
+  \item The data utilized is purely \textbf{historical} prices and trading volume. %when markets close at the end of the day, it already reflects economic and political condition of that day while concurrent indicators are typically unavailable at prediction time
+conditions,
 \end{itemize}
 \end{frame}
 
@@ -175,8 +176,12 @@
 \subsection{Dataset \& preprocessing}
 \begin{frame}{Data collection and preprocessing}
 \begin{itemize}
-  \item The data is collected through Yahoo Finance's API (\texttt{yfinance}) and contains open, close, high, low prices, and traded volume metrics on stocks listed on the S\&P 500 index, taken from \textbf{January 1, 2018} to \textbf{December 31, 2025}
-  \item Cleaning steps: ticker changes (mergers), invalid/frozen-state entries, market holidays, and delisted/newly-listed stocks.
+  \item Raw data: retrieved through Yahoo Finance's API (\texttt{yfinance}). 
+  \begin{itemize}
+    \item Contains open, close, high, low prices, and traded volume metrics (OCHLV) on stocks listed on the S\&P 500 index
+    \item From \textbf{January 1, 2018} to \textbf{December 31, 2025}
+  \end{itemize}
+  \item Cleaning steps: ticker changes (mergers), invalid/frozen-state entries, market holidays, and delisted/newly-listed stocks. Drop missing-value stocks.
   \item Dimensionality: \textbf{2010 trading days} $\times$ \textbf{2,520 features}.
 \end{itemize}
 \end{frame}
@@ -185,15 +190,15 @@
 \begin{frame}{Feature Engineering and target variable}
 \begin{itemize}
   \item Target variable: \textbf{binary} indicator (whether the S\&P 500 index will go up (1) or down (0) the next day, based on the closing value)
-  \item Predictors: Raw Prices (Open, High, Low, Close) and Volume traded data is extended with:
+  \item Predictors is extended with:
   \begin{itemize}
-    \item \textbf{Lag values} --- capture momentum; required since time-series structure is not built into the architectures used
-    \item \textbf{Day-to-day \% change} \& \textbf{daily range} --- relative price movement and intraday volatility
-    \item \textbf{Volatility} \& \textbf{rolling z-score} --- variability and outlier/event detection
-    \item \textbf{Max/min channel position} --- support/resistance levels for breakout signals
-    \item \textbf{Rolling VWAP} \& \textbf{day of week} --- volume-weighted context and seasonlity patterns
+    \item \textbf{Lag values} --- capture momentum and time-series structure.
+    \item \textbf{Day-to-day \% change} \& \textbf{daily range} --- relative price movement and intraday volatility.
+    \item \textbf{Volatility} \& \textbf{rolling z-score} --- variability and outlier/event detection.
+    \item \textbf{Max/min channel position} --- reflect breakout signals.
+    \item \textbf{Rolling VWAP} \& \textbf{day of week} --- volume-weighted context and seasonlity.
   \end{itemize}
-  \item Non-stationary features (OP, CP, HP, LP, EMA) are \textbf{removed} after engineering to reduce model complexity
+  \item \textbf{Non-stationary} features (OP, CP, HP, LP) are \textbf{removed} after engineering.
 \end{itemize}
 \end{frame}
 
@@ -204,46 +209,44 @@
     \centering
     % \includegraphics[width=0.45\linewidth]{../output/Used/png/2yrs_sector_correlation.png}
     % \includegraphics[width=0.45\linewidth]{../output/Used/png/2yrs_sector_sp500_correlation.png}
-    \caption{Correlation across sectors and that of each sector with the S\&P 500 daily return}
+    \caption{Correlation across sectors and that of each sector with the S\&P 500 daily return. Highlighted are 3 sectors with highest absolute correlation coefficient with the S\&P 500. %The Technology sector shows the strongest positive correlation with the S\&P 500 returns ($|r| = 0.116$), followed by Healthcare ($|r| = 0.106$) and Consumer Defensive ($|r| = 0.097$). This suggests that these sectors may have a more significant influence on the overall market direction, potentially due to their larger market capitalizations or sensitivity to economic conditions. The remaining sectors exhibit weaker correlations, indicating more idiosyncratic return patterns.}
     \label{fig:sector-correlation}
 \end{figure}
 \end{frame}
 
-\begin{frame}{Exploratory Data Analysis (2)}
+\begin{frame}{Exploratory Data Analysis}
 \begin{figure}[h]
     \centering
     % \includegraphics[width=0.32\linewidth]{../output/Used/png/2yrs_sector_Technology_clustered.png}
     % \includegraphics[width=0.32\linewidth]{../output/Used/png/2yrs_sector_Healthcare_clustered.png} 
     % \includegraphics[width=0.32\linewidth]{../output/Used/png/2yrs_sector_Consumer_Defensive_clustered.png}
-    \caption{Intra-sector correlation matrices for the top three sectors by absolute correlation with S\&P 500 returns. From left to right: Technology ($|r| = 0.116$), Healthcare ($|r| = 0.106$), and Consumer Defensive ($|r| = 0.097$) sectors. Hierarchical clustering reveals sub-groups of stocks with similar return dynamics. Warm colours indicate strong positive co-movement while cool colours indicate divergence.}
+    \caption{Intra-sector correlation matrices for the top three sectors by absolute correlation with S\&P 500 returns. From left to right: Technology, Healthcare , and Consumer Defensive. Hierarchical clustering groups stocks with similar return dynamics. Warm colours indicate strong positive co-movement while cool colours indicate divergence.}
     \label{fig:top-sectors}
 \end{figure}
 \end{frame}
 
-\begin{frame}{Exploratory Data Analysis (3)}
+\begin{frame}{Exploratory Data Analysis}
   \begin{figure}[h]
     \centering
     % \includegraphics[width=0.45\linewidth]{../output/Used/png/2yrs_sector_volatility_over_time.png}
     % \includegraphics[width=0.45\linewidth]{../output/Used/png/2yrs_smoothed_sector_volatility.png}
-    \caption{Sector volatility}
+    \caption{Sector volatility. Left panel: 21-day-window average volatility. Right panel: its smoothed version by moving average over 40 days. %The Technology sector exhibits the highest volatility, followed by Healthcare and Consumer Cyclical. The volatility of these sectors also shows a similar time trend, with peaks around the same periods, suggesting potential common underlying factors driving their variability. This could indicate that these sectors are more sensitive to market-wide events or economic conditions, which may contribute to their stronger correlation with the overall market direction.}
     \label{fig:sector-vol}
 \end{figure}
 \end{frame}
-\begin{frame}{Exploratory Data Analysis (4)}
-  Key findings from EDA:
+\begin{frame}{Exploratory Data Analysis}
+  \textbf{Key findings from EDA:}
   \begin{itemize}
-    \item 
-    Certain sectors exhibit stronger positive correlations with each other while sectors show weaker correlations 
-    \item Certain segments within these sectors may be driving their overall correlation with the broader market: there might be a high degree of redundancy 
-    \item different volatility level, persistent structural differences: there may be important information contained in the volatility of individual stocks 
-    \item similar time trend: potential data redundancy
+    \item Certain sectors exhibit stronger correlations with the S\&P 500 returns
+    \item Certain segments within these sectors may be driving their overall correlation with the broader market, indicating a high degree of redundancy in data
+    \item Different volatility levels suggest that there may be important information contained in the volatility of individual stocks 
+    \item A similar time trend in some sector volatility indicates potential data redundancy
   \end{itemize}
 \end{frame}
 
 
-
 \section{Methods}
- 
+% Prof's comments: too much matter clustered on one page. Method overview should include definition/ mathematical formulation if possible. Fix this
 \begin{frame}{Methods}
 \begin{itemize}
   \item Data Characteristics: 
@@ -271,14 +274,14 @@
 
 \section{Results}
 \subsubsection{Baseline Models with raw features}
-\begin{frame}{Results (1)}
+\begin{frame}{Results}
 \textbf{Logistic Regression Models}\\
 % \input{../output/Used/tex/base_logistic_comparison.tex}
 \FloatBarrier
 \end{frame}
 
-\begin{frame}{Results (1)}
-\textbf{Take away}\\
+\begin{frame}{Results}
+%Prof's comment: proper formatting: spacing
 \begin{itemize}
   \item Overall accuracy around 50\%, only slightly better than random guessing
   \item Raw OHLCV features may not contain strong predictive signals 
@@ -290,14 +293,13 @@
 \end{frame}
 
 \subsubsection{Random Forest Models}
-\begin{frame}{Results (2)}
+\begin{frame}{Results}
 \textbf{Random Forest Models}\\
 % \input{../output/Used/tex/base_rf_comparison.tex}
 \FloatBarrier
 \end{frame}
 
-\begin{frame}{Results (2)}
-\textbf{Take away}\\
+\begin{frame}{Results}
 \begin{itemize}
   \item The random forest using raw features outperforms the PCA-based logistic regression
   \item Applying PCA before the random forest improves performance even further (accuracy in the test set increased to 54 \%). 
@@ -308,12 +310,11 @@
 
 
 \subsubsection{Extended Feature Models}
-\begin{frame}{Results (3)}
+\begin{frame}{Results}
 % \input{model_comparison_table.tex}
 \end{frame}
 
-\begin{frame}{Results (3)}
-\textbf{Take away}\\
+\begin{frame}{Results}
 \begin{itemize}
   \item Sequential models (RNN and LSTM) achieve the best overall performance 
   \item Simple RNN emerges as the recommended model for deployment
@@ -325,13 +326,13 @@
 \end{frame}
 
 \subsubsection{Hourly Models}
-\begin{frame}{Results (4)}
+\begin{frame}{Results}
 % \input{../output/Used/tex/logistic_regression_24hours_three_model_comparison.tex}
 \FloatBarrier
 \end{frame}
 
-\begin{frame}{Results (4)}
-\textbf{Take away}\\
+\begin{frame}{Results}
+% Prof's comment: More clarity
 \begin{itemize}
   \item To further investigate the temporal dependencies of the market, we also experimented with similar models for the hourly data. 
   \item The performance of the hourly models is better than the daily models, with the best performing model  with an accuracy of 0.5478 and ROC-AUC value around 60 \%. 
@@ -343,6 +344,7 @@
 
 \section{Limitations \& next steps}
 \begin{frame}{Limitation}
+  %Prof's comment: too much matter clustered on one page. summarize this
   \begin{itemize}
     \item Data limitations: only historical price and volume data, no sentiment analysis, macroeconomic indicators, or alternative data sources
     \item Model limitations: did not explore mix model methods, more complicated deep learning architectures
@@ -353,6 +355,7 @@
 \end{frame}
 
 \begin{frame}{Next steps}
+  %Prof's comment: too much matter clustered on one page. summarize this
 \begin{itemize}
   \item Conduct more extensive hyperparameter tuning and model experimentation
   \item Implement a more comprehensive evaluation framework, including additional metrics and validation techniques
@@ -363,6 +366,7 @@
 
 \section{Final summary}
 \begin{frame}{Summary}
+  %Prof's comment: too much matter clustered on one page. summarize this
 \begin{itemize}
   \item Predicting the direction of the stock market is a complex task with many influencing factors. 
   \item While some models can achieve slightly better than random performance, there is still significant room for improvement. 

@@ -50,7 +50,7 @@ if __name__ == "__main__":
                                     ('classifier', SVM_linear)])
 
     param_grid={
-        'classifier__C': [0.05, 0.1, 1, 10]
+        'classifier__C': [0.1, 1, 10]
     }
     
     grid_search_linear = GridSearchCV(SVM_linear_pipeline, param_grid, cv=tscv, scoring='balanced_accuracy', n_jobs=-1, verbose=1, return_train_score=True)

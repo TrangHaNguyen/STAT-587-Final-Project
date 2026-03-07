@@ -122,7 +122,7 @@ if __name__=="__main__":
                               ('classifier', RFClassifier_red_lasso)])
 
     param_grid={
-        'feature_selector__estimator__C': [0.001, 0.01, 0.1], 
+        'feature_selector__estimator__C': [0.001, 0.01, 0.1, 1], 
         'classifier__max_depth': [2, 3, 5, 10],              
         'classifier__n_estimators': [500]
     }
@@ -155,7 +155,7 @@ if __name__=="__main__":
                               ('classifier', RFClassifier_red_ridge)])
 
     param_grid={
-        'feature_selector__estimator__C': [0.001, 0.01, 0.1],
+        'feature_selector__estimator__C': [0.001, 0.01, 0.1, 1],
         'classifier__max_depth': [2, 3, 5, 10],              
         'classifier__n_estimators': [500]
     }
@@ -188,7 +188,7 @@ if __name__=="__main__":
                               ('classifier', RFClassifier_red_lasso)])
 
     param_grid={
-        'feature_selector__estimator__C': [0.001, 0.01, 0.1], 
+        'feature_selector__estimator__C': [0.001, 0.01, 0.1, 1], 
         'classifier__max_depth': [2, 3, 5, 10],              
         'classifier__n_estimators': [500]
     }

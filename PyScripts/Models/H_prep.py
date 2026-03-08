@@ -31,7 +31,7 @@ pd.set_option('display.max_columns', 8)
 
 cwd=get_cwd("STAT-587-Final-Project")
 
-def import_data(testing: bool =False) -> pd.DataFrame:
+def import_data(testing: bool =False, extra_features: bool =True, cluster: bool =False, n_clusters: int =100, corr_threshold: float =0.95, corr_level: int =0) -> pd.DataFrame:
     idx=pd.IndexSlice
     table=None
     print("------- Downloading Data")
@@ -48,7 +48,9 @@ def import_data(testing: bool =False) -> pd.DataFrame:
         # Retrieve the specific data and drop rows that are all NA's (accounts for Holidays)
         TEMP_DATA=DATA.loc[:, idx[:, type, :]].dropna(how="all", axis=0)
         # Front fill for all tickers that have one NA value (accounts for ticker name changes or for holidays not being observed (specifically for commodities))
-        TEMP_DATA[(TEMP_DATA.isna().sum().sort_values(ascending=False)==1).index]=TEMP_DATA[(TEMP_DATA.isna().sum().sort_values(ascending=False)==1).index].ffill()
+        missing_one=(TEMP_DATA.isna().sum()==1)
+        cols=missing_one[missing_one==1].index
+        TEMP_DATA[cols]=TEMP_DATA[cols].ffill()
         # Remove any columns that still contain NA's (usually tickers that were listed on any exchange after Jan 1st, 2024)
         TEMP_DATA=TEMP_DATA.dropna(how="any", axis=1)
         DATA=DATA.drop(columns=type, level=1).join(TEMP_DATA)
@@ -60,24 +62,14 @@ def import_data(testing: bool =False) -> pd.DataFrame:
     print("Finished Cleaning Data -------")
     print("Current shape:", DATA.shape[0], "rows,", DATA.shape[1], "columns.")
 
-    print("------- Generating Necessary Features")
-    return DATA
-
-def clean_data(DATA: pd.DataFrame, lookback_period: int =7, lag_period: list =[1], extra_features: bool =True, raw: bool =False, cluster: bool =False, n_clusters: int =100, sector: bool =False, corr: bool =False, corr_threshold: float =0.95, corr_level: int =1, verbose: int=1) -> tuple[dict, dict]:
-    # corr can be removed in place of having a corr_level=0 in place of it.
-    
-    if (lookback_period < 5): 
-        if (lookback_period!=0):
-            raise ValueError("lookback_period must be greater than  or equal to 2.")
-    
-    idx=pd.IndexSlice
-
-    # Generating percent change from day before to current day. 
-    features=DATA.loc[:, idx[['Close', 'Open', 'High', 'Low'], 'Stocks', :]].copy().pct_change().rename(columns={metric: f"{metric} PC" for metric in ['Close', 'Open', 'High', 'Low']}, level=0)
+    DATA=pd.concat([DATA, DATA.loc[:, idx[['Close', 'Open', 'High', 'Low'], 'Stocks', :]].copy().pct_change().rename(columns={metric: f"{metric} PC" for metric in ['Close', 'Open', 'High', 'Low']}, level=0)], axis=1)
     print("Created Percent Changes.")
 
+    y_regression=((DATA.loc[:, idx['Close', 'Index', '^SPX']] - DATA.loc[:, idx['Open', 'Index', '^SPX']]) / DATA.loc[:, idx['Open', 'Index', '^SPX']]).rename("Target Regression").shift(-1)
+    print("Created Target (Regression).")
+
     if (cluster):
-        X_stocks=features.xs('Close PC', level=0, axis=1).droplevel('Type', axis=1).dropna(axis=0, how='all').T
+        X_stocks=DATA.xs('Close PC', level=0, axis=1).droplevel('Type', axis=1).dropna(axis=0, how='all').T
 
         n_clusters=n_clusters 
         kmeans=KMeans(n_clusters=n_clusters, random_state=1, n_init=10)
@@ -91,112 +83,105 @@ def clean_data(DATA: pd.DataFrame, lookback_period: int =7, lag_period: list =[1
             distances = np.linalg.norm(X_stocks.iloc[indices].values - centers[i], axis=1) # Find the one stock closest to the cluster center
             representative_stocks.append(X_stocks.index[indices[np.argmin(distances)]])
 
-        features=features.loc[:, idx[:, 'Stocks', representative_stocks]]
-        features=pd.concat([features, DATA.loc[:, idx[['Close', 'Open', 'High', 'Low', 'Volume'], 'Stocks', representative_stocks]].copy()], axis=1)
+        DATA=DATA.loc[:, idx[:, 'Stocks', representative_stocks]]
         print("---EXTRA---: Applied clustering and selected representative stocks.")
-        print("Current shape:", features.shape[0], "rows,", features.shape[1], "columns.")
-    else: 
-        features=pd.concat([features, DATA.loc[:, idx[['Close', 'Open', 'High', 'Low', 'Volume'], 'Stocks', :]].copy()], axis=1)
+        print("Current shape:", DATA.shape[0], "rows,", DATA.shape[1], "columns.")
 
-    if (corr):
-        if (corr_level not in [1, 2, 3]): raise ValueError("If corr=True, then corr_level must be 1 or 2 (default 1).")
-        elif (corr_level == 1 or corr_level == 3):
-            X_stocks=features.xs('Close PC', level=0, axis=1).droplevel('Type', axis=1).dropna(axis=0, how='all')
-            corr_matrix=X_stocks.corr().abs()
+    
+    if (corr_level not in [0, 1, 2, 3]): raise ValueError("corr_level must be 0, 1, 2 or 3 (default 0).")
+    elif (corr_level == 1 or corr_level == 3):
+        X_stocks=DATA.xs('Close PC', level=0, axis=1).droplevel('Type', axis=1).dropna(axis=0, how='all')
+        corr_matrix=X_stocks.corr().abs()
 
-            upper=corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool)) # Upper diagonal matrix where main diagonal is zero.
+        upper=corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool)) # Upper diagonal matrix where main diagonal is zero.
 
-            to_drop=[column for column in upper.columns if any(upper[column]>corr_threshold)]
+        to_drop=[column for column in upper.columns if any(upper[column]>corr_threshold)]
 
-            features=features.drop(columns=to_drop, level='Ticker')
-            print(f"---EXTRA---: (corr_level={corr_level}) Dropped {len(to_drop)} highly correlated stocks by closing percent change.")
-            print("Current shape:", features.shape[0], "rows,", features.shape[1], "columns.")
+        DATA=DATA.drop(columns=to_drop, level='Ticker')
+        print(f"---EXTRA---: (corr_level={corr_level}) Dropped {len(to_drop)} highly correlated stocks by closing percent change.")
+        print("Current shape:", DATA.shape[0], "rows,", DATA.shape[1], "columns.")
 
-    y_regression=((DATA.loc[:, idx['Close', 'Index', '^SPX']] - DATA.loc[:, idx['Open', 'Index', '^SPX']]) / DATA.loc[:, idx['Open', 'Index', '^SPX']]).rename("Target Regression").shift(-1)
-    print("Created Target (Regression).")
-
-    if (extra_features and not raw):
-        features["Day of Week"]=features.index.dayofweek
+    if (extra_features):
+        DATA[("Day of Week", "Calendar", "All")]=DATA.index.dayofweek
         print("---EXTRA---: Created Day of Week.")
     
         High_=DATA.loc[:, idx['High', :, :]]
         Low_=DATA.loc[:, idx['Low', :, :]]
-        features=pd.concat([features, pd.DataFrame(High_.values-Low_.values, index=High_.index, columns=High_.columns).rename(columns={'High': f"Daily Range"}, level=0)], axis=1)
+        DATA=pd.concat([DATA, pd.DataFrame(High_.values - Low_.values, index=High_.index, columns=High_.columns).rename(columns={'High' : 'Daily Range'}, level=0)], axis=1)
         print("---EXTRA---: Created Daily Range.")
 
+    return DATA, y_regression
+
+def clean_data(DATA: pd.DataFrame, y_regression: pd.DataFrame, lookback_period: int =7, lag_period: list =[1], extra_features: bool =True, raw: bool =False, sector: bool =False, corr_threshold: float =0.95, corr_level: int =0) -> tuple[pd.DataFrame, pd.Series]:    
+    if (lookback_period < 5 and lookback_period!=0): 
+        raise ValueError("lookback_period must be greater than or equal to 6.")
+    if isinstance(lag_period, int):
+        lag_period=[lag_period]
+    for lag in lag_period:
+        if (lag <= 0):
+            raise ValueError("lag_period must be greater than or equal to 0.")
+
+    print("------- Generating Necessary Features")
+    new_columns=[]
+    idx=pd.IndexSlice
+
+    DATA=DATA.copy()
     if (not raw):
-        if (lag_period!=0 or lag_period!=[0]):
-            if isinstance(lag_period, int):
-                lag_period=[lag_period]
+        for lag in lag_period:
             for metric in ['Close PC', 'Open PC']:
-                for lag in lag_period:
-                    features=pd.concat([features, features.loc[:, idx[metric, :, :]].shift(lag).rename(columns={metric: f"{metric} Lag {lag}"}, level=0)], axis=1)
-            print("Created Lag.")
+                new_columns.append(DATA.loc[:, idx[metric, :, :]].shift(lag).rename(columns={metric: f"{metric} Lag {lag}"}, level=0))
+        print("Created Lag.")
 
         if (lookback_period != 0):
             for metric in ['Close', 'Open']:
-                features=pd.concat([features, features.loc[:, idx[metric, :, :]].ewm(span=lookback_period, adjust=False).mean().rename(columns={metric: f"{metric} EMA {lookback_period}"}, level=0)], axis=1)
-                vol=features.loc[:, idx[metric, :, :]].rolling(window=lookback_period).std()
-                ema=features.loc[:, idx[f"{metric} EMA {lookback_period}", :, :]]
+                price=DATA.loc[:, idx[metric, :, :]]
+                vol=price.rolling(window=lookback_period).std()
+                ema=price.ewm(span=lookback_period, adjust=False).mean()
                 norm_vol=vol/ema.values
-                features=pd.concat([features, norm_vol.rename(columns={metric: f"{metric} VOL {lookback_period}"}, level=0)], axis=1)
-            print("Created EMA and Rolling Volatility (Scaled).")
+                z_score=np.full_like(price.values, 0.0)
+                np.divide((price.values - ema.values), vol.values, out=z_score, where=(vol.values > 0))
+                new_columns.append(norm_vol.rename(columns={metric: f"{metric} VOL {lookback_period}"}, level=0))
+                new_columns.append(pd.DataFrame(z_score, index=DATA.index, columns=price.columns).rename(columns={metric: f"{metric} Z-Score {lookback_period}"}, level=0))
+            print("Created EMA, Rolling Volatility (Scaled) and Rolling Z-Score.")
 
-            features=pd.concat([features, features.loc[:, idx['High', :, :]].rolling(window=lookback_period).max().rename(columns={'High': f"MAX {lookback_period}"}, level=0)], axis=1)
-            features=pd.concat([features, features.loc[:, idx['Low', :, :]].rolling(window=lookback_period).min().rename(columns={'Low': f"MIN {lookback_period}"}, level=0)], axis=1)
+            rolling_High_=DATA.loc[:, idx['High', :, :]].rolling(window=lookback_period).max().rename(columns={'High': f"MAX {lookback_period}"}, level=0)
+            rolling_Low_=DATA.loc[:, idx['Low', :, :]].rolling(window=lookback_period).min().rename(columns={'Low': f"MIN {lookback_period}"}, level=0)
 
             for metric in ['Close', 'Open']:
-                max_=features.loc[:, idx[f'MAX {lookback_period}', :, :]]
-                min_=features.loc[:, idx[f'MIN {lookback_period}', :, :]]
-                metric_=features.loc[:, idx[metric, :, :]]
-                # A case was noted when the max_ and min_ values are equal to each other. We can simply drop the relative stock to remove this.
-                is_zero = (max_.values - min_.values == 0)
-                if is_zero.any():
-                    problem_tickers = max_.columns[is_zero.any(axis=0)].get_level_values(2).unique()
-                    features.drop(columns=problem_tickers, level=2, inplace=True)
-                    continue
-                max_min_channel_pos =(metric_.values-min_.values)/(max_.values-min_.values)
-                features=pd.concat([features, pd.DataFrame(max_min_channel_pos, index=features.index, columns=metric_.columns).rename(columns={metric: f'Channel Position {metric} {lookback_period}'}, level=0).ffill().fillna(0.5)], axis=1)
+                price=DATA.loc[:, idx[metric, :, :]]
+                max_min_channel_pos=np.full_like(price.values, 0.5)
+                diff=rolling_High_.values - rolling_Low_.values
+                np.divide((price.values-rolling_Low_.values), diff, out=max_min_channel_pos, where=(diff != 0))
+                new_columns.append(pd.DataFrame(max_min_channel_pos, index=DATA.index, columns=price.columns).rename(columns={metric: f'Channel Position {metric} {lookback_period}'}, level=0))
             print("Created Max/Min Channel Positions/")
 
-            features.drop(columns=[f"MAX {lookback_period}", f"MIN {lookback_period}"], level=0, inplace=True)
-            print("Cleaned up Unnecessary Columns.")
-
-            typical_price=(features.loc[:, idx['High', :, :]].values + features.loc[:, idx['Low', :, :]].values + features.loc[:, idx['Close', :, :]].values)/3
-            volume=(features.loc[:, idx['Volume', :, :]])
+            typical_price=(DATA.loc[:, idx['High', :, :]].values + DATA.loc[:, idx['Low', :, :]].values + DATA.loc[:, idx['Close', :, :]].values)/3
+            volume=(DATA.loc[:, idx['Volume', :, :]])
             price_volume=typical_price*volume.values
-            price_volume_rol_sum=pd.DataFrame(price_volume, index=features.index, columns=volume.columns).rolling(lookback_period).sum()
+            price_volume_rol_sum=pd.DataFrame(price_volume, index=DATA.index, columns=volume.columns).rolling(lookback_period).sum()
             volume_rol_sum=volume.rolling(lookback_period).sum()
-            features=pd.concat([features, (price_volume_rol_sum / volume_rol_sum).rename(columns={'Volume': f'Rolling VWAP {lookback_period}'}, level=0)], axis=1)
+            new_columns.append((price_volume_rol_sum / volume_rol_sum).rename(columns={'Volume': f'Rolling VWAP {lookback_period}'}, level=0))
             print("Created Rolling Volume Weighted Average Price.")
 
-            for metric in ['Close', 'Open']:
-                price=features.loc[:, idx[metric, :, :]]
-                EMA=features.loc[:, idx[f"{metric} EMA {lookback_period}", :, :]]
-                Vol=features.loc[:, idx[f"{metric} VOL {lookback_period}", :, :]]
-                z_score=(price.values-EMA.values)/Vol.values 
-                features=pd.concat([features, pd.DataFrame(z_score, index=features.index, columns=price.columns).rename(columns={metric: f"{metric} Z-Score {lookback_period}"}, level=0)], axis=1)
-            print("Created Rolling Z-Score.")
+        if (extra_features):
+            for metric in DATA.columns.get_level_values(0).unique():
+                if metric[:4] == "Open":
+                    new_columns.append(DATA.loc[:, idx[metric, :, :]].shift(-1).rename(columns={metric: f"{metric} Forward Lag"}, level=0))
+            print("---EXTRA---: Created Open Metrics Forward Lag.")
 
-            for metric in ['Close', 'Open']:
-                features.drop(columns=[f"{metric} EMA {lookback_period}"], level=0, inplace=True)
-            print("Cleaned up Unnecessary Columns.")
-
-        features=features.sort_index(axis=1)
-        features.drop(columns=["Close", "Open", "High", "Low"], inplace=True)
+        DATA.drop(columns=["Close", "Open", "High", "Low"], level=0, inplace=True)
+        DATA=DATA.sort_index(axis=1)
         print("Cleaned up Unnecessary Columns.")
 
-    if (extra_features and not raw):
-        for metric in features.columns.get_level_values(0).unique():
-            if metric[:4] == "Open":
-                features=pd.concat([features, features.loc[:, idx[metric, :, :]].shift(-1).rename(columns={metric: f"{metric} Forward Lag"})], axis=1)
-        print("---EXTRA---: Created Open Metrics Forward Lag.")
-        
+    if (new_columns):
+        DATA=pd.concat([DATA] + new_columns, axis=1)
+    DATA=DATA.sort_index(axis=1)
+
     y_regression = y_regression.to_frame()
     y_regression.columns = pd.MultiIndex.from_tuples([('Target', 'Index', 'Regression')])
     print("Created Target (Classification)")
 
-    X=pd.concat([features, y_regression], axis=1)
+    X=pd.concat([DATA, y_regression], axis=1)
     X.dropna(how="any", axis=0, inplace=True)
     print("Cleaned up remaining/resulting NA values.")
 
@@ -204,7 +189,7 @@ def clean_data(DATA: pd.DataFrame, lookback_period: int =7, lag_period: list =[1
     X=X.drop(columns=['Target'], level=0)
 
     if (sector):
-        if ((corr and corr_level != 2) or cluster): print("!!!WARNING!!!: Since dimensionality was reduced before grouping by sector, the sector feature averages may no longer reflect the sector itself.")
+        if ((corr_level not in [0, 2])): print("!!!WARNING!!!: Since dimensionality was reduced before grouping by sector, the sector feature averages may no longer reflect the sector itself.")
         lookup_df = pd.read_csv(cwd / "PyScripts" / "Data" / "stock_lookup_table.csv")
         sector_map = lookup_df.set_index('Ticker')['Sector'].to_dict()
 
@@ -215,7 +200,7 @@ def clean_data(DATA: pd.DataFrame, lookback_period: int =7, lag_period: list =[1
         print("---EXTRA---: Grouped Features by Sector Averages.")
         print("Current shape:", X.shape[0], "rows,", X.shape[1], "columns.")
 
-    if (corr and (corr_level == 2 or corr_level == 3)):
+    if (corr_level in [2, 3]):
         cols_to_remove=[]
         if (not sector):
             for feature in X.columns.get_level_values(0).unique():
@@ -241,7 +226,6 @@ def clean_data(DATA: pd.DataFrame, lookback_period: int =7, lag_period: list =[1
                     cols_to_remove.append((feature, ticker))
         X=X.drop(columns=cols_to_remove)
         print(f"---EXTRA---: (corr_level={corr_level}) Dropped {len(cols_to_remove)} highly correlated feature columns.")
-            
 
     print("Predictors, and Target (Regression) successfully split.")
 
@@ -250,16 +234,145 @@ def clean_data(DATA: pd.DataFrame, lookback_period: int =7, lag_period: list =[1
     print("Final shape (y_regression):", y_regression.shape[0], "rows, 1 columns.")
     return X, y_regression
 
-def data_clean_param_selection(DATA: pd.DataFrame, model: BaseEstimator, test_size: float, window_size: int, horizon: int, w: float =4.0, **kwargs: List[Any]) -> tuple[pd.DataFrame, dict, float]:
+# clean_data(*import_data(), sector=True, corr=True, corr_level=3)
+
+def efficient_clean_data(DATA: pd.DataFrame, y_regression: pd.DataFrame, sector: bool =False, corr_threshold: float =0.95, corr_level: int =0, **kwargs) -> tuple[pd.DataFrame, pd.Series]:
+    SCHEMA: Dict[str, Type] = {
+        'lag_period': (int, list),
+        'lookback_period': int
+    }
+
+    DATA=DATA.copy()
+    current_keys=set(kwargs.keys())
+    invalid_keys=current_keys - set(SCHEMA.keys())
+    if (len(kwargs) != 1):
+        raise ValueError(f"Expected one argument, got {len(kwargs)}.")
+    if (invalid_keys):
+        raise ValueError(f"Invalid parameter(s): {invalid_keys}. "
+                         f"Valid parameters are: {', '.join(SCHEMA.keys())}")
+    met=list(kwargs.keys())[0]
+    if not isinstance(kwargs[met], SCHEMA[met]):
+        raise TypeError(f"{met} must be of type {SCHEMA[met]}, not {type(kwargs[met])}")
+    
+    idx=pd.IndexSlice
+    new_columns=[]
+    if (met == 'lag_period'):
+        lag_period=kwargs['lag_period']
+        if (lag_period not in [0, [0]]):
+            if isinstance(lag_period, int):
+                lag_period=[lag_period]
+            for metric in ['Close PC', 'Open PC']:
+                for lag in lag_period:
+                    new_columns.append(DATA.loc[:, idx[metric, :, :]].shift(lag).rename(columns={metric: f"{metric} Lag {lag}"}, level=0))
+            print("Created Lag.")
+        else:
+            print("!!!WARNING!!!: Lag was not created due to lag_period=[0]")
+    elif (met == 'lookback_period'):
+        lookback_period=kwargs['lookback_period']
+        new_columns=[]
+        for metric in ['Close', 'Open']:
+            price=DATA.loc[:, idx[metric, :, :]]
+            vol=price.rolling(window=lookback_period).std()
+            ema=price.ewm(span=lookback_period, adjust=False).mean()
+            norm_vol=vol/ema.values
+            z_score=np.full_like(price.values, 0.0)
+            np.divide((price.values - ema.values), vol.values, out=z_score, where=(vol.values > 0))
+            new_columns.append(norm_vol.rename(columns={metric: f"{metric} VOL {lookback_period}"}, level=0))
+            new_columns.append(pd.DataFrame(z_score, index=DATA.index, columns=price.columns).rename(columns={metric: f"{metric} Z-Score {lookback_period}"}, level=0))
+        print("Created EMA, Rolling Volatility (Scaled) and Rolling Z-Score.")
+
+        rolling_High_=DATA.loc[:, idx['High', :, :]].rolling(window=lookback_period).max().rename(columns={'High': f"MAX {lookback_period}"}, level=0)
+        rolling_Low_=DATA.loc[:, idx['Low', :, :]].rolling(window=lookback_period).min().rename(columns={'Low': f"MIN {lookback_period}"}, level=0)
+
+        for metric in ['Close', 'Open']:
+            price=DATA.loc[:, idx[metric, :, :]]
+            max_min_channel_pos=np.full_like(price.values, 0.5)
+            diff=rolling_High_.values - rolling_Low_.values
+            np.divide((price.values-rolling_Low_.values), diff, out=max_min_channel_pos, where=(diff != 0))
+            new_columns.append(pd.DataFrame(max_min_channel_pos, index=DATA.index, columns=price.columns).rename(columns={metric: f'Channel Position {metric} {lookback_period}'}, level=0))
+        print("Created Max/Min Channel Positions/")
+
+        typical_price=(DATA.loc[:, idx['High', :, :]].values + DATA.loc[:, idx['Low', :, :]].values + DATA.loc[:, idx['Close', :, :]].values)/3
+        volume=(DATA.loc[:, idx['Volume', :, :]])
+        price_volume=typical_price*volume.values
+        price_volume_rol_sum=pd.DataFrame(price_volume, index=DATA.index, columns=volume.columns).rolling(lookback_period).sum()
+        volume_rol_sum=volume.rolling(lookback_period).sum()
+        new_columns.append((price_volume_rol_sum / volume_rol_sum).rename(columns={'Volume': f'Rolling VWAP {lookback_period}'}, level=0))
+        print("Created Rolling Volume Weighted Average Price.")
+
+        DATA.drop(columns=["Close", "Open", "High", "Low"], level=0, inplace=True)
+        DATA=DATA.sort_index(axis=1)
+        print("Cleaned up Unnecessary Columns.")
+
+    if (new_columns):
+        DATA=pd.concat([DATA] + new_columns, axis=1)
+        DATA=DATA.sort_index(axis=1)
+
+    y_regression = y_regression.to_frame()
+    y_regression.columns = pd.MultiIndex.from_tuples([('Target', 'Index', 'Regression')])
+    print("Created Target (Classification)")
+
+    X=pd.concat([DATA, y_regression], axis=1)
+    X.dropna(how="any", axis=0, inplace=True)
+    print("Cleaned up remaining/resulting NA values.")
+
+    y_regression=X[('Target', 'Index', 'Regression')].rename("Target Regression")
+    X=X.drop(columns=['Target'], level=0)
+
+    if (new_columns):
+        if (sector):
+            if (corr_level not in [2, 0]): print("!!!WARNING!!!: Since dimensionality was reduced before grouping by sector, the sector feature averages may no longer reflect the sector itself.")
+            lookup_df = pd.read_csv(cwd / "PyScripts" / "Data" / "stock_lookup_table.csv")
+            sector_map = lookup_df.set_index('Ticker')['Sector'].to_dict()
+
+            metrics = X.columns.get_level_values(0)
+            sectors = X.columns.get_level_values(2).map(sector_map)
+            
+            X = X.T.groupby([metrics, sectors]).mean().T
+            print("---EXTRA---: Grouped Features by Sector Averages.")
+            print("Current shape:", X.shape[0], "rows,", X.shape[1], "columns.")
+
+        if (corr_level in [2, 3]):
+            cols_to_remove=[]
+            if (not sector):
+                for feature in X.columns.get_level_values(0).unique():
+                    X_stocks=X.xs(feature, level=0, axis=1).droplevel('Type', axis=1)
+                    corr_matrix=X_stocks.corr().abs()
+
+                    upper=corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool)) # Upper diagonal matrix where main diagonal is zero.
+
+                    to_drop=[column for column in upper.columns if any(upper[column]>corr_threshold)]
+
+                    for ticker in to_drop:
+                        cols_to_remove.append((feature, 'Stocks', ticker))
+            else:
+                for feature in X.columns.get_level_values(0).unique():
+                    X_stocks=X.xs(feature, level=0, axis=1)
+                    corr_matrix=X_stocks.corr().abs()
+
+                    upper=corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool)) # Upper diagonal matrix where main diagonal is zero.
+
+                    to_drop=[column for column in upper.columns if any(upper[column]>corr_threshold)]
+
+                    for ticker in to_drop:
+                        cols_to_remove.append((feature, ticker))
+            X=X.drop(columns=cols_to_remove)
+            print(f"---EXTRA---: (corr_level={corr_level}) Dropped {len(cols_to_remove)} highly correlated feature columns.")
+
+    print("Finished Generating Features -------")
+    print("Final shape (X):", X.shape[0], "rows,", X.shape[1], "columns.")
+    print("Final shape (y_regression):", y_regression.shape[0], "rows, 1 columns.")
+    return X, y_regression
+    
+# efficient_clean_data(*import_data(), sector=True, corr_level=2, lookback_period=7)
+
+def data_clean_param_selection(DATA: pd.DataFrame, y_regression: pd.DataFrame, model: BaseEstimator, test_size: float, window_size: int, horizon: int, w: float =4.0, eff_support: bool =False, **kwargs: List[Any]) -> tuple[pd.DataFrame, dict, float]:
     SCHEMA: Dict[str, Type] = {
         'raw': bool,
         'extra_features': bool,
         'lag_period': (int, list),
         'lookback_period': int,
-        'cluster': bool,
-        'n_clusters': int,
         'sector': bool,
-        'corr': bool,
         'corr_threshold': float,
         'corr_level': int
     }
@@ -268,7 +381,7 @@ def data_clean_param_selection(DATA: pd.DataFrame, model: BaseEstimator, test_si
 
     current_keys=set(kwargs.keys())
     invalid_keys=current_keys - set(SCHEMA.keys())
-    if invalid_keys:
+    if (invalid_keys):
         raise ValueError(f"Invalid parameter(s): {invalid_keys}. "
                          f"Valid parameters are: {', '.join(SCHEMA.keys())}")
     for key in kwargs:
@@ -279,8 +392,7 @@ def data_clean_param_selection(DATA: pd.DataFrame, model: BaseEstimator, test_si
             if not isinstance(item, expected_type):
                 raise TypeError(
                     f"Item {i} in '{key}' is {type(item).__name__}, "
-                    f"but expected {expected_type.__name__}."
-                )
+                    f"but expected {expected_type.__name__}.")
             
         seen = []
         unique_list = []
@@ -288,20 +400,13 @@ def data_clean_param_selection(DATA: pd.DataFrame, model: BaseEstimator, test_si
         for item in kwargs[key]:
             comparison_item = tuple(item) if isinstance(item, list) else item
             
-            if comparison_item not in seen:
+            if (comparison_item not in seen):
                 seen.append(comparison_item)
                 unique_list.append(item)
             else:
                 print(f"--- Duplicate found in '{key}': {item} removed.")
 
         cleaned_kwargs[key] = unique_list
-    
-    if (('corr_level' in current_keys or 'corr_threshold' in current_keys) and 'corr' not in current_keys):
-        cleaned_kwargs['corr']=[True]
-        print("'corr_level' and/or 'corr_threshold' specified but 'corr' is not. Setting 'corr' to [True]")
-    if ('n_clusters' in current_keys and 'cluster' not in current_keys):
-        cleaned_kwargs['cluster']=[True]
-        print("'n_clusters' specified but not 'cluster' is not. Setting 'cluster' to [True].")
 
     keys = cleaned_kwargs.keys()
     values = cleaned_kwargs.values()
@@ -315,7 +420,12 @@ def data_clean_param_selection(DATA: pd.DataFrame, model: BaseEstimator, test_si
     scores=[]
     for config in combinations:
         with silence_stdout():
-            X, y=clean_data(DATA, **config)
+            X=None
+            y=None
+            if (eff_support):
+                X, y=efficient_clean_data(DATA, y_regression, **config)
+            else:
+                X, y=clean_data(DATA, y_regression, **config)
             y_classification=to_binary_class(y)
             X_train, X_test, y_train, y_test=train_test_split(X, y_classification, test_size=test_size, shuffle=False, random_state=1)
 

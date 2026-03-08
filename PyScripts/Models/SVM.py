@@ -16,7 +16,8 @@ if __name__ == "__main__":
     HORIZON=40
     EXPORT=True
     TEST_SIZE=0.2
-    DATA=import_data()
+    # testing: bool =False, extra_features: bool =True, cluster: bool =False, n_clusters: int =100, corr_threshold: float =0.95, corr_level: int =0
+    DATA=import_data(extra_features=True, testing=False, cluster=False, n_clusters=100, corr_threshold=0.95, corr_level=0)
     FIND_OPTIMAL=True
     
     parameters_={
@@ -24,13 +25,9 @@ if __name__ == "__main__":
         "extra_features": False,
         "lag_period": [1, 2, 3],
         "lookback_period": 5,
-        "cluster": False,
-        "n_clusters": 100,
         "sector": True,
-        "corr": True,
         "corr_threshold": 0.95,
         "corr_level": 2,
-        "testing": False
     }
 
     if (FIND_OPTIMAL):
@@ -41,27 +38,23 @@ if __name__ == "__main__":
         print("------- Finding Optimal lag_period Value")
         param_grid={
             'lag_period': [1, 2, 3, 4, 5, [1, 2], [1, 2, 3], [2, 3], [1, 3]],
-            'lookback_period': [0],
             'sector': [True],
-            'corr': [True],
             'corr_level': [2]
         }
 
-        _, best_parameters, best_score=data_clean_param_selection(DATA, clone(base_SVM_rbf_model_pipeline), TEST_SIZE, WINDOW_SIZE, HORIZON, **param_grid)
+        _, best_parameters, best_score=data_clean_param_selection(*DATA, clone(base_SVM_rbf_model_pipeline), TEST_SIZE, WINDOW_SIZE, HORIZON, eff_support=True, **param_grid)
         best_lag=best_parameters['lag_period']
         print(f"Best Utility Score (lag_period): {best_score}")
         print(f"Best lag_period: {best_lag}")
 
         print("------- Finding Optimal lookback_period Value")
         param_grid={
-            'lag_period': [0],
             'lookback_period': [7, 10, 14, 17, 21, 24, 28],
             'sector': [True],
-            'corr': [True],
             'corr_level': [2]
         }
         
-        _, best_parameters, best_score=data_clean_param_selection(DATA, clone(base_SVM_rbf_model_pipeline), TEST_SIZE, WINDOW_SIZE, HORIZON, **param_grid)
+        _, best_parameters, best_score=data_clean_param_selection(*DATA, clone(base_SVM_rbf_model_pipeline), TEST_SIZE, WINDOW_SIZE, HORIZON, eff_support=True, **param_grid)
         best_lookback=best_parameters['lookback_period']
         print(f"Best Utility Score (lookback_period): {best_score}")
         print(f"Best lookback_period: {best_lookback}")
@@ -74,18 +67,17 @@ if __name__ == "__main__":
             'lag_period': [best_lag],
             'lookback_period': [best_lookback],
             'sector': [True],
-            'corr': [True],
-            'corr_level': [1, 2, 3],
+            'corr_level': [0, 1, 2, 3],
             'corr_threshold': [0.8, 0.9, 0.95]
         }
 
-        _, parameters_, best_score=data_clean_param_selection(DATA, clone(base_SVM_rbf_model_pipeline), TEST_SIZE, WINDOW_SIZE, HORIZON, **param_grid)
+        _, parameters_, best_score=data_clean_param_selection(*DATA, clone(base_SVM_rbf_model_pipeline), TEST_SIZE, WINDOW_SIZE, HORIZON, **param_grid)
         print(f"Best Utility Score {best_score}")
         print(f"Optimal parameter {parameters_}")
 
     download_params = {f"clean_data__{k}=": v for k, v in parameters_.items()}
 
-    X, y_regression=cast(Any, clean_data(DATA, **parameters_))
+    X, y_regression=cast(Any, clean_data(*DATA, **parameters_))
     def to_binary_class(y):
         return (y>=0).astype(int)
     y_classification=to_binary_class(y_regression)

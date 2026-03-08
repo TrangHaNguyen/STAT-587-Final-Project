@@ -1,0 +1,196 @@
+================================================================================
+EXTRACTION INSTRUCTIONS FOR output/Used/tex/8yrs_3methods_comparison.tex
+================================================================================
+
+Source file : output/results/results.csv
+Output file : output/Used/tex/8yrs_3methods_comparison.tex
+
+DESCRIPTION
+-----------
+The table compares 11 models across three methods (Random Forest, SVM, Logistic
+Regression) trained on 8 years of S&P 500 stock data.
+
+The following columns from results.csv are used:
+  label                    -> Model name
+  parameters               -> Hyperparameter string
+  train_avg_accuracy       -> Avg Train Acc
+  train_std_accuracy       -> Std Train Acc
+  validation_avg_accuracy  -> Avg CV Test Acc (5-fold cross-validation)
+  validation_std_accuracy  -> Std CV Test Acc
+  mwfv_avg_accuracy        -> MWFV Avg Acc (Moving Window Forward Validation)
+  mwfv_std_accuracy        -> MWFV Std Acc
+  test_split_accuracy      -> Hold-out Test Acc
+  test_up_precision        -> Precision  (positive / "Up" class)
+  test_up_recall           -> Recall     (positive / "Up" class)
+
+F1 is derived: F1 = 2 * Precision * Recall / (Precision + Recall)
+
+HOW TO REGENERATE THE TABLE WITH PYTHON
+-----------------------------------------
+Requires: pandas, numpy (pip install pandas numpy)
+
+Run from the repository root:
+  python extract_table.py
+
+Or run the code block below in a Python interpreter / Jupyter notebook.
+
+--------------------------------------------------------------------------------
+PYTHON CODE
+--------------------------------------------------------------------------------
+
+import pandas as pd
+import numpy as np
+
+# ── 1. Load data ──────────────────────────────────────────────────────────────
+df = pd.read_csv("output/results/results.csv")
+
+# ── 2. Compute F1 for the Up (positive) class ────────────────────────────────
+df["f1"] = (
+    2 * df["test_up_precision"] * df["test_up_recall"]
+    / (df["test_up_precision"] + df["test_up_recall"])
+)
+
+# ── 3. Select and rename columns ─────────────────────────────────────────────
+cols = {
+    "label":                   "Model",
+    "parameters":              "Parameters",
+    "train_avg_accuracy":      "Avg Train Acc",
+    "train_std_accuracy":      "Std Train Acc",
+    "validation_avg_accuracy": "Avg CV Test Acc",
+    "validation_std_accuracy": "Std CV Test Acc",
+    "mwfv_avg_accuracy":       "MWFV Avg Acc",
+    "mwfv_std_accuracy":       "MWFV Std Acc",
+    "test_split_accuracy":     "Hold-out Test Acc",
+    "test_up_precision":       "Precision",
+    "test_up_recall":          "Recall",
+    "f1":                      "F1",
+}
+out = df[list(cols.keys())].rename(columns=cols)
+
+# ── 4. Print rounded values (4 decimal places) ───────────────────────────────
+pd.set_option("display.float_format", "{:.4f}".format)
+pd.set_option("display.max_columns", None)
+pd.set_option("display.width", 200)
+print(out.to_string(index=False))
+
+# ── 5. Generate LaTeX rows ────────────────────────────────────────────────────
+METHOD_MAP = {
+    "RandomForestClassifier": "Random Forest",
+    "SVC":                    "SVM",
+    "LogisticRegression":     "Logistic Regression",
+}
+
+# Group labels for section headers
+GROUP_HEADER = {
+    "Random Forest":      r"Random Forest (train $n=396$, test $n=100$; cluster + sector + corr features)",
+    "SVM":                r"SVM (train $n=1604$, test $n=401$; raw OHLCV features)",
+    "Logistic Regression":r"Logistic Regression (train $n=1604$, test $n=401$; raw OHLCV features)",
+}
+
+df["method"] = df["model_name"].map(METHOD_MAP)
+
+NCOLS = 12   # Model + Parameters + 10 metric columns
+
+lines = []
+lines.append(r"\begin{table}[htbp]")
+lines.append(r"\centering")
+lines.append(r"\caption{8-Year Period: Three-Method Comparison of Random Forest, SVM, and Logistic Regression}")
+lines.append(r"\label{tab:8yrs_3methods_comparison}")
+lines.append(r"\resizebox{\textwidth}{!}{%")
+lines.append(r"\begin{tabular}{llrrrrrrrrrr}")
+lines.append(r"\toprule")
+lines.append(
+    r"\textbf{Model} & \textbf{Parameters} & \textbf{Avg Train Acc} & "
+    r"\textbf{Std Train Acc} & \textbf{Avg CV Test Acc} & \textbf{Std CV Test Acc} & "
+    r"\textbf{MWFV Avg Acc} & \textbf{MWFV Std Acc} & \textbf{Hold-out Test Acc} & "
+    r"\textbf{Precision} & \textbf{Recall} & \textbf{F1} \\\""
+)
+
+current_method = None
+for _, row in df.iterrows():
+    method = row["method"]
+    if method != current_method:
+        lines.append(r"\midrule")
+        lines.append(
+            r"\multicolumn{" + str(NCOLS) + r"}{l}{\textit{" + GROUP_HEADER[method] + r"}} \\"
+        )
+        lines.append(r"\midrule")
+        current_method = method
+
+    # Escape underscores in parameters string
+    params = row["parameters"].replace("_", r"\_")
+    # Replace gamma with LaTeX symbol
+    params = params.replace("gamma", r"$\gamma$")
+
+    f1 = 2 * row["test_up_precision"] * row["test_up_recall"] / (
+        row["test_up_precision"] + row["test_up_recall"]
+    )
+
+    lines.append(
+        f"{row['label']} & {params} & "
+        f"{row['train_avg_accuracy']:.4f} & {row['train_std_accuracy']:.4f} & "
+        f"{row['validation_avg_accuracy']:.4f} & {row['validation_std_accuracy']:.4f} & "
+        f"{row['mwfv_avg_accuracy']:.4f} & {row['mwfv_std_accuracy']:.4f} & "
+        f"{row['test_split_accuracy']:.4f} & "
+        f"{row['test_up_precision']:.4f} & {row['test_up_recall']:.4f} & "
+        f"{f1:.4f} \\\\"
+    )
+
+lines.append(r"\bottomrule")
+lines.append(r"\end{tabular}%")
+lines.append(r"}")
+lines.append(r"\par\medskip")
+lines.append(r"\footnotesize")
+lines.append(
+    r"\textbf{Notes:} Precision, Recall, and F1 are reported for the positive "
+    r"(``Up'') class on the hold-out test set. "
+    r"F1 is computed as $2 \cdot \text{Precision} \cdot \text{Recall} / "
+    r"(\text{Precision} + \text{Recall})$. "
+    r"MWFV = Moving Window Forward Validation."
+)
+lines.append(r"\end{table}")
+
+latex_str = "\n".join(lines)
+
+# ── 6. Save to file ──────────────────────────────────────────────────────────
+output_path = "output/Used/tex/8yrs_3methods_comparison.tex"
+with open(output_path, "w") as f:
+    f.write("% Auto-generated from output/results/results.csv\n")
+    f.write(latex_str + "\n")
+
+print(f"\nSaved to {output_path}")
+
+--------------------------------------------------------------------------------
+NUMERICAL VALUES (pre-computed, rounded to 4 d.p.)
+--------------------------------------------------------------------------------
+
+Method               | Model                    | Avg Train | Std Train | Avg CV Test | Std CV Test | MWFV Avg | MWFV Std | Hold-out Test | Prec   | Recall | F1
+---------------------|--------------------------|-----------|-----------|--------|--------|----------|----------|----------|--------|--------|------
+Random Forest        | Base RF                  | 1.0000    | 0.0000    | 0.4950 | 0.0330 | 0.4750   | 0.0610   | 0.5600   | 0.5540 | 0.7880 | 0.6506
+Random Forest        | PCA RF                   | 1.0000    | 0.0000    | 0.5190 | 0.0240 | 0.4710   | 0.0620   | 0.5100   | 0.5320 | 0.4810 | 0.5052
+Random Forest        | LASSO RF                 | 0.9140    | 0.0450    | 0.5120 | 0.0720 | 0.4570   | 0.1110   | 0.4600   | 0.4840 | 0.5960 | 0.5342
+Random Forest        | Ridge RF                 | 1.0000    | 0.0000    | 0.4950 | 0.0360 | 0.4930   | 0.0930   | 0.4600   | 0.4830 | 0.5580 | 0.5178
+Random Forest        | Stepwise RF              | 0.9850    | 0.0210    | 0.6570 | 0.0380 | 0.4570   | 0.0550   | 0.5100   | 0.5310 | 0.5000 | 0.5150
+SVM                  | Linear Ker. SVM          | 0.7060    | 0.0550    | 0.4890 | 0.0130 | 0.4820   | 0.0730   | 0.5240   | 0.5820 | 0.4240 | 0.4906
+SVM                  | RBF Ker. SVM             | 0.8070    | 0.0470    | 0.5030 | 0.0240 | 0.4930   | 0.0640   | 0.5140   | 0.5570 | 0.4980 | 0.5259
+SVM                  | Poly. Ker. SVM           | 0.6810    | 0.0820    | 0.5430 | 0.0240 | 0.5130   | 0.0900   | 0.5360   | 0.5470 | 0.8390 | 0.6625
+Logistic Regression  | LASSO(int.) Log. Reg.    | 0.7050    | 0.0890    | 0.4950 | 0.0320 | 0.4830   | 0.0770   | 0.5210   | 0.5570 | 0.5620 | 0.5595
+Logistic Regression  | Ridge(int.) Log. Reg.    | 0.6860    | 0.0710    | 0.4970 | 0.0320 | 0.4860   | 0.0790   | 0.5210   | 0.5560 | 0.5760 | 0.5659
+Logistic Regression  | PCA Ridge(int.) Log. Reg.| 0.5590    | 0.0260    | 0.4870 | 0.0440 | 0.4790   | 0.0770   | 0.4940   | 0.5780 | 0.2400 | 0.3392
+
+F1 formulas (manual check):
+  Base RF:              2*0.5540*0.7880 / (0.5540+0.7880) = 0.8730/1.3420 = 0.6506
+  PCA RF:               2*0.5320*0.4810 / (0.5320+0.4810) = 0.5118/1.0130 = 0.5052
+  LASSO RF:             2*0.4840*0.5960 / (0.4840+0.5960) = 0.5769/1.0800 = 0.5342
+  Ridge RF:             2*0.4830*0.5580 / (0.4830+0.5580) = 0.5390/1.0410 = 0.5178
+  Stepwise RF:          2*0.5310*0.5000 / (0.5310+0.5000) = 0.5310/1.0310 = 0.5150
+  Linear Ker. SVM:      2*0.5820*0.4240 / (0.5820+0.4240) = 0.4935/1.0060 = 0.4906
+  RBF Ker. SVM:         2*0.5570*0.4980 / (0.5570+0.4980) = 0.5548/1.0550 = 0.5259
+  Poly. Ker. SVM:       2*0.5470*0.8390 / (0.5470+0.8390) = 0.9183/1.3860 = 0.6625
+  LASSO Log. Reg.:      2*0.5570*0.5620 / (0.5570+0.5620) = 0.6261/1.1190 = 0.5595
+  Ridge Log. Reg.:      2*0.5560*0.5760 / (0.5560+0.5760) = 0.6405/1.1320 = 0.5659
+  PCA Ridge Log. Reg.:  2*0.5780*0.2400 / (0.5780+0.2400) = 0.2774/0.8180 = 0.3392
+
+================================================================================
+END OF FILE
+================================================================================

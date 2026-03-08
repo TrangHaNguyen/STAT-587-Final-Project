@@ -10,6 +10,8 @@ import datetime
 
 from H_helpers import safe_div
 
+# Good note, standard deviation of any accuracies is 0.5 achieved by having a perfectly split accuracy set of all correct and all correct instances.
+
 def classification_accuracy(predictions, actuals) -> tuple[float, float]:
     if (type(predictions)!='numpy.array'):
         predictions=(pd.Series(predictions)>0).astype(int).to_numpy()
@@ -190,8 +192,8 @@ class RollingWindowBacktest:
             if (in_X_train):
                 m_train=self.results[2]["mwfv_train_avg_accuracy"]
                 s_train=self.results[2]["mwfv_train_std_accuracy"]
-                plt.plot(in_X_train, [m_train] * len(in_X_train), color="#8EFF32", alpha=0.8, linestyle="--", label="Train Mean")
-                plt.fill_between(in_X_train, m_train - s_train, m_train + s_train, color="#8EFF32", alpha=0.15)
+                plt.plot(in_X_train + [n_train], [m_train] * (len(in_X_train) + 1), color="#8EFF32", alpha=0.8, linestyle="--", label="Train Mean")
+                plt.fill_between(in_X_train + [n_train], m_train - s_train, m_train + s_train, color="#8EFF32", alpha=0.15)
             if (in_X_test):
                 m_test=self.results[2]["mwfv_test_avg_accuracy"]
                 s_test=self.results[2]["mwfv_test_std_accuracy"]

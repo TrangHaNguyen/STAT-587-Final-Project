@@ -20,7 +20,13 @@ if __name__=="__main__":
     WINDOW_SIZE=200
     HORIZON=40
     EXPORT=True
-    data_clean_params={
+    TEST_SIZE=0.2
+    tscv=TimeSeriesSplit(n_splits=5)
+    custom_Cs=[0.05, 0.1, 1.0, 10.0]
+    DATA=import_data()
+    FIND_OPTIMAL=True
+    
+    parameters_={
         "raw": False,
         "extra_features": False,
         "lag_period": [1, 2, 3],
@@ -33,51 +39,60 @@ if __name__=="__main__":
         "corr_level": 2,
         "testing": False
     }
-    download_params = {f"clean_data__{k}=": v for k, v in data_clean_params.items()}
-    TEST_SIZE=0.2
-    tscv=TimeSeriesSplit(n_splits=5)
-    custom_Cs=[0.05, 0.1, 1.0, 10.0]
-    DATA=import_data()
 
-    # ------- Selection of Optimal lag_period and lookback_period Parameters -------
-    param_grid={
-        'raw': [True],
-        'lag_period': [1, 2, 3, 4, 5, [1, 2], [1, 2, 3], [2, 3]],
-        'sector': [True],
-        'corr': [True],
-        'corr_level': [2]
-    }
+    if (FIND_OPTIMAL):
+        # ------- Selection of Optimal lag_period and lookback_period Parameters -------
+        base_Log_Reg_model=LogisticRegression(C=1.0, l1_ratio=0, solver='saga', class_weight='balanced', random_state=1, max_iter=1000, tol=1e-3, verbose=VERBOSE)
+        base_Log_Reg_model_pipeline=Pipeline([('scaler', StandardScaler()), ('classifier', base_Log_Reg_model)])
+        
+        print("------- Finding Optimal lag_period Value")
+        param_grid={
+            'lag_period': [1, 2, 3, 4, 5, [1, 2], [1, 2, 3], [2, 3], [1, 3]],
+            'lookback_period': [0],
+            'sector': [True],
+            'corr': [True],
+            'corr_level': [2]
+        }
 
-    best_lag=1 # Placeholder
+        _, best_parameters, best_score=data_clean_param_selection(DATA, clone(base_Log_Reg_model_pipeline), TEST_SIZE, WINDOW_SIZE, HORIZON, **param_grid)
+        best_lag=best_parameters['lag_period']
+        print(f"Best Utility Score (lag_period): {best_score}")
+        print(f"Best lag_period: {best_lag}")
 
-    param_grid={
-        'raw': [True],
-        'lookback_period': [7, 14, 21, 28],
-        'sector': [True],
-        'corr': [True],
-        'corr_level': [2]
-    }
-    
-    best_lookback=7 # Placeholder
+        print("------- Finding Optimal lookback_period Value")
+        param_grid={
+            'lag_period': [0],
+            'lookback_period': [7, 10, 14, 17, 21, 24, 28],
+            'sector': [True],
+            'corr': [True],
+            'corr_level': [2]
+        }
+        
+        _, best_parameters, best_score=data_clean_param_selection(DATA, clone(base_Log_Reg_model_pipeline), TEST_SIZE, WINDOW_SIZE, HORIZON, **param_grid)
+        best_lookback=best_parameters['lookback_period']
+        print(f"Best Utility Score (lookback_period): {best_score}")
+        print(f"Best lookback_period: {best_lookback}")
 
-    # ------- Selection of Optimal data_clean() Parameters -------
-    param_grid={
-        'raw': [True, False],
-        'extra_features': [True, False],
-        'lag_period': [best_lag],
-        'lookback_period': [best_lookback],
-        'sector': [True],
-        'corr': [True],
-        'corr_level': [1, 2, 3],
-        'corr_threshold': [0.8, 0.9, 0.95]
-    }
+        # ------- Selection of Optimal data_clean() Parameters -------
+        print("------- Finding Optimal data_clean() Parameters")
+        param_grid={
+            'raw': [True, False],
+            'extra_features': [True, False],
+            'lag_period': [best_lag],
+            'lookback_period': [best_lookback],
+            'sector': [True],
+            'corr': [True],
+            'corr_level': [1, 2, 3],
+            'corr_threshold': [0.8, 0.9, 0.95]
+        }
 
-    base_Log_Reg_model=LogisticRegressionCV(use_legacy_attributes=False, Cs=custom_Cs, cv=tscv, l1_ratios=[0], solver='saga', class_weight='balanced', random_state=1, n_jobs=-1, max_iter=500, tol=1e-2, verbose=VERBOSE)
-    base_Log_Reg_model_pipeline=Pipeline([('scaler', StandardScaler()), ('classifier', base_Log_Reg_model)])
+        _, parameters_, best_score=data_clean_param_selection(DATA, clone(base_Log_Reg_model_pipeline), TEST_SIZE, WINDOW_SIZE, HORIZON, **param_grid)
+        print(f"Best Utility Score {best_score}")
+        print(f"Optimal parameter {parameters_}")
 
-    _, optimal_parameters, _=data_clean_param_selection(DATA, base_Log_Reg_model_pipeline, TEST_SIZE, WINDOW_SIZE, HORIZON, **param_grid)
+    download_params = {f"clean_data__{k}=": v for k, v in parameters_.items()}
 
-    X, y_regression=cast(Any, clean_data(DATA, **optimal_parameters))
+    X, y_regression=cast(Any, clean_data(DATA, **parameters_))
     def to_binary_class(y):
         return (y>=0).astype(int)
     y_classification=to_binary_class(y_regression)
@@ -104,8 +119,10 @@ if __name__=="__main__":
     optimized_Log_Reg_R_.fit(X_train, y_train)
 
     results=get_final_metrics(optimized_Log_Reg_R_, X_train, y_train, X_test, y_test, n_splits=10, label="LASSO(int.) Log. Reg.")
-    print(f"Utility Score {utility_score(results, rwb_obj):.4f}")
+    util_score=utility_score(results, rwb_obj)
+    print(f"Utility Score {util_score:.4}")
     if (EXPORT):
+        results.update({'utility_score': round(util_score, 3)})
         results=append_params_to_dict(results, optimized_Log_Reg_R_)
         results.update(rwb_obj.results[2])
         results.update(download_params)
@@ -133,8 +150,10 @@ if __name__=="__main__":
     optimized_Log_Reg_L_.fit(X_train, y_train)
 
     results=get_final_metrics(optimized_Log_Reg_L_, X_train, y_train, X_test, y_test, n_splits=10, label="Ridge(int.) Log. Reg.")
-    print(f"Utility Score {utility_score(results, rwb_obj):.4f}")
+    util_score=utility_score(results, rwb_obj)
+    print(f"Utility Score {util_score:.4}")
     if (EXPORT):
+        results.update({'utility_score': round(util_score, 3)})
         results=append_params_to_dict(results, optimized_Log_Reg_L_)
         results.update(rwb_obj.results[2])
         results.update(download_params)
@@ -165,8 +184,10 @@ if __name__=="__main__":
     optimized_Log_Reg_PCA_ridge_.fit(X_train, y_train)
 
     results=get_final_metrics(optimized_Log_Reg_PCA_ridge_, X_train, y_train, X_test, y_test, n_splits=10, label="PCA Ridge(int.) Log. Reg.")
-    print(f"Utility Score {utility_score(results, rwb_obj):.4f}")
+    util_score=utility_score(results, rwb_obj)
+    print(f"Utility Score {util_score:.4}")
     if (EXPORT):
+        results.update({'utility_score': round(util_score, 3)})
         results=append_params_to_dict(results, optimized_Log_Reg_PCA_ridge_)
         results.update(rwb_obj.results[2])
         results.update(download_params)

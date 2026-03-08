@@ -10,8 +10,8 @@ from sklearn.feature_selection import SelectFromModel
 from sklearn.pipeline import Pipeline
 
 from H_reduce import step_wise_reg_wfv
-from H_prep import clean_data
-from H_eval import RollingWindowBacktest, get_final_metrics
+from H_prep import clean_data, data_clean_param_selection, import_data
+from H_eval import RollingWindowBacktest, get_final_metrics, utility_score
 from H_helpers import log_result, get_cwd, append_params_to_dict
 
 VERBOSE=0
@@ -25,7 +25,11 @@ if __name__=="__main__":
     WINDOW_SIZE=200
     HORIZON=40
     EXPORT=True
-    data_clean_params={
+    TEST_SIZE=0.2
+    DATA=import_data()
+    FIND_OPTIMAL=True
+    
+    parameters_={
         "raw": False,
         "extra_features": False,
         "lag_period": [1, 2, 3],
@@ -36,12 +40,62 @@ if __name__=="__main__":
         "corr": True,
         "corr_threshold": 0.95,
         "corr_level": 2,
-        "testing": True
+        "testing": False
     }
-    download_params = {f"clean_data__{k}=": v for k, v in data_clean_params.items()}
-    TEST_SIZE=0.2
 
-    X, y_regression=cast(Any, clean_data(**data_clean_params))
+    if (FIND_OPTIMAL):
+        # ------- Selection of Optimal lag_period and lookback_period Parameters -------
+        base_RF_model=RandomForestClassifier(max_depth=10, n_estimators=250, random_state=1, n_jobs=-1, class_weight='balanced')
+        base_RF_model_pipeline=Pipeline([('scaler', StandardScaler()), ('classifier', base_RF_model)])
+        
+        print("------- Finding Optimal lag_period Value")
+        param_grid={
+            'lag_period': [1, 2, 3, 4, 5, [1, 2], [1, 2, 3], [2, 3], [1, 3]],
+            'lookback_period': [0],
+            'sector': [True],
+            'corr': [True],
+            'corr_level': [2]
+        }
+
+        _, best_parameters, best_score=data_clean_param_selection(DATA, clone(base_RF_model_pipeline), TEST_SIZE, WINDOW_SIZE, HORIZON, **param_grid)
+        best_lag=best_parameters['lag_period']
+        print(f"Best Utility Score (lag_period): {best_score}")
+        print(f"Best lag_period: {best_lag}")
+
+        print("------- Finding Optimal lookback_period Value")
+        param_grid={
+            'lag_period': [0],
+            'lookback_period': [7, 10, 14, 17, 21, 24, 28],
+            'sector': [True],
+            'corr': [True],
+            'corr_level': [2]
+        }
+        
+        _, best_parameters, best_score=data_clean_param_selection(DATA, clone(base_RF_model_pipeline), TEST_SIZE, WINDOW_SIZE, HORIZON, **param_grid)
+        best_lookback=best_parameters['lookback_period']
+        print(f"Best Utility Score (lookback_period): {best_score}")
+        print(f"Best lookback_period: {best_lookback}")
+
+        # ------- Selection of Optimal data_clean() Parameters -------
+        print("------- Finding Optimal data_clean() Parameters")
+        param_grid={
+            'raw': [True, False],
+            'extra_features': [True, False],
+            'lag_period': [best_lag],
+            'lookback_period': [best_lookback],
+            'sector': [True],
+            'corr': [True],
+            'corr_level': [1, 2, 3],
+            'corr_threshold': [0.8, 0.9, 0.95]
+        }
+
+        _, parameters_, best_score=data_clean_param_selection(DATA, clone(base_RF_model_pipeline), TEST_SIZE, WINDOW_SIZE, HORIZON, **param_grid)
+        print(f"Best Utility Score {best_score}")
+        print(f"Optimal parameter {parameters_}")
+
+    download_params = {f"clean_data__{k}=": v for k, v in parameters_.items()}
+
+    X, y_regression=cast(Any, clean_data(DATA, **parameters_))
     def to_binary_class(y):
         return (y>=0).astype(int)
     y_classification=to_binary_class(y_regression)
@@ -63,15 +117,18 @@ if __name__=="__main__":
     grid_search_base=GridSearchCV(RF_pipeline_base, param_grid, cv=tscv, n_jobs=-1, return_train_score=True, verbose=VERBOSE)
     grid_search_base.fit(X_train, y_train)
 
-    rwb_obj=RollingWindowBacktest(clone(grid_search_base.best_estimator_), X, y_classification, WINDOW_SIZE, HORIZON)
+    rwb_obj=RollingWindowBacktest(clone(grid_search_base.best_estimator_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
     rwb_obj.rolling_window_backtest(verbose=1)
-    rwb_obj.display_wfv_results(X_train)
+    rwb_obj.display_wfv_results()
 
     optimized_base_=clone(grid_search_base.best_estimator_)
     optimized_base_.fit(X_train, y_train)
 
     results=get_final_metrics(optimized_base_, X_train, y_train, X_test, y_test, label="Base RF")
+    util_score=utility_score(results, rwb_obj)
+    print(f"Utility Score {util_score:.4}")
     if (EXPORT):
+        results.update({'utility_score': round(util_score, 3)})
         results=append_params_to_dict(results, optimized_base_)
         results.update(rwb_obj.results[2])
         results.update(download_params)
@@ -95,15 +152,18 @@ if __name__=="__main__":
     grid_search_PCA=GridSearchCV(RF_pipeline_PCA, param_grid, cv=tscv, n_jobs=-1, return_train_score=True, verbose=VERBOSE)
     grid_search_PCA.fit(X_train, y_train)
 
-    rwb_obj=RollingWindowBacktest(clone(grid_search_PCA.best_estimator_), X, y_classification, WINDOW_SIZE, HORIZON)
+    rwb_obj=RollingWindowBacktest(clone(grid_search_PCA.best_estimator_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
     rwb_obj.rolling_window_backtest(verbose=1)
-    rwb_obj.display_wfv_results(X_train)
+    rwb_obj.display_wfv_results()
 
     optimized_PCA_=clone(grid_search_PCA.best_estimator_)
     optimized_PCA_.fit(X_train, y_train)
 
     results=get_final_metrics(optimized_PCA_, X_train, y_train, X_test, y_test, label="PCA RF")
+    util_score=utility_score(results, rwb_obj)
+    print(f"Utility Score {util_score:.4}")
     if (EXPORT):
+        results.update({'utility_score': round(util_score, 3)})
         results=append_params_to_dict(results, optimized_PCA_)
         results.update(rwb_obj.results[2])
         results.update(download_params)
@@ -128,15 +188,18 @@ if __name__=="__main__":
     grid_search_LASSO=GridSearchCV(RF_pipeline_lasso, param_grid, cv=tscv, n_jobs=-1, return_train_score=True, verbose=VERBOSE)
     grid_search_LASSO.fit(X_train, y_train)
 
-    rwb_obj=RollingWindowBacktest(clone(grid_search_LASSO.best_estimator_), X, y_classification, WINDOW_SIZE, HORIZON)
+    rwb_obj=RollingWindowBacktest(clone(grid_search_LASSO.best_estimator_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
     rwb_obj.rolling_window_backtest(verbose=1)
-    rwb_obj.display_wfv_results(X_train)
+    rwb_obj.display_wfv_results()
 
     optimized_LASSO_=clone(grid_search_LASSO.best_estimator_)
     optimized_LASSO_.fit(X_train, y_train)
 
     results=get_final_metrics(optimized_LASSO_, X_train, y_train, X_test, y_test, label="LASSO RF")
+    util_score=utility_score(results, rwb_obj)
+    print(f"Utility Score {util_score:.4}")
     if (EXPORT):
+        results.update({'utility_score': round(util_score, 3)})
         results=append_params_to_dict(results, optimized_LASSO_)
         results.update(rwb_obj.results[2])
         results.update(download_params)
@@ -161,15 +224,18 @@ if __name__=="__main__":
     grid_search_ridge=GridSearchCV(RF_pipeline_ridge, param_grid, cv=tscv, n_jobs=-1, return_train_score=True, verbose=VERBOSE)
     grid_search_ridge.fit(X_train, y_train)
 
-    rwb_obj=RollingWindowBacktest(clone(grid_search_ridge.best_estimator_), X, y_classification, WINDOW_SIZE, HORIZON)
+    rwb_obj=RollingWindowBacktest(clone(grid_search_ridge.best_estimator_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
     rwb_obj.rolling_window_backtest(verbose=1)
-    rwb_obj.display_wfv_results(X_train)
+    rwb_obj.display_wfv_results()
 
     optimized_ridge_=clone(grid_search_ridge.best_estimator_)
     optimized_ridge_.fit(X_train, y_train)
 
     results=get_final_metrics(optimized_ridge_, X_train, y_train, X_test, y_test, label="Ridge RF")
+    util_score=utility_score(results, rwb_obj)
+    print(f"Utility Score {util_score:.4}")
     if (EXPORT):
+        results.update({'utility_score': round(util_score, 3)})
         results=append_params_to_dict(results, optimized_ridge_)
         results.update(rwb_obj.results[2])
         results.update(download_params)
@@ -214,15 +280,18 @@ if __name__=="__main__":
 
     RFClassifier_red_sw_wfv_pipeline.fit(X_train_final, y_train)
 
-    rwb_obj=RollingWindowBacktest(clone(RFClassifier_red_sw_wfv_pipeline), X, y_classification, WINDOW_SIZE, HORIZON)
+    rwb_obj=RollingWindowBacktest(clone(RFClassifier_red_sw_wfv_pipeline), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
     rwb_obj.rolling_window_backtest(verbose=1)
-    rwb_obj.display_wfv_results(X_train)
+    rwb_obj.display_wfv_results()
 
     copy_RFClassifier_red_sw_wfv_pipeline=clone(RFClassifier_red_sw_wfv_pipeline)
     copy_RFClassifier_red_sw_wfv_pipeline.fit(X_train_final, y_train)
 
     results=get_final_metrics(copy_RFClassifier_red_sw_wfv_pipeline, X_train_final, y_train, X_test_final, y_test, label="Stepwise RF")
+    util_score=utility_score(results, rwb_obj)
+    print(f"Utility Score {util_score:.4}")
     if (EXPORT):
+        results.update({'utility_score': round(util_score, 3)})
         results=append_params_to_dict(results, RFClassifier_red_sw_wfv_pipeline)
         results.update(rwb_obj.results[2])
         results.update(download_params)

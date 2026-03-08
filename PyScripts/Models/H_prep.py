@@ -32,6 +32,7 @@ pd.set_option('display.max_columns', 8)
 cwd=get_cwd("STAT-587-Final-Project")
 
 def import_data(testing: bool =False) -> pd.DataFrame:
+    idx=pd.IndexSlice
     table=None
     print("------- Downloading Data")
     if (testing):
@@ -41,16 +42,6 @@ def import_data(testing: bool =False) -> pd.DataFrame:
     DATA=table.to_pandas()
     print("Finished Downloading Data -------")
     print("Initial shape:", DATA.shape[0], "rows,", DATA.shape[1], "columns.")
-    return DATA
-
-def clean_data(DATA: pd.DataFrame, lookback_period: int =7, lag_period: list =[1], extra_features: bool =True, raw: bool =False, cluster: bool =False, n_clusters: int =100, sector: bool =False, corr: bool =False, corr_threshold: float =0.95, corr_level: int =1, verbose: int=1) -> tuple[dict, dict]:
-    if (lookback_period < 5): 
-        if (lookback_period!=0):
-            raise ValueError("lookback_period must be greater than  or equal to 2.")
-    
-    # Hyperparameters
-    lag=lag_period
-    idx=pd.IndexSlice
 
     print("------- Cleaning data")
     for type in ['Stocks']: # This list contains 'Commodities' if you include Commodities
@@ -70,6 +61,16 @@ def clean_data(DATA: pd.DataFrame, lookback_period: int =7, lag_period: list =[1
     print("Current shape:", DATA.shape[0], "rows,", DATA.shape[1], "columns.")
 
     print("------- Generating Necessary Features")
+    return DATA
+
+def clean_data(DATA: pd.DataFrame, lookback_period: int =7, lag_period: list =[1], extra_features: bool =True, raw: bool =False, cluster: bool =False, n_clusters: int =100, sector: bool =False, corr: bool =False, corr_threshold: float =0.95, corr_level: int =1, verbose: int=1) -> tuple[dict, dict]:
+    # corr can be removed in place of having a corr_level=0 in place of it.
+    
+    if (lookback_period < 5): 
+        if (lookback_period!=0):
+            raise ValueError("lookback_period must be greater than  or equal to 2.")
+    
+    idx=pd.IndexSlice
 
     # Generating percent change from day before to current day. 
     features=DATA.loc[:, idx[['Close', 'Open', 'High', 'Low'], 'Stocks', :]].copy().pct_change().rename(columns={metric: f"{metric} PC" for metric in ['Close', 'Open', 'High', 'Low']}, level=0)
@@ -124,7 +125,7 @@ def clean_data(DATA: pd.DataFrame, lookback_period: int =7, lag_period: list =[1
         print("---EXTRA---: Created Daily Range.")
 
     if (not raw):
-        if (lag_period!=0 or lag_period==[0]):
+        if (lag_period!=0 or lag_period!=[0]):
             if isinstance(lag_period, int):
                 lag_period=[lag_period]
             for metric in ['Close PC', 'Open PC']:
@@ -249,7 +250,7 @@ def clean_data(DATA: pd.DataFrame, lookback_period: int =7, lag_period: list =[1
     print("Final shape (y_regression):", y_regression.shape[0], "rows, 1 columns.")
     return X, y_regression
 
-def data_clean_param_selection(DATA: pd.DataFrame, model: BaseEstimator, test_size: float, window_size: int, horizon: int, w: float =4.0, **kwargs: List[Any]) -> tuple[pd.DataFrame, dict]:
+def data_clean_param_selection(DATA: pd.DataFrame, model: BaseEstimator, test_size: float, window_size: int, horizon: int, w: float =4.0, **kwargs: List[Any]) -> tuple[pd.DataFrame, dict, float]:
     SCHEMA: Dict[str, Type] = {
         'raw': bool,
         'extra_features': bool,
@@ -308,17 +309,18 @@ def data_clean_param_selection(DATA: pd.DataFrame, model: BaseEstimator, test_si
 
     print(f"Total Unique Cleaning Combinations to test: {len(combinations)}")
 
+    def to_binary_class(y):
+        return (y>=0).astype(int)
+
     scores=[]
     for config in combinations:
         with silence_stdout():
             X, y=clean_data(DATA, **config)
-            def to_binary_class(y):
-                return (y>=0).astype(int)
             y_classification=to_binary_class(y)
             X_train, X_test, y_train, y_test=train_test_split(X, y_classification, test_size=test_size, shuffle=False, random_state=1)
 
             pipeline_base_=Pipeline([('scaler', StandardScaler()), 
-                                    ('classifier', model)])
+                                    ('classifier', clone(model))])
             
             rwb_obj=RollingWindowBacktest(clone(pipeline_base_), X, y_classification, X_train, window_size, horizon)
             rwb_obj.rolling_window_backtest(verbose=1)
@@ -333,11 +335,12 @@ def data_clean_param_selection(DATA: pd.DataFrame, model: BaseEstimator, test_si
             row['score']=utility_score(results, rwb_obj, w)
             scores.append(row)
 
-    results_df = pd.DataFrame(scores)
-    best_run = results_df.loc[results_df['score'].idxmax()]
-    
-    print("Optimal data_clean() parameters.")
-    return results_df, results_df.loc[results_df['score'].idxmax()], best_run
+    results_df=pd.DataFrame(scores)
+    best_score=results_df.loc[results_df['score'].idxmax()]['score']
+    optimal_parameters=results_df.loc[results_df['score'].idxmax()].drop('score').to_dict()
+
+    print(f"Optimal data_clean() parameters: {optimal_parameters}")
+    return results_df, optimal_parameters, best_score
 
 def pull_features(dataframe, feature_name, include=False) -> dict:
     idx = pd.IndexSlice

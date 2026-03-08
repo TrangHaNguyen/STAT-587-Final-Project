@@ -140,7 +140,13 @@ Figure \ref{fig:top-sectors} show the intra-sector correlation matrices for the 
 
 Figure \ref{fig:sector-vol} shows the rolling 21-day average cross-sectional volatility for each GICS sector and the smoothed version obtained by applying a 40-day rolling mean. This was created utilizing the engineered feature `Close VOL 28'. The volatility series reveal that certain sectors, such as Energy and Financials, tend to exhibit higher volatility compared to others like Utilities and Consumer Staples. This support our earlier construction of volatility features for all stocks (before dimensionality reduction) rather than just a single index. In addition, similar time trend across sectors suggest data redundency.
 
-In summary, certain sectors and their certain segments may have better information for predicting S\&P 500. In addition, information contained in the volatility of individual stocks should be exploited in prediction. Also, there is quite evidence on the redundancy of the data. 
+
+For a numerical summary, Table \ref{tab:descriptive_stats} reports yearly means and standard deviations of returns for the three key sectors, along with the yearly S\&P 500 up-day proportion.
+\input{../output/Used/tex/descriptive_stats.tex}
+
+Average daily returns are generally positive except for 2022. The volatility in return rises sharply in 2020 and again in 2022, with Technology consistently exhibiting the highest dispersion and Consumer Defensive the lowest. The S\&P 500 up-day proportion is above 0.50 in most years but drops below 0.50 in 2022, meaning that the data is not very balanced in terms of responses.
+
+In summary, data is unbalanced in the response category with higher frequency of the up days for S\&P 500 direction movement. Certain sectors and their certain segments may have better information for predicting S\&P 500. In addition, information contained in the volatility of individual stocks should be exploited in prediction. Also, there is quite evidence on the redundancy of the data. 
 
 \section{Methods}
 % General comment: The purpose of the "Methods" section includes provision of "mathematical formulation with all parameters presented" linked to the methods in use. Rewrite this component.Additionally, you can plot images that illustrate the design and operation of any method. Fix this.

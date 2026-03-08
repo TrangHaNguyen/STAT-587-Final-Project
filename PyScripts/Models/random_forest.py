@@ -30,7 +30,7 @@ if __name__=="__main__":
         "extra_features": False,
         "lag_period": [1, 2, 3],
         "lookback_period": 5,
-        "cluster": True,
+        "cluster": False,
         "n_clusters": 100,
         "sector": True,
         "corr": True,
@@ -42,12 +42,11 @@ if __name__=="__main__":
     TEST_SIZE=0.2
 
     X, y_regression=cast(Any, clean_data(**data_clean_params))
-    X_train, X_test, y_train, y_test=train_test_split(X, y_regression, test_size=TEST_SIZE, random_state=1, shuffle=False)
     def to_binary_class(y):
         return (y>=0).astype(int)
     y_classification=to_binary_class(y_regression)
-    y_train=to_binary_class(y_train)
-    y_test=to_binary_class(y_test)
+    X_train, X_test, y_train, y_test=train_test_split(X, y_classification, test_size=TEST_SIZE, random_state=1, shuffle=False)
+
     tscv=TimeSeriesSplit(n_splits=5) # CHANGEABLE (OPTIONAL)
     
     # ------- BASE APPLICATION -------

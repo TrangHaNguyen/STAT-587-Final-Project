@@ -199,14 +199,14 @@ Table~\ref{tab:base_rf_comparison} presents the performance comparison of differ
 
 This section will present the performance comparison of models that utilize the engineered features, including lag values, percent change, volatility, max/min channel position, rolling volume weighted average prices, rolling z-scores, daily range, and day of week. The models will include logistic regression with automatic regularization (LASSO and Ridge), random forest classifier, support vector machine with RBF kernel, and neural networks (CNN, simple RNN, LSTM). The performance metrics will include accuracy, precision, recall, F1-score, and ROC-AUC where applicable. The results will be compared to the baseline models that only use raw features to evaluate the impact of feature engineering on predictive performance.
 
-\input{model_comparison_table.tex}
+\input{../output/Used/tex/model_comparison_table.tex}
 \FloatBarrier
 
 Table~\ref{tab:model_comparison} reveals that sequential models (RNN and LSTM) achieve the best overall performance with F1-scores of 0.6592 and 0.6571 respectively, benefiting from their ability to capture temporal dependencies in 7-day windows. The Simple RNN emerges as the recommended model for deployment, achieving the highest accuracy (0.5461) among all models while maintaining a good balance between precision (0.5535) and recall (0.8148). Among linear models, LASSO regularization (L1) demonstrates superior performance with the highest accuracy (0.5486) and the only ROC-AUC above 0.50 (0.5342), indicating actual discriminative ability beyond random guessing. Notably, the SVM with RBF kernel exhibits degenerate behavior, predicting all samples as ``Up'' (Recall=1.0) and achieving a ROC-AUC below random chance (0.4917), rendering it unsuitable for practical application despite a misleadingly high F1-score. The dimensionality reduction models (PCA, LASSO-reduced, Ridge-reduced) show moderate performance with accuracies ranging from 0.4632 to 0.5368, suggesting that while dimension reduction techniques help manage the curse of dimensionality with 41K features, they also risk losing important predictive signals. Overall, all models operate near 50-55\% accuracy, confirming that S\&P 500 direction prediction remains inherently challenging even with sophisticated machine learning approaches. Incorporating different metrics beyond accuracy, such as ROC-AUC and standard deviation of the cross validation accuracy, we propose the use of logistic regression with Ridge and LASSO regularization for the predictors included engineered features.
 
 \subsection{Hourly Models}
 
-\input{../output/Used/logistic_regression_24hours_three_model_comparison.tex}
+\input{../output/Used/tex/logistic_regression_24hours_three_model_comparison.tex}
 \FloatBarrier
 
 To further investigate the temporal dependencies of the market, we also experimented with similar models for the hourly data. Table \ref{tab:logreg_l2_elasticnet_24h} presents the performance comparison of logistic regression models with L2 regularization, Elastic Net regularization, and feature-engineered L2 regularization using 24-hour lag features. The results indicate that the performance of the hourly models is better than the daily models, with the best performing model  with an accuracy of 0.5478 and ROC-AUC value around 60 \%. This suggests that a clearer short window of dependencies rather than by days/ weeks.
@@ -289,28 +289,28 @@ n, so the best achievable generalization can decrease.
 \subsection{Additional figures and tables}
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=0.95\textwidth]{../output/Used/base_logistic_bias_variance.png}
+  \includegraphics[width=0.95\textwidth]{../output/Used/png/base_logistic_bias_variance.png}
   \caption{Bias-variance tradeoff for logistic regression with regularization using raw OHLCV features.}
   \label{fig:base-bv-raw}
 \end{figure}
 
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=0.95\textwidth]{../output/Used/base_logistic_train_test.png}
+  \includegraphics[width=0.95\textwidth]{../output/Used/png/base_logistic_train_test.png}
   \caption{Train vs. test error across regularization strengths (direct train/test split) using raw OHLCV features.}
   \label{fig:base-train-test-raw}
 \end{figure}
 
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=0.95\textwidth]{../output/Used/base_logistic_pca_bias_variance.png}
+  \includegraphics[width=0.95\textwidth]{../output/Used/png/base_logistic_pca_bias_variance.png}
   \caption{Bias-variance tradeoff using PCA features (90\% explained variance) with regularized logistic regression.}
   \label{fig:base-bv-pca}
 \end{figure}
 
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=0.95\textwidth]{../output/Used/base_logistic_pca_train_test.png}
+  \includegraphics[width=0.95\textwidth]{../output/Used/png/base_logistic_pca_train_test.png}
   \caption{Train vs. test error across regularization strengths (direct split) using PCA features (90\% explained variance).}
   \label{fig:base-train-test-pca}
 \end{figure}
@@ -320,21 +320,21 @@ n, so the best achievable generalization can decrease.
 
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=0.95\textwidth]{../output/Used/base_rf_bias_variance.png}
+  \includegraphics[width=0.95\textwidth]{../output/Used/png/base_rf_bias_variance.png}
   \caption{Bias-variance tradeoff for random forest classifier across different feature sets.}
   \label{fig:base-rf-bv}
 \end{figure}
 
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=0.95\textwidth]{../output/Used/base_rf_train_test.png}
+  \includegraphics[width=0.95\textwidth]{../output/Used/png/base_rf_train_test.png}
   \caption{Train vs. test error comparison for random forest models with different feature engineering approaches.}
   \label{fig:base-rf-train-test}
 \end{figure}
 
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=0.95\textwidth]{../output/Used/base_rf_best_tree.png}
+  \includegraphics[width=0.95\textwidth]{../output/Used/png/base_rf_best_tree.png}
   \caption{Visualization of one decision tree from the best performing random forest model.}
   \label{fig:base-rf-tree}
 \end{figure}

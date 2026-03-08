@@ -218,7 +218,7 @@ conditions,
 \begin{figure}[h]
     \centering
     % \includegraphics[width=0.32\linewidth]{../output/Used/png/2yrs_sector_Technology_clustered.png}
-    % \includegraphics[width=0.32\linewidth]{../output/Used/png/2yrs_sector_Healthcare_clustered.png} 
+    % \includegraphics[width=0.32\linewidth]{../output/Used/png/2yrs_sector_Healthcare_clustered.png}
     % \includegraphics[width=0.32\linewidth]{../output/Used/png/2yrs_sector_Consumer_Defensive_clustered.png}
     \caption{Intra-sector correlation matrices for the top three sectors by absolute correlation with S\&P 500 returns. From left to right: Technology, Healthcare , and Consumer Defensive. Hierarchical clustering groups stocks with similar return dynamics. Warm colours indicate strong positive co-movement while cool colours indicate divergence.}
     \label{fig:top-sectors}
@@ -310,17 +310,39 @@ conditions,
 
 
 \subsubsection{Extended Feature Models}
+% ADDING 8 years data results of all methods (RF, SVM, Logistic regression) with extended features.
 \begin{frame}{Results}
-% \input{model_comparison_table.tex}
+% \input{../output/Used/tex/8yrs_3methods_comparison.tex}
+%The table compares Random Forest, SVM, and Logistic Regression models over an 8-year period, reporting accuracy, standard deviation, precision, recall, and F1 for the positive class ("Up").
 \end{frame}
 
+
+
 \begin{frame}{Results}
+\begin{itemize}
+  \item All models perform only slightly better than random guessing
+  \item Random Forest models (especially Base RF) achieve the highest test accuracy and strong F1 but also strong bias toward "Up". Its variants using dimensionality reduction have lower test accuracy and higher variability.
+  \item SVM with polynomial kernel has the highest F1 score and second in accuracy. Also bias "Up".
+  \item Logistic Regression (Ridge and LASSO) provides balanced performance, with moderate accuracy and F1, and low standard deviation.
+\end{itemize}
+\end{frame}
+
+
+\begin{frame}{Results}
+% \input{../output/Used/tex/model_comparison_table.tex}
+\end{frame}
+
+
+
+%THIS SLIDE WILL BE REVISED TO 8 YEARS DATA RESULTS
+\begin{frame}{Results}
+  Additional comparison with neural network models 
 \begin{itemize}
   \item Sequential models (RNN and LSTM) achieve the best overall performance 
   \item Simple RNN emerges as the recommended model for deployment
   \item LASSO regularization (L1) demonstrates superior highest accuracy (0.5486) and the only ROC-AUC above 0.50 (0.5342)
   \item  SVM with RBF kernel exhibits degenerate behavior, predicting all samples as ``Up'' 
-  \item The dimensionality reduction models (PCA, LASSO-reduced, Ridge-reduced) show moderate performance, potentially due to losing important predictive signals. O
+  \item The dimensionality reduction models (PCA, LASSO-reduced, Ridge-reduced) show moderate performance, potentially due to losing important predictive signals. 
   \item Recommend: logistic regression with Ridge and LASSO regularization for the predictors included engineered features.
 \end{itemize}
 \end{frame}

@@ -1,0 +1,27 @@
+======================================================================
+RNN UPDATE RESULTS - ENGINEERED FEATURES (NO LAG VALUES)
+======================================================================
+
+DATA SUMMARY
+----------------------------------------------------------------------
+Feature data shape: (2003, 5702)
+Sequence length: 7
+Reshaped data shape: (1997, 7, 5702)
+Train/Test sizes: 1597/400
+
+TEST SET PERFORMANCE
+----------------------------------------------------------------------
+Accuracy:  0.5075
+Precision: 0.5385
+Recall:    0.5860
+F1-Score:  0.5612
+
+Classification Report:
+              precision    recall  f1-score   support
+
+        Down       0.46      0.42      0.44       185
+          Up       0.54      0.59      0.56       215
+
+    accuracy                           0.51       400
+   macro avg       0.50      0.50      0.50       400
+weighted avg       0.50      0.51      0.50       400

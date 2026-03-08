@@ -25,12 +25,12 @@ for _ in range(5):
 else:
     raise FileNotFoundError("Could not find correct workspace folder.")
 
-# Create output directory if it doesn't exist
-output_dir = cwd / "output"
-output_dir.mkdir(exist_ok=True)
+# Create output/Used/png directory if it doesn't exist
+output_dir = cwd / "output" / "Used" / "png"
+output_dir.mkdir(parents=True, exist_ok=True)
 
 sys.path.append(os.path.abspath(cwd / "PyScripts" / "Models"))
-from data_preprocessing_and_cleaning import clean_data
+from H_prep import import_data, clean_data
 
 # ── Command-line parameters (mirrors clean_data signature) ──────────────────
 parser = argparse.ArgumentParser(description="EDA plots with configurable clean_data options.")
@@ -53,17 +53,18 @@ prefix = args.prefix
 lookup_df = pd.read_csv(cwd / "PyScripts" / "Data" / "stock_lookup_table.csv")
 
 print("Loading data via clean_data...")
+DATA = import_data(testing=args.testing)
 X, y = clean_data(
+    DATA=DATA,
     lookback_period=args.lookback_period,
     lag_period=args.lag_period,
     extra_features=args.extra_features,
-    raw=args.raw,
+    raw=True,
     cluster=args.cluster,
     n_clusters=args.n_clusters,
     corr=args.corr,
     corr_threshold=args.corr_threshold,
     corr_level=args.corr_level,
-    testing=args.testing,
 )
 
 # Extract daily returns (Close PC = percent change of close price)

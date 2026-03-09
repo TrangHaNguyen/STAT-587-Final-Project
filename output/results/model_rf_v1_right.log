@@ -405,3 +405,107 @@ Downloaded results to /Users/tranghanguyen/STAT-587-Final-Project/output/results
 [Parallel(n_jobs=-1)]: Done  25 tasks      | elapsed:   27.4s
 [Parallel(n_jobs=-1)]: Done  74 out of  74 | elapsed:  1.1min finished
 [Parallel(n_jobs=-1)]: Using backend LokyBackend with 8 concurrent workers.
+
+[2026-03-09 08:10:53] CMD: /Library/Frameworks/Python.framework/Versions/3.13/bin/python3 /Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/random_forest.py
+[2026-03-09 08:10:53] ENV: MODEL_N_JOBS=-1 GRID_VARIANT=right GRID_VERSION=v1
+/Users/runner/work/crossbow/crossbow/arrow/cpp/src/arrow/util/cpu_info.cc:239: IOError: sysctlbyname failed for 'hw.l1dcachesize'. Detail: [errno 1] Operation not permitted
+/Users/runner/work/crossbow/crossbow/arrow/cpp/src/arrow/util/cpu_info.cc:239: IOError: sysctlbyname failed for 'hw.l2cachesize'. Detail: [errno 1] Operation not permitted
+/Users/runner/work/crossbow/crossbow/arrow/cpp/src/arrow/util/cpu_info.cc:239: IOError: sysctlbyname failed for 'hw.l3cachesize'. Detail: [errno 1] Operation not permitted
+/Users/runner/work/crossbow/crossbow/arrow/cpp/src/arrow/util/cpu_info.cc:239: IOError: sysctlbyname failed for 'hw.optional.neon'. Detail: [errno 1] Operation not permitted
+MODEL_N_JOBS=-1 (set env MODEL_N_JOBS to override)
+GRID_VARIANT=right (left/center/right)
+GRID_VERSION=v1
+------- Downloading Data
+Finished Downloading Data -------
+Initial shape: 2010 rows, 2520 columns.
+------- Cleaning data
+Finished Cleaning Data -------
+Current shape: 2010 rows, 2390 columns.
+Created Percent Changes.
+Created Target (Regression).
+---EXTRA---: Created Day of Week.
+---EXTRA---: Created Daily Range.
+------- Finding Optimal lag_period Value
+Total Unique Cleaning Combinations to test: 9
+Traceback (most recent call last):
+  File "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/random_forest.py", line 85, in <module>
+    _, best_parameters, best_score=data_clean_param_selection(*DATA, clone(base_RF_model_pipeline), TEST_SIZE, WINDOW_SIZE, HORIZON, eff_support=True, **param_grid)
+                                   ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/H_prep.py", line 440, in data_clean_param_selection
+    results=get_final_metrics(cloned_model, X_train, y_train, X_test, y_test)
+  File "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/H_eval.py", line 51, in get_final_metrics
+    cv_results=cross_validate(
+        model_obj,
+    ...<5 lines>...
+        n_jobs=MODEL_N_JOBS
+    )
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/sklearn/utils/_param_validation.py", line 218, in wrapper
+    return func(*args, **kwargs)
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/sklearn/model_selection/_validation.py", line 373, in cross_validate
+    results = parallel(
+        delayed(_fit_and_score)(
+    ...<15 lines>...
+        for train, test in indices
+    )
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/sklearn/utils/parallel.py", line 91, in __call__
+    return super().__call__(iterable_with_config_and_warning_filters)
+           ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/joblib/parallel.py", line 1977, in __call__
+    n_jobs = self._initialize_backend()
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/joblib/parallel.py", line 1379, in _initialize_backend
+    n_jobs = self._backend.configure(
+        n_jobs=self.n_jobs, parallel=self, **self._backend_kwargs
+    )
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/joblib/_parallel_backends.py", line 639, in configure
+    self._workers = get_memmapping_executor(
+                    ~~~~~~~~~~~~~~~~~~~~~~~^
+        n_jobs,
+        ^^^^^^^
+    ...<3 lines>...
+        **memmapping_executor_kwargs,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/joblib/executor.py", line 18, in get_memmapping_executor
+    return MemmappingExecutor.get_memmapping_executor(n_jobs, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/joblib/executor.py", line 59, in get_memmapping_executor
+    _executor, executor_is_reused = super().get_reusable_executor(
+                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        n_jobs,
+        ^^^^^^^
+    ...<6 lines>...
+        env=env,
+        ^^^^^^^^
+    )
+    ^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/joblib/externals/loky/reusable_executor.py", line 182, in get_reusable_executor
+    _executor = executor = cls(
+                           ~~~^
+        _executor_lock,
+        ^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        **kwargs,
+        ^^^^^^^^^
+    )
+    ^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/joblib/externals/loky/reusable_executor.py", line 118, in __init__
+    super().__init__(
+    ~~~~~~~~~~~~~~~~^
+        max_workers=max_workers,
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+        env=env,
+        ^^^^^^^^
+    )
+    ^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/joblib/externals/loky/process_executor.py", line 1092, in __init__
+    _check_system_limits()
+    ~~~~~~~~~~~~~~~~~~~~^^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/joblib/externals/loky/process_executor.py", line 972, in _check_system_limits
+    nsems_max = os.sysconf("SC_SEM_NSEMS_MAX")
+PermissionError: [Errno 1] Operation not permitted
+[2026-03-09 08:11:00] EXIT_CODE=1
+
+[2026-03-09 08:14:11] CMD: /Library/Frameworks/Python.framework/Versions/3.13/bin/python3 /Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/random_forest.py
+[2026-03-09 08:14:11] ENV: MODEL_N_JOBS=-1 GRID_VARIANT=right GRID_VERSION=v1

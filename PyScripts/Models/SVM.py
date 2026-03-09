@@ -27,6 +27,38 @@ def choose_grid(left_values, center_values, right_values):
     return options[GRID_VARIANT]
 
 
+def _as_sortable_numeric(value):
+    try:
+        return float(value)
+    except Exception:
+        return float("inf")
+
+
+def make_one_se_refit(complexity_cols: list[str]):
+    """Return a GridSearchCV refit callable implementing the 1-SE rule."""
+    import numpy as np
+    def _pick_index(cv_results):
+        mean = np.asarray(cv_results["mean_test_score"], dtype=float)
+        std = np.asarray(cv_results["std_test_score"], dtype=float)
+        best_idx = int(np.argmax(mean))
+        threshold = float(mean[best_idx] - std[best_idx])
+        candidate_idx = np.where(mean >= threshold)[0]
+        if len(candidate_idx) == 0:
+            return best_idx
+
+        def key_fn(i: int):
+            complexity = []
+            for col in complexity_cols:
+                val = cv_results[f"param_{col}"][i]
+                complexity.append(_as_sortable_numeric(val))
+            # Prefer simplest model; if tie, prefer higher score.
+            return tuple(complexity + [-float(mean[i])])
+
+        return int(min(candidate_idx, key=key_fn))
+
+    return _pick_index
+
+
 if __name__ == "__main__":
     run_start = time.time()
     run_time = now_iso()
@@ -36,7 +68,8 @@ if __name__ == "__main__":
     TEST_SIZE=0.2
     # testing: bool =False, extra_features: bool =True, cluster: bool =False, n_clusters: int =100, corr_threshold: float =0.95, corr_level: int =0
     DATA=import_data(extra_features=True, testing=False, cluster=False, n_clusters=100, corr_threshold=0.95, corr_level=0)
-    FIND_OPTIMAL=True
+    # Keep feature-engineering configuration fixed for consistency across models.
+    FIND_OPTIMAL=False
     print(f"MODEL_N_JOBS={MODEL_N_JOBS} (set env MODEL_N_JOBS to override)")
     print(f"GRID_VARIANT={GRID_VARIANT} (left/center/right)")
     print(f"GRID_VERSION={GRID_VERSION}")
@@ -47,7 +80,7 @@ if __name__ == "__main__":
     
     parameters_={
         "raw": False,
-        "extra_features": False,
+        "extra_features": True,
         "lag_period": 2,
         "lookback_period": 7,
         "sector": True,
@@ -136,7 +169,11 @@ if __name__ == "__main__":
         )
     }
     
-    grid_search_linear = GridSearchCV(SVM_linear_pipeline, param_grid, cv=tscv, scoring='balanced_accuracy', n_jobs=MODEL_N_JOBS, verbose=1, return_train_score=True)
+    grid_search_linear = GridSearchCV(
+        SVM_linear_pipeline, param_grid, cv=tscv, scoring='balanced_accuracy',
+        n_jobs=MODEL_N_JOBS, verbose=1, return_train_score=True,
+        refit=make_one_se_refit(['classifier__C'])
+    )
     grid_search_linear.fit(X_train, y_train)
     append_search_history(
         history_path=history_path,
@@ -189,7 +226,11 @@ if __name__ == "__main__":
         )
     }
     
-    grid_search_rbf = GridSearchCV(SVM_rbf_pipeline, param_grid, cv=tscv, scoring='balanced_accuracy', n_jobs=MODEL_N_JOBS, verbose=1, return_train_score=True)
+    grid_search_rbf = GridSearchCV(
+        SVM_rbf_pipeline, param_grid, cv=tscv, scoring='balanced_accuracy',
+        n_jobs=MODEL_N_JOBS, verbose=1, return_train_score=True,
+        refit=make_one_se_refit(['classifier__C', 'classifier__gamma'])
+    )
     grid_search_rbf.fit(X_train, y_train)
     append_search_history(
         history_path=history_path,
@@ -247,7 +288,11 @@ if __name__ == "__main__":
         )
     }
     
-    grid_search_poly = GridSearchCV(SVM_poly_pipeline, param_grid, cv=tscv, scoring='balanced_accuracy', n_jobs=MODEL_N_JOBS, verbose=1, return_train_score=True)
+    grid_search_poly = GridSearchCV(
+        SVM_poly_pipeline, param_grid, cv=tscv, scoring='balanced_accuracy',
+        n_jobs=MODEL_N_JOBS, verbose=1, return_train_score=True,
+        refit=make_one_se_refit(['classifier__C', 'classifier__degree', 'classifier__gamma'])
+    )
     grid_search_poly.fit(X_train, y_train)
     append_search_history(
         history_path=history_path,

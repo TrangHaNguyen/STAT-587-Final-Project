@@ -2,6 +2,8 @@
 import argparse
 from pathlib import Path
 
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -38,6 +40,25 @@ def sort_by_complexity(df: pd.DataFrame, x_col: str, ordered: list[str] | None =
         out["_x_tick"] = out[x_col]
     return out
 
+def select_1se_row(df: pd.DataFrame) -> pd.Series | None:
+    if "std_test_score" not in df.columns:
+        return None
+    tmp = df.dropna(subset=["mean_test_score", "std_test_score", "_x_numeric"]).copy()
+    if tmp.empty:
+        return None
+    best_idx = tmp["mean_test_score"].idxmax()
+    best_mean = float(tmp.loc[best_idx, "mean_test_score"])
+    best_std = float(tmp.loc[best_idx, "std_test_score"])
+    threshold = best_mean - best_std
+    candidates = tmp[tmp["mean_test_score"] >= threshold].copy()
+    if candidates.empty:
+        return None
+    # Simpler model = lower complexity score on x-axis.
+    candidates = candidates.sort_values(["_x_numeric", "mean_test_score"], ascending=[True, False])
+    chosen = candidates.iloc[0].copy()
+    chosen["one_se_threshold"] = threshold
+    return chosen
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Plot over/under-fit trends from accumulated search history.")
@@ -49,6 +70,7 @@ def main() -> None:
     parser.add_argument("--search-type", default="", help="Optional search_type filter.")
     parser.add_argument("--ordered-x", default="", help="Comma-separated explicit order for x values.")
     parser.add_argument("--trend-window", type=int, default=8, help="Rolling window for trend lines.")
+    parser.add_argument("--score-label", default="CV Balanced Accuracy", help="Explicit label for plotted score metric.")
     parser.add_argument("--out", default="", help="Output PNG path.")
     args = parser.parse_args()
 
@@ -57,7 +79,9 @@ def main() -> None:
     if not history_path.exists():
         raise FileNotFoundError(f"History file not found: {history_path}")
 
-    df = pd.read_csv(history_path)
+    # Some history rows may contain unescaped commas in free-text fields.
+    # Read defensively and skip malformed lines so plotting can proceed.
+    df = pd.read_csv(history_path, engine="python", on_bad_lines="skip")
     if args.x_param not in df.columns:
         raise KeyError(f"{args.x_param} not found in history columns.")
 
@@ -80,14 +104,14 @@ def main() -> None:
     y_test_std = df["std_test_score"].to_numpy() if "std_test_score" in df.columns else np.full_like(y_test, np.nan, dtype=float)
 
     plt.figure(figsize=(10, 6))
-    plt.plot(x, y_test, linewidth=1.6, alpha=0.9, label="CV Test Score")
+    plt.plot(x, y_test, linewidth=1.6, alpha=0.9, label=f"CV Test {args.score_label}")
     plt.scatter(x, y_test, s=16, alpha=0.55)
     if not np.isnan(y_test_std).all():
         lower = np.clip(y_test - y_test_std, 0.0, 1.0)
         upper = np.clip(y_test + y_test_std, 0.0, 1.0)
-        plt.fill_between(x, lower, upper, alpha=0.18, label="Test ±1 Std")
+        plt.fill_between(x, lower, upper, alpha=0.18, label=f"Test {args.score_label} ±1 Std")
     if not np.isnan(y_train).all():
-        plt.scatter(x, y_train, s=18, alpha=0.5, label="CV Train Score")
+        plt.scatter(x, y_train, s=18, alpha=0.5, label=f"CV Train {args.score_label}")
 
     win = max(2, args.trend_window)
     if len(df) >= win:
@@ -97,9 +121,17 @@ def main() -> None:
             trend_train = pd.Series(y_train).rolling(win, min_periods=2).mean()
             plt.plot(x, trend_train, linewidth=2, label=f"Train Trend (w={win})")
 
+    one_se_row = select_1se_row(df)
+    if one_se_row is not None:
+        x_1se = float(one_se_row["_x_numeric"])
+        y_1se = float(one_se_row["mean_test_score"])
+        x_label = str(one_se_row[args.x_param])
+        plt.axvline(x_1se, color="crimson", linestyle="--", linewidth=1.4, label=f"1SE Selected ({x_label})")
+        plt.scatter([x_1se], [y_1se], color="crimson", s=36, zorder=5)
+
     plt.xlabel(args.x_param)
-    plt.ylabel("CV Score")
-    plt.title(f"{args.model.upper()} Search History: Train/Test vs {args.x_param}")
+    plt.ylabel(args.score_label)
+    plt.title(f"{args.model.upper()} Search History: Train/Test {args.score_label} vs {args.x_param}")
     plt.grid(alpha=0.3)
     plt.legend()
 

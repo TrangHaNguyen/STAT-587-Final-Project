@@ -54,6 +54,59 @@ def logregcv_to_rows(cv_obj: LogisticRegressionCV, param_name: str = "param_clas
         "rank_test_score": list(rank_test)
     }
 
+
+def _as_sortable_numeric(value):
+    try:
+        return float(value)
+    except Exception:
+        return float("inf")
+
+
+def make_one_se_refit(complexity_cols: list[str]):
+    """Return a GridSearchCV refit callable implementing the 1-SE rule."""
+    def _pick_index(cv_results):
+        mean = np.asarray(cv_results["mean_test_score"], dtype=float)
+        std = np.asarray(cv_results["std_test_score"], dtype=float)
+        best_idx = int(np.argmax(mean))
+        threshold = float(mean[best_idx] - std[best_idx])
+        candidate_idx = np.where(mean >= threshold)[0]
+        if len(candidate_idx) == 0:
+            return best_idx
+
+        def key_fn(i: int):
+            complexity = []
+            for col in complexity_cols:
+                val = cv_results[f"param_{col}"][i]
+                complexity.append(_as_sortable_numeric(val))
+            # Prefer simplest model; if tie, prefer higher score.
+            return tuple(complexity + [-float(mean[i])])
+
+        return int(min(candidate_idx, key=key_fn))
+
+    return _pick_index
+
+
+def select_logregcv_c_1se(cv_obj: LogisticRegressionCV) -> float:
+    """Select C by 1-SE rule from LogisticRegressionCV scores_."""
+    scores_dict = cv_obj.scores_
+    class_key = list(scores_dict.keys())[0]
+    scores = np.array(scores_dict[class_key])
+    if scores.ndim == 3:
+        scores = scores.mean(axis=2)
+    elif scores.ndim != 2:
+        raise ValueError(f"Unexpected LogisticRegressionCV scores_ shape: {scores.shape}")
+    mean_test = scores.mean(axis=0)
+    std_test = scores.std(axis=0)
+    cs = np.array(cv_obj.Cs_, dtype=float)
+    best_idx = int(np.argmax(mean_test))
+    threshold = float(mean_test[best_idx] - std_test[best_idx])
+    candidate_idx = np.where(mean_test >= threshold)[0]
+    if len(candidate_idx) == 0:
+        return float(cs[best_idx])
+    # Simpler model => smaller C.
+    chosen_idx = int(candidate_idx[np.argmin(cs[candidate_idx])])
+    return float(cs[chosen_idx])
+
 if __name__=="__main__":
     run_start = time.time()
     run_time = now_iso()
@@ -156,7 +209,7 @@ if __name__=="__main__":
 
 
     # ------- LASSO(Internal) APPLICATION -------
-    Log_Reg_R=LogisticRegressionCV(Cs=custom_Cs, cv=tscv, l1_ratios=[1], solver='saga', class_weight='balanced', random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2, verbose=VERBOSE)
+    Log_Reg_R=LogisticRegressionCV(Cs=custom_Cs, cv=tscv, l1_ratios=[1], solver='saga', class_weight='balanced', random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2, verbose=VERBOSE, scoring='balanced_accuracy')
     
     Log_Reg_model_pipeline_R=Pipeline([('scaler', StandardScaler()), ('classifier', Log_Reg_R)])
 
@@ -169,10 +222,10 @@ if __name__=="__main__":
         search_type="grid",
         grid_version=grid_label,
         notes=SEARCH_NOTES,
-        best_params={"classifier__C": float(Log_Reg_model_pipeline_R.named_steps['classifier'].C_[0])}
+        best_params={"classifier__C": select_logregcv_c_1se(Log_Reg_model_pipeline_R.named_steps['classifier'])}
     )
 
-    best_c = Log_Reg_model_pipeline_R.named_steps['classifier'].C_[0]
+    best_c = select_logregcv_c_1se(Log_Reg_model_pipeline_R.named_steps['classifier'])
     Opt_Log_Reg_R=LogisticRegression(C=best_c, l1_ratio=1, solver='saga', random_state=1, max_iter=500, tol=1e-2)
 
     Opt_Log_Reg_model_pipeline_R=Pipeline([('scaler', StandardScaler()), ('classifier', Opt_Log_Reg_R)])
@@ -198,7 +251,7 @@ if __name__=="__main__":
         input("Press Enter to continue...")
 
     # ------- RIDGE(Internal) APPLICATION -------
-    Log_Reg_L=LogisticRegressionCV(Cs=custom_Cs, cv=tscv, l1_ratios=[0], solver='saga', class_weight='balanced', random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2, verbose=VERBOSE)
+    Log_Reg_L=LogisticRegressionCV(Cs=custom_Cs, cv=tscv, l1_ratios=[0], solver='saga', class_weight='balanced', random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2, verbose=VERBOSE, scoring='balanced_accuracy')
     
     Log_Reg_model_pipeline_L=Pipeline([('scaler', StandardScaler()), ('classifier', Log_Reg_L)])
 
@@ -211,10 +264,10 @@ if __name__=="__main__":
         search_type="grid",
         grid_version=grid_label,
         notes=SEARCH_NOTES,
-        best_params={"classifier__C": float(Log_Reg_model_pipeline_L.named_steps['classifier'].C_[0])}
+        best_params={"classifier__C": select_logregcv_c_1se(Log_Reg_model_pipeline_L.named_steps['classifier'])}
     )
 
-    best_c = Log_Reg_model_pipeline_L.named_steps['classifier'].C_[0]
+    best_c = select_logregcv_c_1se(Log_Reg_model_pipeline_L.named_steps['classifier'])
     Opt_Log_Reg_L=LogisticRegression(C=best_c, l1_ratio=0, solver='saga', random_state=1, max_iter=500, tol=1e-2)
 
     Opt_Log_Reg_model_pipeline_L=Pipeline([('scaler', StandardScaler()), ('classifier', Opt_Log_Reg_L)])
@@ -258,7 +311,11 @@ if __name__=="__main__":
             [0.1, 1.0, 10.0, 100.0]
         )
     }
-    grid_search_PCA_ridge=GridSearchCV(Log_Reg_model_pipeline_PCA_L, param_grid, cv=tscv, return_train_score=True, verbose=VERBOSE)
+    grid_search_PCA_ridge=GridSearchCV(
+        Log_Reg_model_pipeline_PCA_L, param_grid, cv=tscv, return_train_score=True, verbose=VERBOSE,
+        scoring='balanced_accuracy',
+        refit=make_one_se_refit(['pca__n_components', 'classifier__C'])
+    )
 
     grid_search_PCA_ridge.fit(X_train, y_train)
     append_search_history(

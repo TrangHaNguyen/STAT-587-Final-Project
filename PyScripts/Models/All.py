@@ -8,6 +8,7 @@ import sys
 import time
 from pathlib import Path
 from typing import Any
+import pandas as pd
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -131,6 +132,37 @@ def parse_list(raw: str) -> list[str]:
     return [x.strip() for x in raw.split(",") if x.strip()]
 
 
+def history_path_for_model(model: str) -> Path:
+    mapping = {
+        "svm": RESULTS_DIR / "search_history_svm.csv",
+        "logreg": RESULTS_DIR / "search_history_logreg.csv",
+        "rf": RESULTS_DIR / "search_history_rf.csv",
+    }
+    return mapping[model]
+
+
+def plot_input_available(model: str, model_name: str, grid_version: str, x_param: str) -> tuple[bool, str]:
+    history_path = history_path_for_model(model)
+    if not history_path.exists():
+        return False, f"history file missing: {history_path.name}"
+    try:
+        # Defensive read: skip malformed lines in accumulated CSV history files.
+        df = pd.read_csv(history_path, engine="python", on_bad_lines="skip")
+    except Exception as exc:
+        return False, f"failed reading {history_path.name}: {exc}"
+
+    required = {"model_name", "grid_version", "mean_test_score", x_param}
+    missing = [c for c in required if c not in df.columns]
+    if missing:
+        return False, f"missing column(s): {missing}"
+
+    view = df[(df["model_name"] == model_name) & (df["grid_version"] == grid_version)]
+    view = view.dropna(subset=[x_param, "mean_test_score"])
+    if view.empty:
+        return False, "no matching rows for model_name/grid_version/x_param"
+    return True, "ok"
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run all model searches safely with checkpoint/resume and optional plotting.")
     parser.add_argument("--models", default="svm,logreg,rf", help="Comma list: svm,logreg,rf")
@@ -193,6 +225,7 @@ def main() -> None:
             plot_specs = []
             if "svm" in models:
                 plot_specs.extend([
+                    ("svm_linear_c", ["--model", "svm", "--x-param", "param_classifier__C", "--model-name", "SVM_linear"]),
                     ("svm_rbf_c", ["--model", "svm", "--x-param", "param_classifier__C", "--model-name", "SVM_rbf"]),
                     ("svm_rbf_gamma", ["--model", "svm", "--x-param", "param_classifier__gamma", "--model-name", "SVM_rbf",
                                        "--ordered-x", "0.001,0.01,0.1,1,10,auto,scale"]),
@@ -209,11 +242,19 @@ def main() -> None:
                 plot_specs.extend([
                     ("rf_base_depth", ["--model", "rf", "--x-param", "param_classifier__max_depth", "--model-name", "RF_base"]),
                     ("rf_base_nest", ["--model", "rf", "--x-param", "param_classifier__n_estimators", "--model-name", "RF_base"]),
+                    ("rf_pca_ncomp", ["--model", "rf", "--x-param", "param_reducer__n_components", "--model-name", "RF_pca"]),
                     ("rf_lasso_c", ["--model", "rf", "--x-param", "param_feature_selector__estimator__C", "--model-name", "RF_lasso"]),
                     ("rf_ridge_c", ["--model", "rf", "--x-param", "param_feature_selector__estimator__C", "--model-name", "RF_ridge"]),
                 ])
 
             for name, core_args in plot_specs:
+                model = core_args[1]
+                x_param = core_args[3]
+                model_name = core_args[5]
+                ok, reason = plot_input_available(model=model, model_name=model_name, grid_version=gv, x_param=x_param)
+                if not ok:
+                    append_log(f"SKIP plot:{name}:{gv} ({reason})")
+                    continue
                 out_path = PLOTS_DIR / f"over_under_fit_{name}_{gv}.png"
                 cmd = [
                     sys.executable,

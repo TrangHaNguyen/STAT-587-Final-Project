@@ -36,6 +36,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split, TimeSeriesSplit, cross_val_score
 from sklearn.pipeline import Pipeline
+from sklearn.metrics import roc_auc_score
 
 CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'cache')
 os.makedirs(CACHE_DIR, exist_ok=True)
@@ -389,7 +390,7 @@ if __name__ == "__main__":
     print("\n========== Generating PCA Bias-Variance Tradeoff Plot ==========")
 
     fig3, axes3 = plt.subplots(1, 2, figsize=(14, 5))
-    fig3.suptitle('Bias-Variance Tradeoff — PCA Features (90% Variance)\n'
+    fig3.suptitle(f'Bias-Variance Tradeoff — PCA Features ({n_components_raw} comps, {best_n_comp*100:.0f}% variance)\n'
                   '(Train vs CV Test Error per Regularization Strength)',
                   fontsize=13, fontweight='bold')
 
@@ -443,7 +444,7 @@ if __name__ == "__main__":
     C_grid_pca = np.logspace(-5, 2, 30)
 
     fig4, axes4 = plt.subplots(1, 2, figsize=(14, 5))
-    fig4.suptitle('Train vs Test Error — PCA Features (90% Variance)\n'
+    fig4.suptitle(f'Train vs Test Error — PCA Features ({n_components_raw} comps, {best_n_comp*100:.0f}% variance)\n'
                   '(Direct Train/Test Split, No CV)',
                   fontsize=13, fontweight='bold')
 
@@ -489,6 +490,12 @@ if __name__ == "__main__":
         cv_res = _cv(model, X_tr, y_tr, cv=tscv_splitter,
                      return_train_score=True, n_jobs=MODEL_N_JOBS, scoring='balanced_accuracy')
         preds = model.predict(X_te)
+        if hasattr(model, "predict_proba"):
+            y_score = model.predict_proba(X_te)[:, 1]
+        elif hasattr(model, "decision_function"):
+            y_score = model.decision_function(X_te)
+        else:
+            y_score = preds
         return {
             'Model':              name,
             'Best C':             f'{best_c:.6f}' if best_c is not None else 'N/A',
@@ -500,6 +507,7 @@ if __name__ == "__main__":
             'Precision':          round(precision_score(y_te, preds, zero_division=0), 4),
             'Recall':             round(recall_score(y_te, preds,    zero_division=0), 4),
             'F1':                 round(f1_score(y_te, preds,         zero_division=0), 4),
+            'ROC-AUC':            round(roc_auc_score(y_te, y_score), 4),
         }
 
     rows = [
@@ -719,6 +727,9 @@ if __name__ == "__main__":
     # ===================================================================
     full_df = combined_df.copy()
     full_df.index.name = 'Model'
+    # Keep only the reporting columns used in slides/tables.
+    keep_cols = ['Hold-out Test Acc', 'Precision', 'Recall', 'F1', 'ROC-AUC']
+    full_df = full_df[keep_cols]
 
     print("\n===== Full Comparison Table =====")
     print(full_df.to_string())
@@ -741,11 +752,24 @@ if __name__ == "__main__":
         r'(Recall = 1.0, Precision $\approx$ base rate).'
     )
 
+    def _latex_escape(text):
+        return (str(text)
+                .replace('\\', r'\textbackslash{}')
+                .replace('&', r'\&')
+                .replace('%', r'\%')
+                .replace('_', r'\_')
+                .replace('#', r'\#')
+                .replace('$', r'\$')
+                .replace('{', r'\{')
+                .replace('}', r'\}'))
+
     def _row(name, vals):
         dagger = r'$^\dagger$' if 'LASSO' in name else ''
         # First value is Best C (string), rest are numeric
-        formatted_vals = [str(vals[0])] + [f'{v:.4f}' for v in vals[1:]]
-        return name + dagger + ' & ' + ' & '.join(formatted_vals) + r' \\'
+        best_c = _latex_escape(vals[0])
+        formatted_vals = [best_c] + [f'{v:.4f}' for v in vals[1:]]
+        model_name = _latex_escape(name)
+        return model_name + dagger + ' & ' + ' & '.join(formatted_vals) + r' \\'
 
     with open(tex_path, 'w') as f:
         f.write(r'\begin{table}[htbp]' + '\n')

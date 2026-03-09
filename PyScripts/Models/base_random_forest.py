@@ -14,7 +14,7 @@ from sklearn.feature_selection import SelectFromModel
 from sklearn.model_selection import (train_test_split, TimeSeriesSplit,
                                      GridSearchCV, cross_validate)
 from sklearn.pipeline import Pipeline
-from sklearn.metrics import precision_score, recall_score, f1_score
+from sklearn.metrics import precision_score, recall_score, f1_score, roc_auc_score
 
 from H_prep import clean_data, import_data
 from H_eval import RollingWindowBacktest, get_final_metrics
@@ -22,9 +22,89 @@ from H_eval import RollingWindowBacktest, get_final_metrics
 CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'cache')
 os.makedirs(CACHE_DIR, exist_ok=True)
 MODEL_N_JOBS = int(os.getenv("MODEL_N_JOBS", "-1"))
+# GridSearchCV objects with callable refit (1SE rule) are not pickle-safe.
+USE_GRID_CACHE = False
 
 def to_binary_class(y):
     return (y >= 0).astype(int)
+
+def _as_sortable_numeric(value):
+    try:
+        return float(value)
+    except Exception:
+        return float("inf")
+
+def make_one_se_refit(complexity_cols: list[str]):
+    """Return a GridSearchCV refit callable implementing the 1-SE rule."""
+    def _pick_index(cv_results):
+        mean = np.asarray(cv_results["mean_test_score"], dtype=float)
+        std = np.asarray(cv_results["std_test_score"], dtype=float)
+        best_idx = int(np.argmax(mean))
+        threshold = float(mean[best_idx] - std[best_idx])
+        candidate_idx = np.where(mean >= threshold)[0]
+        if len(candidate_idx) == 0:
+            return best_idx
+
+        def key_fn(i: int):
+            complexity = []
+            for col in complexity_cols:
+                param_key = f"param_{col}"
+                val = cv_results[param_key][i]
+                complexity.append(_as_sortable_numeric(val))
+            # Prefer simplest model; if tie, prefer higher score.
+            return tuple(complexity + [-float(mean[i])])
+
+        return int(min(candidate_idx, key=key_fn))
+
+    return _pick_index
+
+def _latex_escape(text: str) -> str:
+    """Escape minimal LaTeX special characters for table text."""
+    return (str(text)
+            .replace("\\", r"\textbackslash{}")
+            .replace("&", r"\&")
+            .replace("%", r"\%")
+            .replace("_", r"\_")
+            .replace("#", r"\#")
+            .replace("$", r"\$")
+            .replace("{", r"\{")
+            .replace("}", r"\}"))
+
+def write_latex_table(df: pd.DataFrame, path: str, caption: str, label: str) -> None:
+    """Write DataFrame to LaTeX, with a no-jinja fallback."""
+    try:
+        df.to_latex(path, float_format='%.4f', caption=caption, label=label)
+        return
+    except ImportError:
+        pass
+
+    col_count = len(df.columns) + 1
+    align = "l" + "c" * (col_count - 1)
+    idx_name = df.index.name if df.index.name else "Model"
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\\begin{table}[htbp]\n\\centering\n")
+        f.write(f"\\caption{{{_latex_escape(caption)}}}\n")
+        f.write(f"\\label{{{_latex_escape(label)}}}\n")
+        f.write(f"\\begin{{tabular}}{{{align}}}\n\\hline\n")
+        header = [_latex_escape(idx_name)] + [_latex_escape(c) for c in df.columns]
+        f.write(" & ".join(header) + " \\\\\n\\hline\n")
+        for idx, row in df.iterrows():
+            values = [_latex_escape(idx)]
+            for val in row.values:
+                if isinstance(val, (float, np.floating)):
+                    values.append(f"{float(val):.4f}")
+                else:
+                    values.append(_latex_escape(val))
+            f.write(" & ".join(values) + " \\\\\n")
+        f.write("\\hline\n\\end{tabular}\n\\end{table}\n")
+
+def build_export_table(df: pd.DataFrame) -> pd.DataFrame:
+    """Keep only compact metrics for reporting/export."""
+    out = df.copy()
+    rename_map = {"Hold-out Test Acc": "Test Acc"}
+    out = out.rename(columns=rename_map)
+    keep_cols = ["Test Acc", "Precision", "Recall", "F1", "ROC-AUC"]
+    return out[keep_cols]
 
 if __name__ == "__main__":
     # ------- Load raw data (no extra clean_data feature engineering) -------
@@ -55,16 +135,18 @@ if __name__ == "__main__":
         ('scaler',     StandardScaler()),
         ('classifier', RandomForestClassifier(random_state=1, n_jobs=MODEL_N_JOBS))
     ])
-    if os.path.exists(_rf_cache):
+    if USE_GRID_CACHE and os.path.exists(_rf_cache):
         print("Loading RF GridSearch from cache...")
         grid_search_rf = joblib.load(_rf_cache)
     else:
         grid_search_rf = GridSearchCV(
             pipeline_rf, param_grid, cv=tscv,
-            n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy'
+            n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy',
+            refit=make_one_se_refit(['classifier__max_depth', 'classifier__n_estimators'])
         )
         grid_search_rf.fit(X_train, y_train)
-        joblib.dump(grid_search_rf, _rf_cache)
+        if USE_GRID_CACHE:
+            joblib.dump(grid_search_rf, _rf_cache)
 
     best_depth  = grid_search_rf.best_params_['classifier__max_depth']
     best_n_est  = grid_search_rf.best_params_['classifier__n_estimators']
@@ -88,16 +170,18 @@ if __name__ == "__main__":
         ('reducer',    PCA()),
         ('classifier', RandomForestClassifier(random_state=1, n_jobs=MODEL_N_JOBS))
     ])
-    if os.path.exists(_rf_pca_cache):
+    if USE_GRID_CACHE and os.path.exists(_rf_pca_cache):
         print("Loading PCA RF GridSearch from cache...")
         grid_search_pca = joblib.load(_rf_pca_cache)
     else:
         grid_search_pca = GridSearchCV(
             pipeline_rf_pca, param_grid_pca, cv=tscv,
-            n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy'
+            n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy',
+            refit=make_one_se_refit(['reducer__n_components', 'classifier__max_depth', 'classifier__n_estimators'])
         )
         grid_search_pca.fit(X_train, y_train)
-        joblib.dump(grid_search_pca, _rf_pca_cache)
+        if USE_GRID_CACHE:
+            joblib.dump(grid_search_pca, _rf_pca_cache)
     print(f"Best params (PCA RF): {grid_search_pca.best_params_}")
     print("\n--- Model Report ---")
     get_final_metrics(grid_search_pca.best_estimator_, X_train, y_train, X_test, y_test, n_splits=3, label="PCA RF")
@@ -120,16 +204,18 @@ if __name__ == "__main__":
                                max_iter=500, tol=5e-2), threshold='mean')),
         ('classifier',       RandomForestClassifier(random_state=1, n_jobs=MODEL_N_JOBS))
     ])
-    if os.path.exists(_rf_lasso_cache):
+    if USE_GRID_CACHE and os.path.exists(_rf_lasso_cache):
         print("Loading LASSO RF GridSearch from cache...")
         grid_search_lasso = joblib.load(_rf_lasso_cache)
     else:
         grid_search_lasso = GridSearchCV(
             pipeline_rf_lasso, param_grid_lasso, cv=tscv,
-            n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy'
+            n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy',
+            refit=make_one_se_refit(['feature_selector__estimator__C', 'classifier__max_depth', 'classifier__n_estimators'])
         )
         grid_search_lasso.fit(X_train, y_train)
-        joblib.dump(grid_search_lasso, _rf_lasso_cache)
+        if USE_GRID_CACHE:
+            joblib.dump(grid_search_lasso, _rf_lasso_cache)
     print(f"Best params (LASSO RF): {grid_search_lasso.best_params_}")
     print("\n--- Model Report ---")
     get_final_metrics(grid_search_lasso.best_estimator_, X_train, y_train, X_test, y_test, n_splits=3, label="LASSO-sel RF")
@@ -152,22 +238,119 @@ if __name__ == "__main__":
                                max_iter=500, tol=5e-2), threshold='mean')),
         ('classifier',       RandomForestClassifier(random_state=1, n_jobs=MODEL_N_JOBS))
     ])
-    if os.path.exists(_rf_ridge_cache):
+    if USE_GRID_CACHE and os.path.exists(_rf_ridge_cache):
         print("Loading Ridge RF GridSearch from cache...")
         grid_search_ridge = joblib.load(_rf_ridge_cache)
     else:
         grid_search_ridge = GridSearchCV(
             pipeline_rf_ridge, param_grid_ridge, cv=tscv,
-            n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy'
+            n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy',
+            refit=make_one_se_refit(['feature_selector__estimator__C', 'classifier__max_depth', 'classifier__n_estimators'])
         )
         grid_search_ridge.fit(X_train, y_train)
-        joblib.dump(grid_search_ridge, _rf_ridge_cache)
+        if USE_GRID_CACHE:
+            joblib.dump(grid_search_ridge, _rf_ridge_cache)
     print(f"Best params (Ridge RF): {grid_search_ridge.best_params_}")
     print("\n--- Model Report ---")
     get_final_metrics(grid_search_ridge.best_estimator_, X_train, y_train, X_test, y_test, n_splits=3, label="Ridge-sel RF")
     print("\n--- Rolling Window Backtest ---")
     rwb_obj = RollingWindowBacktest(grid_search_ridge.best_estimator_, X, y_classification, X_train, window_size=200, horizon=40)
     rwb_obj.rolling_window_backtest(verbose=1)
+
+    # ===================================================================
+    # PLOT: Ridge-sel RF Bias-Variance vs Ridge C
+    # Train/CV test prediction error + 1SE test band; red line at selected C
+    # ===================================================================
+    print("\n========== Generating Ridge-sel RF Bias-Variance Plot (vs C) ==========")
+
+    ridge_c_grid = param_grid_ridge['feature_selector__estimator__C']
+    ridge_best_c = grid_search_ridge.best_params_['feature_selector__estimator__C']
+    ridge_best_depth = grid_search_ridge.best_params_['classifier__max_depth']
+    ridge_best_nest = grid_search_ridge.best_params_['classifier__n_estimators']
+
+    ridge_train_err_mean, ridge_train_err_std = [], []
+    ridge_test_err_mean, ridge_test_err_std = [], []
+
+    for c_val in ridge_c_grid:
+        ridge_curve_model = Pipeline([
+            ('scaler', StandardScaler()),
+            ('feature_selector', SelectFromModel(
+                LogisticRegression(
+                    C=c_val, l1_ratio=0, solver='saga', random_state=1,
+                    max_iter=500, tol=5e-2
+                ),
+                threshold='mean'
+            )),
+            ('classifier', RandomForestClassifier(
+                random_state=1,
+                n_jobs=MODEL_N_JOBS,
+                max_depth=ridge_best_depth,
+                n_estimators=ridge_best_nest
+            ))
+        ])
+        cv_res = cross_validate(
+            ridge_curve_model, X_train, y_train, cv=tscv,
+            return_train_score=True, n_jobs=MODEL_N_JOBS, scoring='balanced_accuracy'
+        )
+        ridge_train_err_mean.append(1 - cv_res['train_score'].mean())
+        ridge_train_err_std.append(cv_res['train_score'].std())
+        ridge_test_err_mean.append(1 - cv_res['test_score'].mean())
+        ridge_test_err_std.append(cv_res['test_score'].std())
+
+    ridge_c_grid = np.array(ridge_c_grid, dtype=float)
+    ridge_train_err_mean = np.array(ridge_train_err_mean, dtype=float)
+    ridge_train_err_std = np.array(ridge_train_err_std, dtype=float)
+    ridge_test_err_mean = np.array(ridge_test_err_mean, dtype=float)
+    ridge_test_err_std = np.array(ridge_test_err_std, dtype=float)
+
+    fig_ridge, ax_ridge = plt.subplots(figsize=(10, 5))
+    fig_ridge.suptitle(
+        'Bias-Variance Tradeoff — Ridge-selected RF (Raw OHLCV)\n'
+        f'(Train/CV Test Prediction Error vs Ridge C, depth={ridge_best_depth}, n_estimators={ridge_best_nest})',
+        fontsize=13, fontweight='bold'
+    )
+    ax_ridge.semilogx(
+        ridge_c_grid, ridge_train_err_mean, marker='o', color='steelblue',
+        linewidth=2, label='Train error'
+    )
+    ax_ridge.fill_between(
+        ridge_c_grid,
+        ridge_train_err_mean - ridge_train_err_std,
+        ridge_train_err_mean + ridge_train_err_std,
+        alpha=0.15, color='steelblue'
+    )
+    ax_ridge.semilogx(
+        ridge_c_grid, ridge_test_err_mean, marker='s', color='darkorange',
+        linewidth=2, label='CV Test error'
+    )
+    # 1SE band for CV test error around the mean test-error curve.
+    ax_ridge.fill_between(
+        ridge_c_grid,
+        ridge_test_err_mean - ridge_test_err_std,
+        ridge_test_err_mean + ridge_test_err_std,
+        alpha=0.18, color='darkorange', label='CV Test error ±1SE'
+    )
+    ax_ridge.axvline(
+        float(ridge_best_c), color='red', linestyle='--', linewidth=1.8,
+        label=f'1SE-selected C = {ridge_best_c}'
+    )
+    ax_ridge.set_title('Ridge-sel RF — Bias-Variance vs Ridge C')
+    ax_ridge.set_xlabel(
+        'Ridge C (feature-selection strength)\n'
+        '← Lower C, stronger regularization, simpler model      '
+        'Higher C, weaker regularization, more complex model →'
+    )
+    ax_ridge.set_ylabel('Prediction Error')
+    ax_ridge.legend(fontsize=9)
+    ax_ridge.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'output')
+    os.makedirs(output_dir, exist_ok=True)
+    out_path_ridge = os.path.join(output_dir, '8yrs_1SE_base_rf_ridge_bias_variance.png')
+    plt.savefig(out_path_ridge, dpi=150, bbox_inches='tight')
+    print(f"Figure saved to: {os.path.abspath(out_path_ridge)}")
+    plt.close()
 
     # ===================================================================
     # PLOT 1: Bias-Variance Tradeoff (CV train + CV test error ± std)
@@ -228,7 +411,7 @@ if __name__ == "__main__":
     os.makedirs(output_dir, exist_ok=True)
     tex_output_dir = os.path.join(output_dir, 'Used', 'tex')
     os.makedirs(tex_output_dir, exist_ok=True)
-    out_path1 = os.path.join(output_dir, 'base_rf_bias_variance.png')
+    out_path1 = os.path.join(output_dir, '8yrs_base_rf_bias_variance.png')
     plt.savefig(out_path1, dpi=150, bbox_inches='tight')
     print(f"Figure saved to: {os.path.abspath(out_path1)}")
     plt.close()
@@ -274,7 +457,7 @@ if __name__ == "__main__":
     ax2.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    out_path2 = os.path.join(output_dir, 'base_rf_train_test.png')
+    out_path2 = os.path.join(output_dir, '8yrs_base_rf_train_test.png')
     plt.savefig(out_path2, dpi=150, bbox_inches='tight')
     print(f"Figure saved to: {os.path.abspath(out_path2)}")
     plt.close()
@@ -310,7 +493,7 @@ if __name__ == "__main__":
         fontsize=13, fontweight='bold'
     )
     plt.tight_layout()
-    out_path3 = os.path.join(output_dir, 'base_rf_best_tree.png')
+    out_path3 = os.path.join(output_dir, '8yrs_base_rf_best_tree.png')
     plt.savefig(out_path3, dpi=150, bbox_inches='tight')
     print(f"Figure saved to: {os.path.abspath(out_path3)}")
     plt.close()
@@ -324,6 +507,12 @@ if __name__ == "__main__":
         idx_best = grid_obj.best_index_
         res      = grid_obj.cv_results_
         preds    = grid_obj.predict(X_te)
+        if hasattr(grid_obj, "predict_proba"):
+            y_score = grid_obj.predict_proba(X_te)[:, 1]
+        elif hasattr(grid_obj, "decision_function"):
+            y_score = grid_obj.decision_function(X_te)
+        else:
+            y_score = preds
         return {
             'Model':             name,
             'Avg Train Acc':     round(res['mean_train_score'][idx_best], 4),
@@ -334,6 +523,7 @@ if __name__ == "__main__":
             'Precision':         round(precision_score(y_te, preds, zero_division=0), 4),
             'Recall':            round(recall_score(y_te, preds,    zero_division=0), 4),
             'F1':                round(f1_score(y_te, preds,         zero_division=0), 4),
+            'ROC-AUC':           round(roc_auc_score(y_te, y_score), 4),
         }
 
     rows = [
@@ -346,7 +536,7 @@ if __name__ == "__main__":
     comparison_df = pd.DataFrame(rows).set_index('Model')
     print(comparison_df.to_string())
 
-    csv_path = os.path.join(output_dir, 'base_rf_comparison.csv')
+    csv_path = os.path.join(output_dir, '8yrs_base_rf_comparison.csv')
     comparison_df.to_csv(csv_path)
     print(f"\nComparison table (raw) saved to: {os.path.abspath(csv_path)}")
 
@@ -375,17 +565,19 @@ if __name__ == "__main__":
         'classifier__max_depth':    [2, 3, 5, 8, 15],
         'classifier__n_estimators': [50, 100, 200, 500],
     }
-    if os.path.exists(_rf_dow_cache):
+    if USE_GRID_CACHE and os.path.exists(_rf_dow_cache):
         print("Loading Base RF+DOW from cache...")
         grid_search_rf_dow = joblib.load(_rf_dow_cache)
     else:
         grid_search_rf_dow = GridSearchCV(
             Pipeline([('scaler', StandardScaler()),
                       ('classifier', RandomForestClassifier(random_state=1, n_jobs=MODEL_N_JOBS))]),
-            param_grid_base, cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy'
+            param_grid_base, cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy',
+            refit=make_one_se_refit(['classifier__max_depth', 'classifier__n_estimators'])
         )
         grid_search_rf_dow.fit(X_train_dow, y_train_dow)
-        joblib.dump(grid_search_rf_dow, _rf_dow_cache)
+        if USE_GRID_CACHE:
+            joblib.dump(grid_search_rf_dow, _rf_dow_cache)
     print(f"Best params (Base RF+DOW): {grid_search_rf_dow.best_params_}")
     get_final_metrics(grid_search_rf_dow.best_estimator_, X_train_dow, y_train_dow, X_test_dow, y_test_dow, n_splits=3, label="Base RF+DOW")
 
@@ -397,7 +589,7 @@ if __name__ == "__main__":
         'classifier__max_depth':    [2, 3, 5],
         'classifier__n_estimators': [250, 500],
     }
-    if os.path.exists(_rf_pca_dow_cache):
+    if USE_GRID_CACHE and os.path.exists(_rf_pca_dow_cache):
         print("Loading PCA RF+DOW from cache...")
         grid_search_pca_dow = joblib.load(_rf_pca_dow_cache)
     else:
@@ -405,10 +597,12 @@ if __name__ == "__main__":
             Pipeline([('scaler', StandardScaler()),
                       ('reducer', PCA()),
                       ('classifier', RandomForestClassifier(random_state=1, n_jobs=MODEL_N_JOBS))]),
-            param_grid_pca_dow, cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy'
+            param_grid_pca_dow, cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy',
+            refit=make_one_se_refit(['reducer__n_components', 'classifier__max_depth', 'classifier__n_estimators'])
         )
         grid_search_pca_dow.fit(X_train_dow, y_train_dow)
-        joblib.dump(grid_search_pca_dow, _rf_pca_dow_cache)
+        if USE_GRID_CACHE:
+            joblib.dump(grid_search_pca_dow, _rf_pca_dow_cache)
     print(f"Best params (PCA RF+DOW): {grid_search_pca_dow.best_params_}")
     get_final_metrics(grid_search_pca_dow.best_estimator_, X_train_dow, y_train_dow, X_test_dow, y_test_dow, n_splits=3, label="PCA RF+DOW")
 
@@ -420,7 +614,7 @@ if __name__ == "__main__":
         'classifier__max_depth':          [2, 3, 5],
         'classifier__n_estimators':       [500],
     }
-    if os.path.exists(_rf_lasso_dow_cache):
+    if USE_GRID_CACHE and os.path.exists(_rf_lasso_dow_cache):
         print("Loading LASSO-sel RF+DOW from cache...")
         grid_search_lasso_dow = joblib.load(_rf_lasso_dow_cache)
     else:
@@ -430,10 +624,12 @@ if __name__ == "__main__":
                           LogisticRegression(l1_ratio=1, solver='saga', random_state=1,
                                              max_iter=500, tol=5e-2), threshold='mean')),
                       ('classifier', RandomForestClassifier(random_state=1, n_jobs=MODEL_N_JOBS))]),
-            param_grid_lasso_dow, cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy'
+            param_grid_lasso_dow, cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy',
+            refit=make_one_se_refit(['feature_selector__estimator__C', 'classifier__max_depth', 'classifier__n_estimators'])
         )
         grid_search_lasso_dow.fit(X_train_dow, y_train_dow)
-        joblib.dump(grid_search_lasso_dow, _rf_lasso_dow_cache)
+        if USE_GRID_CACHE:
+            joblib.dump(grid_search_lasso_dow, _rf_lasso_dow_cache)
     print(f"Best params (LASSO-sel RF+DOW): {grid_search_lasso_dow.best_params_}")
     get_final_metrics(grid_search_lasso_dow.best_estimator_, X_train_dow, y_train_dow, X_test_dow, y_test_dow, n_splits=3, label="LASSO-sel RF+DOW")
 
@@ -445,7 +641,7 @@ if __name__ == "__main__":
         'classifier__max_depth':          [2, 3, 5],
         'classifier__n_estimators':       [500],
     }
-    if os.path.exists(_rf_ridge_dow_cache):
+    if USE_GRID_CACHE and os.path.exists(_rf_ridge_dow_cache):
         print("Loading Ridge-sel RF+DOW from cache...")
         grid_search_ridge_dow = joblib.load(_rf_ridge_dow_cache)
     else:
@@ -455,10 +651,12 @@ if __name__ == "__main__":
                           LogisticRegression(l1_ratio=0, solver='saga', random_state=1,
                                              max_iter=500, tol=5e-2), threshold='mean')),
                       ('classifier', RandomForestClassifier(random_state=1, n_jobs=MODEL_N_JOBS))]),
-            param_grid_ridge_dow, cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy'
+            param_grid_ridge_dow, cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy',
+            refit=make_one_se_refit(['feature_selector__estimator__C', 'classifier__max_depth', 'classifier__n_estimators'])
         )
         grid_search_ridge_dow.fit(X_train_dow, y_train_dow)
-        joblib.dump(grid_search_ridge_dow, _rf_ridge_dow_cache)
+        if USE_GRID_CACHE:
+            joblib.dump(grid_search_ridge_dow, _rf_ridge_dow_cache)
     print(f"Best params (Ridge-sel RF+DOW): {grid_search_ridge_dow.best_params_}")
     get_final_metrics(grid_search_ridge_dow.best_estimator_, X_train_dow, y_train_dow, X_test_dow, y_test_dow, n_splits=3, label="Ridge-sel RF+DOW")
 
@@ -477,15 +675,18 @@ if __name__ == "__main__":
     print("\n===== Combined Comparison Table =====")
     print(combined_df.to_string())
 
-    combined_csv = os.path.join(output_dir, 'base_rf_comparison.csv')
-    combined_df.to_csv(combined_csv)
+    combined_export_df = build_export_table(combined_df)
+    combined_csv = os.path.join(output_dir, '8yrs_base_rf_comparison.csv')
+    combined_export_df.to_csv(combined_csv)
     print(f"\nCombined comparison table saved to: {os.path.abspath(combined_csv)}")
 
-    tex_path = os.path.join(tex_output_dir, '8yrs_base_rf_comparison.tex')
-    combined_df.to_latex(tex_path, float_format='%.4f',
-                         caption='Random Forest Model Comparison: '
-                                 'Raw OHLCV vs Raw OHLCV + Day-of-Week',
-                         label='tab:base_rf_comparison')
+    tex_path = os.path.join(tex_output_dir, '8yrs_1SE_base_random_forest.tex')
+    write_latex_table(
+        combined_export_df,
+        tex_path,
+        'Random Forest Model Comparison: Raw OHLCV vs Raw OHLCV + Day-of-Week',
+        'tab:base_rf_comparison'
+    )
     print(f"LaTeX table saved to:               {os.path.abspath(tex_path)}")
 
     # ===================================================================
@@ -512,7 +713,7 @@ if __name__ == "__main__":
     # --- Base RF + Lags ---
     print("\n========== Base RF + Lags GridSearch ==========")
     _rf_lag_cache = os.path.join(CACHE_DIR, 'base_rf_lag_gridsearch.pkl')
-    if os.path.exists(_rf_lag_cache):
+    if USE_GRID_CACHE and os.path.exists(_rf_lag_cache):
         print("Loading Base RF+Lags from cache...")
         grid_search_rf_lag = joblib.load(_rf_lag_cache)
     else:
@@ -521,17 +722,19 @@ if __name__ == "__main__":
                       ('classifier', RandomForestClassifier(random_state=1, n_jobs=MODEL_N_JOBS))]),
             {'classifier__max_depth': [2, 3, 5, 8, 15],
              'classifier__n_estimators': [50, 100, 200, 500]},
-            cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy'
+            cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy',
+            refit=make_one_se_refit(['classifier__max_depth', 'classifier__n_estimators'])
         )
         grid_search_rf_lag.fit(X_train_lag, y_train_lag)
-        joblib.dump(grid_search_rf_lag, _rf_lag_cache)
+        if USE_GRID_CACHE:
+            joblib.dump(grid_search_rf_lag, _rf_lag_cache)
     print(f"Best params (Base RF+Lags): {grid_search_rf_lag.best_params_}")
     get_final_metrics(grid_search_rf_lag.best_estimator_, X_train_lag, y_train_lag, X_test_lag, y_test_lag, n_splits=3, label="Base RF+Lags")
 
     # --- PCA RF + Lags ---
     print("\n========== PCA RF + Lags GridSearch ==========")
     _rf_pca_lag_cache = os.path.join(CACHE_DIR, 'base_rf_pca_lag_gridsearch.pkl')
-    if os.path.exists(_rf_pca_lag_cache):
+    if USE_GRID_CACHE and os.path.exists(_rf_pca_lag_cache):
         print("Loading PCA RF+Lags from cache...")
         grid_search_pca_lag = joblib.load(_rf_pca_lag_cache)
     else:
@@ -542,17 +745,19 @@ if __name__ == "__main__":
             {'reducer__n_components': [0.8, 0.9, 0.95],
              'classifier__max_depth': [2, 3, 5],
              'classifier__n_estimators': [250, 500]},
-            cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy'
+            cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy',
+            refit=make_one_se_refit(['reducer__n_components', 'classifier__max_depth', 'classifier__n_estimators'])
         )
         grid_search_pca_lag.fit(X_train_lag, y_train_lag)
-        joblib.dump(grid_search_pca_lag, _rf_pca_lag_cache)
+        if USE_GRID_CACHE:
+            joblib.dump(grid_search_pca_lag, _rf_pca_lag_cache)
     print(f"Best params (PCA RF+Lags): {grid_search_pca_lag.best_params_}")
     get_final_metrics(grid_search_pca_lag.best_estimator_, X_train_lag, y_train_lag, X_test_lag, y_test_lag, n_splits=3, label="PCA RF+Lags")
 
     # --- LASSO-sel RF + Lags ---
     print("\n========== LASSO-sel RF + Lags GridSearch ==========")
     _rf_lasso_lag_cache = os.path.join(CACHE_DIR, 'base_rf_lasso_lag_gridsearch.pkl')
-    if os.path.exists(_rf_lasso_lag_cache):
+    if USE_GRID_CACHE and os.path.exists(_rf_lasso_lag_cache):
         print("Loading LASSO-sel RF+Lags from cache...")
         grid_search_lasso_lag = joblib.load(_rf_lasso_lag_cache)
     else:
@@ -565,17 +770,19 @@ if __name__ == "__main__":
             {'feature_selector__estimator__C': [0.001, 0.01, 0.1],
              'classifier__max_depth': [2, 3, 5],
              'classifier__n_estimators': [500]},
-            cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy'
+            cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy',
+            refit=make_one_se_refit(['feature_selector__estimator__C', 'classifier__max_depth', 'classifier__n_estimators'])
         )
         grid_search_lasso_lag.fit(X_train_lag, y_train_lag)
-        joblib.dump(grid_search_lasso_lag, _rf_lasso_lag_cache)
+        if USE_GRID_CACHE:
+            joblib.dump(grid_search_lasso_lag, _rf_lasso_lag_cache)
     print(f"Best params (LASSO-sel RF+Lags): {grid_search_lasso_lag.best_params_}")
     get_final_metrics(grid_search_lasso_lag.best_estimator_, X_train_lag, y_train_lag, X_test_lag, y_test_lag, n_splits=3, label="LASSO-sel RF+Lags")
 
     # --- Ridge-sel RF + Lags ---
     print("\n========== Ridge-sel RF + Lags GridSearch ==========")
     _rf_ridge_lag_cache = os.path.join(CACHE_DIR, 'base_rf_ridge_lag_gridsearch.pkl')
-    if os.path.exists(_rf_ridge_lag_cache):
+    if USE_GRID_CACHE and os.path.exists(_rf_ridge_lag_cache):
         print("Loading Ridge-sel RF+Lags from cache...")
         grid_search_ridge_lag = joblib.load(_rf_ridge_lag_cache)
     else:
@@ -588,10 +795,12 @@ if __name__ == "__main__":
             {'feature_selector__estimator__C': [0.001, 0.01, 0.1],
              'classifier__max_depth': [2, 3, 5],
              'classifier__n_estimators': [500]},
-            cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy'
+            cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy',
+            refit=make_one_se_refit(['feature_selector__estimator__C', 'classifier__max_depth', 'classifier__n_estimators'])
         )
         grid_search_ridge_lag.fit(X_train_lag, y_train_lag)
-        joblib.dump(grid_search_ridge_lag, _rf_ridge_lag_cache)
+        if USE_GRID_CACHE:
+            joblib.dump(grid_search_ridge_lag, _rf_ridge_lag_cache)
     print(f"Best params (Ridge-sel RF+Lags): {grid_search_ridge_lag.best_params_}")
     get_final_metrics(grid_search_ridge_lag.best_estimator_, X_train_lag, y_train_lag, X_test_lag, y_test_lag, n_splits=3, label="Ridge-sel RF+Lags")
 
@@ -610,13 +819,16 @@ if __name__ == "__main__":
     print("\n===== Full Comparison Table =====")
     print(full_df.to_string())
 
-    full_csv = os.path.join(output_dir, 'base_rf_comparison.csv')
-    full_df.to_csv(full_csv)
+    full_export_df = build_export_table(full_df)
+    full_csv = os.path.join(output_dir, '8yrs_base_rf_comparison.csv')
+    full_export_df.to_csv(full_csv)
     print(f"\nFull comparison table saved to: {os.path.abspath(full_csv)}")
 
-    tex_path = os.path.join(tex_output_dir, '8yrs_base_rf_comparison.tex')
-    full_df.to_latex(tex_path, float_format='%.4f',
-                     caption='Random Forest Model Comparison: '
-                             'Raw OHLCV vs +Day-of-Week vs +Lag1--7',
-                     label='tab:base_rf_comparison')
+    tex_path = os.path.join(tex_output_dir, '8yrs_1SE_base_random_forest.tex')
+    write_latex_table(
+        full_export_df,
+        tex_path,
+        'Random Forest Model Comparison: Raw OHLCV vs +Day-of-Week vs +Lag1--7',
+        'tab:base_rf_comparison'
+    )
     print(f"LaTeX table saved to:           {os.path.abspath(tex_path)}")

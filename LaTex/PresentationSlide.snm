@@ -2,8 +2,12 @@
 \beamer@slide {fig:top-sectors}{9}
 \beamer@slide {fig:sector-vol}{10}
 \beamer@slide {tab:descriptive_stats}{11}
-\beamer@slide {tab:base_logistic_comparison}{16}
-\beamer@slide {tab:base_rf_comparison}{18}
-\beamer@slide {tab:8yrs_3methods_comparison}{20}
-\beamer@slide {tab:model_comparison}{22}
-\beamer@slide {tab:logreg_l2_elasticnet_24h}{24}
+\beamer@slide {tab:base_logistic_comparison}{18}
+\beamer@slide {tab:base_rf_comparison_1se}{20}
+\beamer@slide {tab:8yrs_3methods_comparison}{22}
+\beamer@slide {tab:model_comparison}{24}
+\beamer@slide {fig:top-sectors}{25}
+\beamer@slide {fig:top-sectors}{26}
+\beamer@slide {fig:top-sectors}{27}
+\beamer@slide {fig:top-sectors}{28}
+\beamer@slide {tab:logreg_l2_elasticnet_24h}{30}

@@ -30,7 +30,7 @@
 %\large Historical Signals and Market Direction}
 
 \title[Historical Signals and Market Direction]{Historical Signals and Market Direction}
-\author{Trang Nguyen %\and Takeshi Stormer}
+\author{Trang Nguyen} %\and Takeshi Stormer
 %\institute{STAT 587: Data Science \\ Group 5 \\ Portland State University}
 \institute{STAT 587: Data Science \\ Portland State University}
 \date{March 9th, 2026}
@@ -87,6 +87,7 @@
     \color{black}#1
   \end{beamercolorbox}
 }
+
 
 \begin{document}
 
@@ -158,9 +159,9 @@
 \begin{itemize}
     \item Predicting market direction is important for practical trading decisions.
     \item Prediction performance itself also contains important information of historical signals and market direction.
-    \item The result will shed light on the plaussibility of Efficient Market Theory in practice.
+    \item The result will shed light on the plaussibility of \textbf{Efficient Market Hypothesis (EMH)} in practice.
     \item If historical signals are predictive out of sample, this challenges weak-form market efficiency.
-    \item If not, the results are more consistent with the \textbf{Efficient Market Hypothesis}.
+    \item If not, the results are more consistent with the \textbf{EMH}.
 
 \end{itemize}
 \end{frame}
@@ -171,11 +172,12 @@
   \item Goal: Forecasting the \textbf{direction} of the S\&P 500 Index (market direction)
   \item Research Problem: Is there historical information in price and volume that can be used to forecast market direction.
   \item Modeling approach: 
-  \begin{itemize}
-    \item Perform feature engineering and selection/dimensionality reduction
-    \item Fit models suitable to data main characteristics
-    \item Select optimal hyperparameter values through iterative selection. %
-  \end{itemize}
+	  \begin{itemize}
+	    \item Perform feature engineering and selection/dimensionality reduction
+	    \item Fit models suitable to data main characteristics
+	    \item Select optimal hyperparameter values through iterative selection. %
+	  \end{itemize}
+\end{itemize}
 \end{frame}
 \subsection{Background}
 \begin{frame}{Background}
@@ -257,7 +259,7 @@ conditions,
 \end{figure}
 \end{frame}
 
-\begin{frame}{Exploratory Data Analysis: Descriptive Statistics}
+\begin{frame}[t,shrink=25]{Exploratory Data Analysis: Descriptive Statistics}
   \scriptsize
   \input{../output/Used/tex/descriptive_stats.tex}
 \end{frame}
@@ -285,7 +287,9 @@ conditions,
 
 
 \section{Methods}
-% Slide 1
+
+
+
 \begin{frame}[t,shrink=8]{Method Overview: Data Challenges and solutions}
 
 \begin{block}{High-Dimensional Predictors ($p$ large relative to $n$)}
@@ -317,7 +321,13 @@ conditions,
     \]
 \end{itemize}
 \end{block}
+\vfill
+{\tiny \textit{Source:} Hastie, Tibshirani, and Friedman (2009), \textit{The Elements of Statistical Learning}, Ch.~3, Ch.~7, and Ch.~14.}
 
+\end{frame}
+
+
+\begin{frame}[t,shrink=8]{Method Overview: Data Challenges and solutions}
 \begin{block}{Multicollinearity}
 \begin{itemize}
     \item  Regularization: Ridge and LASSO % ESL reference for ridge:
@@ -353,6 +363,8 @@ conditions,
 {\tiny \textit{Source:} Hastie, Tibshirani, and Friedman (2009), \textit{The Elements of Statistical Learning}, Ch.~3, Ch.~7, and Ch.~14.}
 
 \end{frame}
+
+
 
 
 \begin{frame}[t,shrink=8]{Method Overview: Models and Model Selection}
@@ -398,20 +410,28 @@ conditions,
 \end{itemize}
 \end{block}
 
+\vfill
+{\tiny \textit{Source:} Hastie, Tibshirani, and Friedman (2009), \textit{The Elements of Statistical Learning}, Ch.~4, Ch.~7, Ch.~12, and Ch.~15.}
+
+\end{frame}
+
+
+
+
+
+
+
+\begin{frame}[t,shrink=8]{Method Overview: Models and Model Selection}
 \begin{block}{Model Tuning and Selection} (Ch. 7, ESL)
 \begin{itemize}
-    \item Hyperparameters selected by cross-validation
-    \item Validation methods:
+    \item Parameters for each model is selected by cross-validation with 1SE rule 
+    \item Validation methods: $k$-fold cross-validation
+    \item Evaluation metrics:
     \begin{itemize}
-        \item $k$-fold cross-validation
-            % ESL reference:
-            % Chapter 7, "Model Assessment and Selection", p. 219.
-        %\item Walk-forward validation
+      \item Balanced accuracy in parameter tunning (reduced degenerated one)
+      \item Mainly Test accuracy for model comparison
+      \item Other metrics: F1 score, Precision, ROC-AUC
     \end{itemize}
-    \item Evaluation metric: Mainly Test Accuracy, Model Parsimony
-    \item 1SE rule: prefer the more \textbf{parsimonious} model when performance is similar
-          % Chapter 7, "Model Assessment and Selection", p. 219.
-    \item Other metrics are used for analysis: F1 score, ROC-AUC
 \end{itemize}
 \end{block}
 
@@ -420,83 +440,114 @@ conditions,
 
 \end{frame}
 
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% MAJOR REVISION COMPLETED UP TO HERE%%%%%% LATER INCLUDED NEW RESULTS WITH ANALYSIS BUT IS MINIMALLY REVISED,%%%%%%%%%%%%%%%%%%%%%%%% 
 
 
 \section{Results}
 \subsection{Baseline Models with raw features}
 \subsubsection{Logistic Regression Models}
-\begin{frame}{Results}
+\begin{frame}[t]{Results}
 \textbf{Logistic Regression Models}\\
+\begingroup
+\scriptsize
+\setlength{\tabcolsep}{2pt}
+\renewcommand{\arraystretch}{0.9}
 \input{../output/Used/tex/8yrs_1SE_base_logistic_comparison.tex}
+\endgroup
 \FloatBarrier
 \end{frame}
 
 \begin{frame}{Results}
 \begin{itemize}
-  \item Overall accuracy around 50\%, only slightly better than random guessing
-  \item Raw OHLCV features may not contain strong predictive signals 
-  \item Relationship likely complex and non-linear
-  \item Regularization techniques do not significantly improve performance
-  \item PCA-based model suffers from the loss of information
-  \item $\to$ sophisticated models or additional feature engineering may be necessary 
+  \item Overall accuracy around 50-55\%, slightly better than random guessing
+  \item Best hold-out accuracy: Baseline (noregularization)+ PCA (197 comps), Hold-out Test Acc = 0.5572
+  \item Best ROC-AUC: Ridge CV (PCA-197)
+  \item Several LASSO models are degenerated
+  \item PCA lead to loss of some information 
+  \item Regularization techniques do not significantly improve test accuracy, but might reduce predictive variance
 \end{itemize}
 \end{frame}
 
+
 \subsubsection{Random Forest Models}
-\begin{frame}{Results}
+\begin{frame}[t,shrink=25]{Results}
 \textbf{Random Forest Models}\\
-\input{../output/Used/tex/base_rf_comparison.tex}
+\input{../output/Used/tex/8yrs_1SE_base_rf_comparison.tex}
 \FloatBarrier
 \end{frame}
 
 \begin{frame}{Results}
 \begin{itemize}
-  \item The random forest using raw features outperforms the PCA-based logistic regression
-  \item Applying PCA before the random forest improves performance even further (accuracy in the test set increased to 54 \%). 
-  \item LASSO and Ridge application in feature selections for random forest does not improve performance compared to PCA. 
-  \item the standard deviation of both train and test cross validation accuracy is higher $\to$ sensitive method. 
+  \item The random forest using raw features outperforms logistic regression
+  \item Applying PCA and LASSO before the random forest does not improve performance. 
+  \item Ridge application in filtering out noises improves performance. 
+  \item The standard deviation of both train and test cross validation accuracy is higher $\to$ sensitive method. 
 \end{itemize}
 \end{frame}
 
 
 \subsection{Extended Feature Models}
-\begin{frame}{Results}
+\begin{frame}[t,shrink=25]{Results}
 \input{../output/Used/tex/8yrs_3methods_comparison.tex}
 %The table compares Random Forest, SVM, and Logistic Regression models over an 8-year period, reporting accuracy, standard deviation, precision, recall, and F1 for the positive class ("Up").
 \end{frame}
 
-
-
-
-
-
-
 \begin{frame}{Results}
 \begin{itemize}
   \item All models perform only slightly better than random guessing
-  \item Random Forest models (especially Base RF) achieve the highest test accuracy and strong F1 but also strong bias toward "Up". Its variants using dimensionality reduction have lower test accuracy and higher variability.
+  \item Random Forest models (especially Base RF) achieve the highest test accuracy but CV bias up
+  \item RF variants using dimensionality reduction have lower test accuracy and higher variability.
   \item SVM with polynomial kernel has the highest F1 score and second in accuracy. Also bias "Up".
   \item Logistic Regression (Ridge and LASSO) provides balanced performance, with moderate accuracy and F1, and low standard deviation.
 \end{itemize}
 \end{frame}
 
 
-\begin{frame}[t,shrink=10]{Results}
+\begin{frame}[t,shrink=25]{Results}
 \input{model_comparison_table.tex}
 \end{frame}
 
 %%%%%%%%%%%%%%%%%%%%NEW PLOT FOR OVER/UNDERFITTING IS HERE%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Visualization of predictions}
 
-\subsection{Validation results}
-
 \subsection{Overfitting/underfitting analysis}
+\begin{frame}{Logistic - base with optimal PCA}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.32\linewidth]{../output/8yrs_1SE_base_logistic_bias_variance.png}
+    \caption{Bias Variance trade off in tuning parameter of Base Logistic Regression with Optimal PCA - Also over and under fitting analysis}
+    \label{fig:top-sectors}
+\end{figure}
+\end{frame}
+
+\begin{frame}{Logistic - enginereed features}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.32\linewidth]{../output/8yrs_1SE_base_logistic_bias_variance.png}
+    \caption{Bias Variance trade off in tuning parameter of Feature engineered Logistic Regression with Optimal PCA - Also over and under fitting analysis}
+    \label{fig:top-sectors}
+\end{figure}
+\end{frame}
+
+\begin{frame}{Random Forest - enginereed features}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.32\linewidth]{../output/8yrs_1SE_base_logistic_bias_variance.png}
+    \caption{Bias Variance trade off in tuning parameter of Feature engineered Random Forest - Also over and under fitting analysis}
+    \label{fig:top-sectors}
+\end{figure}
+\end{frame}
+
+\begin{frame}{SVM - enginereed features}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.32\linewidth]{../output/8yrs_1SE_base_logistic_bias_variance.png}
+    \caption{Bias Variance trade off in tuning parameter of Feature engineered Random Forest - Also over and under fitting analysis}
+    \label{fig:top-sectors}
+\end{figure}
+\end{frame}
 
 
-
-%THIS SLIDE WILL BE REVISED TO 8 YEARS DATA RESULTS
 \begin{frame}{Results}
   Additional comparison with neural network models 
 \begin{itemize}
@@ -510,7 +561,7 @@ conditions,
 \end{frame}
 
 \subsection{Experiment with hourly data}
-\begin{frame}{Experiment with hourly data}
+\begin{frame}[t,shrink=25]{Experiment with hourly data}
 \input{../output/Used/tex/logistic_regression_24hours_three_model_comparison.tex}
 \FloatBarrier
 \end{frame}

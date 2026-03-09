@@ -1,0 +1,60 @@
+{
+  "stages": {
+    "model:logreg:v1_left": {
+      "command": [
+        "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/logistic_regression.py"
+      ],
+      "duration_sec": 5.07,
+      "finished_at": "2026-03-09 03:44:15",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/results/model_logreg_v1_left.log",
+      "return_code": 0,
+      "status": "completed"
+    },
+    "model:logreg:v1_right": {
+      "command": [
+        "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/logistic_regression.py"
+      ],
+      "duration_sec": 5.42,
+      "finished_at": "2026-03-09 03:57:58",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/results/model_logreg_v1_right.log",
+      "return_code": 0,
+      "status": "completed"
+    },
+    "model:rf:v1_left": {
+      "command": [
+        "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/random_forest.py"
+      ],
+      "duration_sec": 746.36,
+      "finished_at": "2026-03-09 03:56:41",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/results/model_rf_v1_left.log",
+      "return_code": 0,
+      "status": "completed"
+    },
+    "model:svm:v1_left": {
+      "command": [
+        "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/SVM.py"
+      ],
+      "duration_sec": 47.9,
+      "finished_at": "2026-03-09 03:44:10",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/results/model_svm_v1_left.log",
+      "return_code": 0,
+      "status": "completed"
+    },
+    "model:svm:v1_right": {
+      "command": [
+        "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/SVM.py"
+      ],
+      "duration_sec": 71.01,
+      "finished_at": "2026-03-09 03:57:52",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/results/model_svm_v1_right.log",
+      "return_code": 0,
+      "status": "completed"
+    }
+  },
+  "updated_at": "2026-03-09 03:57:58"
+}

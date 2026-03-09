@@ -26,7 +26,7 @@ USAGE:
 import os
 import joblib
 import pandas as pd
-from data_preprocessing_and_cleaning import clean_data
+from H_prep import clean_data, import_data
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
@@ -37,10 +37,9 @@ from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split, TimeSeriesSplit, cross_val_score
 from sklearn.pipeline import Pipeline
 
-from model_evaluation import rolling_window_backtest, get_final_metrics
-
 CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'cache')
 os.makedirs(CACHE_DIR, exist_ok=True)
+MODEL_N_JOBS = int(os.getenv("MODEL_N_JOBS", "-1"))
 
 # Cache files produced/consumed by this script.
 BASE_CACHE_FILES = [
@@ -77,9 +76,9 @@ if __name__ == "__main__":
 
     # ------- Load and preprocess data -------
     # Set testing=True for the 2-year dataset; False for the full 8-year dataset.
-    TESTING = True
-
-    X, y_regression = clean_data(raw=True, testing=TESTING)
+    TESTING = False
+    DATA = import_data(testing=TESTING, extra_features=False, cluster=False, n_clusters=100, corr_threshold=0.95, corr_level=0)
+    X, y_regression = clean_data(*DATA, raw=True, extra_features=False)
 
     # Flatten multi-level columns to single strings: "Close_AAPL", "Volume_MSFT", etc.
     X.columns = [f"{metric}_{ticker}" for metric, _, ticker in X.columns]
@@ -120,7 +119,7 @@ if __name__ == "__main__":
         # Cross-validate baseline model
         baseline_temp = LogisticRegression(penalty=None, solver="lbfgs", 
                                           random_state=1, max_iter=500, tol=1e-2)
-        scores = cross_val_score(baseline_temp, X_pca_temp, y_train, cv=tscv, n_jobs=-1)
+        scores = cross_val_score(baseline_temp, X_pca_temp, y_train, cv=tscv, n_jobs=MODEL_N_JOBS)
         mean_score = scores.mean()
         std_score = scores.std()
         
@@ -175,7 +174,7 @@ if __name__ == "__main__":
         ('scaler',     StandardScaler()),
         ('classifier', LogisticRegressionCV(
             Cs=20, cv=tscv, penalty='l2', solver='saga',
-            random_state=1, n_jobs=-1, max_iter=500, tol=1e-2
+            random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2
         ))
     ])
     pipeline_ridge.fit(X_train, y_train)
@@ -191,7 +190,7 @@ if __name__ == "__main__":
         ('scaler',     StandardScaler()),
         ('classifier', LogisticRegressionCV(
             Cs=np.logspace(-6, 4, 20), cv=tscv, penalty='l1', solver='saga',
-            random_state=1, n_jobs=-1, max_iter=500, tol=1e-2
+            random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2
         ))
     ])
     pipeline_lasso.fit(X_train, y_train)
@@ -309,7 +308,7 @@ if __name__ == "__main__":
     print("\n========== RIDGE (L2) + PCA — LogisticRegressionCV ==========")
     clf_ridge_pca = LogisticRegressionCV(
         Cs=20, cv=tscv, penalty='l2', solver='saga',
-        random_state=1, n_jobs=-1, max_iter=500, tol=1e-2)
+        random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2)
     clf_ridge_pca.fit(X_train_pca, y_train)
     _ridge_pca_cache = os.path.join(CACHE_DIR, 'base_ridge_pca_cv.pkl')
     joblib.dump(clf_ridge_pca, _ridge_pca_cache)
@@ -319,7 +318,7 @@ if __name__ == "__main__":
     print("\n========== LASSO (L1) + PCA — LogisticRegressionCV ==========")
     clf_lasso_pca = LogisticRegressionCV(
         Cs=np.logspace(-6, 4, 20), cv=tscv, penalty='l1', solver='saga',
-        random_state=1, n_jobs=-1, max_iter=500, tol=1e-2)
+        random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2)
     clf_lasso_pca.fit(X_train_pca, y_train)
     _lasso_pca_cache = os.path.join(CACHE_DIR, 'base_lasso_pca_cv.pkl')
     joblib.dump(clf_lasso_pca, _lasso_pca_cache)
@@ -427,7 +426,7 @@ if __name__ == "__main__":
 
     def _metrics(name, model, X_tr, y_tr, X_te, y_te, tscv_splitter, best_c=None):
         cv_res = _cv(model, X_tr, y_tr, cv=tscv_splitter,
-                     return_train_score=True, n_jobs=-1)
+                     return_train_score=True, n_jobs=MODEL_N_JOBS)
         preds = model.predict(X_te)
         return {
             'Model':              name,
@@ -494,7 +493,7 @@ if __name__ == "__main__":
         # Cross-validate baseline model
         baseline_temp = LogisticRegression(penalty=None, solver="lbfgs", 
                                           random_state=1, max_iter=500, tol=1e-2)
-        scores = cross_val_score(baseline_temp, X_pca_temp, y_train, cv=tscv, n_jobs=-1)
+        scores = cross_val_score(baseline_temp, X_pca_temp, y_train, cv=tscv, n_jobs=MODEL_N_JOBS)
         mean_score = scores.mean()
         std_score = scores.std()
         
@@ -549,7 +548,7 @@ if __name__ == "__main__":
         ('scaler',     StandardScaler()),
         ('classifier', LogisticRegressionCV(
             Cs=20, cv=tscv, penalty='l2', solver='saga',
-            random_state=1, n_jobs=-1, max_iter=500, tol=1e-2
+            random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2
         ))
     ])
     pipeline_ridge_dow.fit(X_train_dow, y_train)
@@ -563,7 +562,7 @@ if __name__ == "__main__":
         ('scaler',     StandardScaler()),
         ('classifier', LogisticRegressionCV(
             Cs=np.logspace(-6, 4, 20), cv=tscv, penalty='l1', solver='saga',
-            random_state=1, n_jobs=-1, max_iter=500, tol=1e-2
+            random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2
         ))
     ])
     pipeline_lasso_dow.fit(X_train_dow, y_train)
@@ -576,7 +575,7 @@ if __name__ == "__main__":
     print("\n========== RIDGE CV + PCA + DOW ==========")
     clf_ridge_pca_dow = LogisticRegressionCV(
         Cs=20, cv=tscv, penalty='l2', solver='saga',
-        random_state=1, n_jobs=-1, max_iter=500, tol=1e-2)
+        random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2)
     clf_ridge_pca_dow.fit(X_train_dow_pca, y_train)
     _ridge_pca_dow_cache = os.path.join(CACHE_DIR, 'base_ridge_pca_dow_cv.pkl')
     joblib.dump(clf_ridge_pca_dow, _ridge_pca_dow_cache)
@@ -586,7 +585,7 @@ if __name__ == "__main__":
     print("\n========== LASSO CV + PCA + DOW ==========")
     clf_lasso_pca_dow = LogisticRegressionCV(
         Cs=np.logspace(-6, 4, 20), cv=tscv, penalty='l1', solver='saga',
-        random_state=1, n_jobs=-1, max_iter=500, tol=1e-2)
+        random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2)
     clf_lasso_pca_dow.fit(X_train_dow_pca, y_train)
     _lasso_pca_dow_cache = os.path.join(CACHE_DIR, 'base_lasso_pca_dow_cv.pkl')
     joblib.dump(clf_lasso_pca_dow, _lasso_pca_dow_cache)
@@ -627,8 +626,11 @@ if __name__ == "__main__":
     full_df.to_csv(combined_csv)
     print(f"\nFull comparison table saved to: {os.path.abspath(combined_csv)}")
 
+    tex_output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'output', 'Used', 'tex')
+    os.makedirs(tex_output_dir, exist_ok=True)
+
     # Build LaTeX manually with \midrule separating the three groups
-    tex_path = os.path.join(output_dir, 'base_logistic_comparison.tex')
+    tex_path = os.path.join(tex_output_dir, '8yrs_base_logistic_comparison.tex')
     col_fmt  = 'l' + 'r' * len(full_df.columns)
     col_header = ' & '.join(['Model'] + list(full_df.columns)) + r' \\'
     lasso_note = (
@@ -792,3 +794,4 @@ if __name__ == "__main__" and False:  # Set to True to run this example
     all_models = load_all_cached_models()
     print(f"\nLoaded {len(all_models)} cached models")
     print(f"Available models: {list(all_models.keys())}")
+    print(f"MODEL_N_JOBS={MODEL_N_JOBS} (set env MODEL_N_JOBS to override)")

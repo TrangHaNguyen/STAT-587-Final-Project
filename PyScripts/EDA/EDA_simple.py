@@ -38,13 +38,9 @@ parser.add_argument("--lookback_period",  type=int,   default=5,    help="Lookba
 parser.add_argument("--lag_period",       type=int,   nargs="+",    default=[1], help="Lag periods, e.g. --lag_period 1 2 (default: [1])")
 parser.add_argument("--no_extra_features",action="store_true",      help="Disable extra features (day of week, daily range, forward lags)")
 parser.add_argument("--raw",              action="store_true",       help="Return raw OHLCV data without engineered features")
-parser.add_argument("--cluster",          action="store_true",       help="Apply KMeans clustering to reduce stocks")
-parser.add_argument("--n_clusters",       type=int,   default=100,  help="Number of KMeans clusters (default: 100)")
-parser.add_argument("--corr",             action="store_true",       help="Drop highly correlated stocks/features")
 parser.add_argument("--corr_threshold",   type=float, default=0.95, help="Correlation threshold for dropping (default: 0.95)")
-parser.add_argument("--corr_level",       type=int,   default=1,    choices=[1, 2, 3], help="Correlation drop level: 1=before features, 2=after, 3=both (default: 1)")
-parser.add_argument("--testing",          action="store_true",       help="Use 2-year dataset instead of 8-year dataset")
-parser.add_argument("--prefix",           type=str,   default="",   help="Prefix for saved plot filenames, e.g. '8yrs_'")
+parser.add_argument("--corr_level",       type=int,   default=1,    choices=[0, 1, 2, 3], help="Correlation drop level: 0=none, 1=before features, 2=after, 3=both (default: 1)")
+parser.add_argument("--prefix",           type=str,   default="8yrs_",   help="Prefix for saved plot filenames (default: '8yrs_')")
 args = parser.parse_args()
 args.extra_features = not args.no_extra_features
 prefix = args.prefix
@@ -53,16 +49,14 @@ prefix = args.prefix
 lookup_df = pd.read_csv(cwd / "PyScripts" / "Data" / "stock_lookup_table.csv")
 
 print("Loading data via clean_data...")
-DATA = import_data(testing=args.testing)
+DATA, y_regression = import_data(testing=False)
 X, y = clean_data(
     DATA=DATA,
+    y_regression=y_regression,
     lookback_period=args.lookback_period,
     lag_period=args.lag_period,
     extra_features=args.extra_features,
-    raw=True,
-    cluster=args.cluster,
-    n_clusters=args.n_clusters,
-    corr=args.corr,
+    raw=args.raw,
     corr_threshold=args.corr_threshold,
     corr_level=args.corr_level,
 )
@@ -387,6 +381,59 @@ plt.tight_layout()
 plt.savefig(output_dir / f"{prefix}sector_sp500_correlation.png", dpi=300, bbox_inches='tight')
 plt.close()
 print(f"✓ Saved: {prefix}sector_sp500_correlation.png")
+
+# Plot 11: Top 3 sectors by correlation with SP500 (market-cap weighted sector returns)
+print("\nGenerating SP500 sector correlation ranking (market-cap weighted sector returns)...")
+
+market_cap_col = "Market Cap (in tens of millions)"
+if market_cap_col not in lookup_df.columns:
+    raise KeyError(f"Expected '{market_cap_col}' in stock lookup table.")
+
+sector_spx_corr_weighted = {}
+for sector in sector_dict.keys():
+    sector_stocks = [t for t in available_tickers if stock_sectors.get(t) == sector]
+    if len(sector_stocks) == 0:
+        continue
+
+    mc_data = lookup_df[lookup_df["Ticker"].isin(sector_stocks)][["Ticker", market_cap_col]].copy()
+    mc_data = mc_data.dropna(subset=[market_cap_col])
+    if mc_data.empty:
+        continue
+
+    weights = mc_data.set_index("Ticker")[market_cap_col]
+    weights = weights[weights > 0]
+    if weights.empty:
+        continue
+
+    valid_stocks = [s for s in weights.index if s in returns.columns]
+    if len(valid_stocks) == 0:
+        continue
+
+    weights = weights.loc[valid_stocks]
+    weights = weights / weights.sum()
+
+    weighted_sector_ret = returns.loc[common_index, valid_stocks].mul(weights, axis=1).sum(axis=1)
+    sector_spx_corr_weighted[sector] = weighted_sector_ret.corr(spx_returns.loc[common_index])
+
+corr_series_weighted = pd.Series(sector_spx_corr_weighted).sort_values(key=lambda x: x.abs(), ascending=False)
+top3_sectors_weighted = corr_series_weighted.head(3)
+
+print("\nTop 3 sectors by absolute correlation with SP500 (market-cap weighted):")
+for i, (sector, corr_val) in enumerate(top3_sectors_weighted.items(), 1):
+    print(f"  {i}. {sector}: {corr_val:.4f} (|{abs(corr_val):.4f}|)")
+
+colors_weighted = ['#2ecc71' if s in top3_sectors_weighted.index else '#95a5a6' for s in corr_series_weighted.index]
+plt.figure(figsize=(12, 6))
+plt.bar(corr_series_weighted.index, corr_series_weighted.values, color=colors_weighted, edgecolor='white', linewidth=0.8)
+plt.axhline(0, color='black', linewidth=0.8, linestyle='--')
+plt.xticks(rotation=45, ha='right')
+plt.title("Sector Correlation with SP500 Returns\n(Market-Cap Weighted Sector Returns; Top 3 by Absolute Correlation in Green)")
+plt.xlabel("Sector")
+plt.ylabel("Pearson Correlation")
+plt.tight_layout()
+plt.savefig(output_dir / f"{prefix}sector_sp500_correlation_mcap_weighted.png", dpi=300, bbox_inches='tight')
+plt.close()
+print(f"✓ Saved: {prefix}sector_sp500_correlation_mcap_weighted.png")
 
 # Generate individual heatmaps for top 3 sectors by absolute SP500 correlation
 print("\nGenerating individual heatmaps for top 3 SP500-correlated sectors...")

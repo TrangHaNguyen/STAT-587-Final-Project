@@ -1,0 +1,118 @@
+
+[2026-03-09 03:57:52] CMD: /Library/Frameworks/Python.framework/Versions/3.13/bin/python3 /Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/logistic_regression.py
+[2026-03-09 03:57:52] ENV: MODEL_N_JOBS=4 GRID_VARIANT=right GRID_VERSION=v1
+/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/sklearn/linear_model/_logistic.py:1823: FutureWarning: The fitted attributes of LogisticRegressionCV will be simplified in scikit-learn 1.10 to remove redundancy. Set`use_legacy_attributes=False` to enable the new behavior now, or set it to `True` to silence this warning during the transition period while keeping the deprecated behavior for the time being. The default value of use_legacy_attributes will change from True to False in scikit-learn 1.10. See the docstring of LogisticRegressionCV for more details.
+  warnings.warn(
+/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/H_eval.py:228: UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
+  plt.show()
+MODEL_N_JOBS=4 (set env MODEL_N_JOBS to override)
+GRID_VARIANT=right (left/center/right)
+GRID_VERSION=v1
+------- Downloading Data
+Finished Downloading Data -------
+Initial shape: 2010 rows, 2520 columns.
+------- Cleaning data
+Finished Cleaning Data -------
+Current shape: 2010 rows, 2390 columns.
+Created Percent Changes.
+Created Target (Regression).
+---EXTRA---: Created Day of Week.
+---EXTRA---: Created Daily Range.
+------- Generating Necessary Features
+Created Lag.
+Created EMA, Rolling Volatility (Scaled) and Rolling Z-Score.
+Created Max/Min Channel Positions/
+Created Rolling Volume Weighted Average Price.
+---EXTRA---: Created Open Metrics Forward Lag.
+Cleaned up Unnecessary Columns.
+Created Target (Classification)
+Cleaned up remaining/resulting NA values.
+---EXTRA---: Grouped Features by Sector Averages.
+Current shape: 1928 rows, 187 columns.
+---EXTRA---: (corr_level=2) Dropped 88 highly correlated feature columns.
+Predictors, and Target (Regression) successfully split.
+Finished Generating Features -------
+Final shape (X): 1928 rows, 99 columns.
+Final shape (y_regression): 1928 rows, 1 columns.
+Rolling Window Backtest over 43 iterations.
+23.26% complete. Current iteration: 10, True iteration: 361
+46.51% complete. Current iteration: 20, True iteration: 761
+69.77% complete. Current iteration: 30, True iteration: 1161
+93.02% complete. Current iteration: 40, True iteration: 1561
+Average Rolling Accuracy (train) (rwb): 0.5176 (±0.0571)
+Average Rolling Accuracy (test)  (rwb): 0.5250 (±0.1054)
+/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/sklearn/linear_model/_logistic.py:1823: FutureWarning: The fitted attributes of LogisticRegressionCV will be simplified in scikit-learn 1.10 to remove redundancy. Set`use_legacy_attributes=False` to enable the new behavior now, or set it to `True` to silence this warning during the transition period while keeping the deprecated behavior for the time being. The default value of use_legacy_attributes will change from True to False in scikit-learn 1.10. See the docstring of LogisticRegressionCV for more details.
+  warnings.warn(
+/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/H_eval.py:228: UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
+  plt.show()
+/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/H_eval.py:228: UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
+  plt.show()
+--- Model Report ---
+Avg CV Train Accuracy:          0.6871 (±0.0781)
+Avg CV Validation Accuracy:  0.5243 (±0.0432)
+Avg CV Validation Precision: 0.5932
+Avg CV Validation Recall:    0.4314
+Final Hold-out (Test) Score (Accuracy): 0.5181
+Positive Prediction Rate (Test):        0.6839
+True Up Rate (Test):   0.5390
+Up Precision (Test):   0.5420
+Up Edge Rate (Test):   0.0030
+True Down Rate (Test): 0.4610
+Down Precision (Test): 0.4670
+Down Edge Rate (Test): 0.0060
+             Predicted Down  Predicted Up
+Actual Down              57           121
+Actual Up                65           143
+Utility Score 0.518
+Downloaded results to /Users/tranghanguyen/STAT-587-Final-Project/output/results/results.csv
+Rolling Window Backtest over 43 iterations.
+23.26% complete. Current iteration: 10, True iteration: 361
+46.51% complete. Current iteration: 20, True iteration: 761
+69.77% complete. Current iteration: 30, True iteration: 1161
+93.02% complete. Current iteration: 40, True iteration: 1561
+Average Rolling Accuracy (train) (rwb): 0.5199 (±0.0571)
+Average Rolling Accuracy (test)  (rwb): 0.5306 (±0.1019)
+--- Model Report ---
+Avg CV Train Accuracy:          0.6878 (±0.0805)
+Avg CV Validation Accuracy:  0.5229 (±0.0419)
+Avg CV Validation Precision: 0.5914
+Avg CV Validation Recall:    0.4301
+Final Hold-out (Test) Score (Accuracy): 0.5207
+Positive Prediction Rate (Test):        0.6813
+True Up Rate (Test):   0.5390
+Up Precision (Test):   0.5440
+Up Edge Rate (Test):   0.0050
+True Down Rate (Test): 0.4610
+Down Precision (Test): 0.4720
+Down Edge Rate (Test): 0.0110
+             Predicted Down  Predicted Up
+Actual Down              58           120
+Actual Up                65           143
+Utility Score 0.521
+Downloaded results to /Users/tranghanguyen/STAT-587-Final-Project/output/results/results.csv
+Rolling Window Backtest over 43 iterations.
+23.26% complete. Current iteration: 10, True iteration: 361
+46.51% complete. Current iteration: 20, True iteration: 761
+69.77% complete. Current iteration: 30, True iteration: 1161
+93.02% complete. Current iteration: 40, True iteration: 1561
+Average Rolling Accuracy (train) (rwb): 0.5294 (±0.0950)
+Average Rolling Accuracy (test)  (rwb): 0.4944 (±0.0984)
+--- Model Report ---
+Avg CV Train Accuracy:          0.6113 (±0.0376)
+Avg CV Validation Accuracy:  0.5221 (±0.0295)
+Avg CV Validation Precision: 0.5937
+Avg CV Validation Recall:    0.4113
+Final Hold-out (Test) Score (Accuracy): 0.5104
+Positive Prediction Rate (Test):        0.4689
+True Up Rate (Test):   0.5390
+Up Precision (Test):   0.5520
+Up Edge Rate (Test):   0.0130
+True Down Rate (Test): 0.4610
+Down Precision (Test): 0.4730
+Down Edge Rate (Test): 0.0120
+             Predicted Down  Predicted Up
+Actual Down              97            81
+Actual Up               108           100
+Utility Score 0.51
+Downloaded results to /Users/tranghanguyen/STAT-587-Final-Project/output/results/results.csv
+[2026-03-09 03:57:58] EXIT_CODE=0

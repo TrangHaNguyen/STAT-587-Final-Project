@@ -4,14 +4,32 @@ from sklearn.base import clone
 from typing import Any, cast
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
+import os
+import time
 
 from H_prep import clean_data, import_data, data_clean_param_selection
 from H_eval import RollingWindowBacktest, get_final_metrics, utility_score
 from H_helpers import log_result, get_cwd, append_params_to_dict
+from H_search_history import append_search_history, append_search_run, get_git_commit, now_iso
 
 cwd=get_cwd("STAT-587-Final-Project")
+MODEL_N_JOBS=int(os.getenv("MODEL_N_JOBS", "-1"))
+PAUSE_BETWEEN_MODELS=(os.getenv("PAUSE_BETWEEN_MODELS", "0") == "1")
+GRID_VARIANT=os.getenv("GRID_VARIANT", "center").lower()
+GRID_VERSION=os.getenv("GRID_VERSION", "v1")
+SEARCH_NOTES=os.getenv("SEARCH_NOTES", "")
+
+
+def choose_grid(left_values, center_values, right_values):
+    options={"left": left_values, "center": center_values, "right": right_values}
+    if (GRID_VARIANT not in options):
+        raise ValueError("GRID_VARIANT must be one of: left, center, right.")
+    return options[GRID_VARIANT]
+
 
 if __name__ == "__main__":
+    run_start = time.time()
+    run_time = now_iso()
     WINDOW_SIZE=200
     HORIZON=40
     EXPORT=True
@@ -19,6 +37,13 @@ if __name__ == "__main__":
     # testing: bool =False, extra_features: bool =True, cluster: bool =False, n_clusters: int =100, corr_threshold: float =0.95, corr_level: int =0
     DATA=import_data(extra_features=True, testing=False, cluster=False, n_clusters=100, corr_threshold=0.95, corr_level=0)
     FIND_OPTIMAL=True
+    print(f"MODEL_N_JOBS={MODEL_N_JOBS} (set env MODEL_N_JOBS to override)")
+    print(f"GRID_VARIANT={GRID_VARIANT} (left/center/right)")
+    print(f"GRID_VERSION={GRID_VERSION}")
+    grid_label = f"{GRID_VERSION}_{GRID_VARIANT}"
+    history_path = cwd / "output" / "results" / "search_history_svm.csv"
+    runs_path = cwd / "output" / "results" / "search_runs.csv"
+    dataset_version = "testing=False,extra_features=True,cluster=False,corr_threshold=0.95,corr_level=0"
     
     parameters_={
         "raw": False,
@@ -37,7 +62,11 @@ if __name__ == "__main__":
         
         print("------- Finding Optimal lag_period Value")
         param_grid={
-            'lag_period': [1, 2, 3, 4, 5, [1, 2], [1, 2, 3], [2, 3], [1, 3]],
+            'lag_period': choose_grid(
+                [1, 2, [1, 2], [1, 2, 3]],
+                [1, 2, 3, 4, 5, [1, 2], [1, 2, 3], [2, 3], [1, 3]],
+                [3, 4, 5, 6, 7, [2, 3], [3, 4], [2, 3, 4], [3, 5]]
+            ),
             'sector': [True],
             'corr_level': [2]
         }
@@ -49,7 +78,11 @@ if __name__ == "__main__":
 
         print("------- Finding Optimal lookback_period Value")
         param_grid={
-            'lookback_period': [7, 10, 14, 17, 21, 24, 28],
+            'lookback_period': choose_grid(
+                [5, 7, 10, 12, 14, 17, 21],
+                [7, 10, 14, 17, 21, 24, 28],
+                [14, 17, 21, 24, 28, 32, 36]
+            ),
             'sector': [True],
             'corr_level': [2]
         }
@@ -68,7 +101,11 @@ if __name__ == "__main__":
             'lookback_period': [best_lookback],
             'sector': [True],
             'corr_level': [0, 1, 2, 3],
-            'corr_threshold': [0.8, 0.9, 0.95]
+            'corr_threshold': choose_grid(
+                [0.7, 0.8, 0.85],
+                [0.8, 0.9, 0.95],
+                [0.9, 0.95, 0.98]
+            )
         }
 
         _, parameters_, best_score=data_clean_param_selection(*DATA, clone(base_SVM_rbf_model_pipeline), TEST_SIZE, WINDOW_SIZE, HORIZON, **param_grid)
@@ -84,7 +121,6 @@ if __name__ == "__main__":
     X_train, X_test, y_train, y_test=train_test_split(X, y_classification, test_size=TEST_SIZE, random_state=1, shuffle=False)
 
     tscv=TimeSeriesSplit(n_splits=3)
-
     # ------- Linear SVM -------
     print("\n\n------- Linear SVM Model -------")
     SVM_linear=SVC(kernel="linear", cache_size=1000, class_weight='balanced', gamma='scale', random_state=1, tol=5e-2)
@@ -93,11 +129,25 @@ if __name__ == "__main__":
                                     ('classifier', SVM_linear)])
 
     param_grid={
-        'classifier__C': [0.1, 1, 10]
+        'classifier__C': choose_grid(
+            [0.01, 0.1, 1],
+            [0.1, 1, 10],
+            [1, 10, 100]
+        )
     }
     
-    grid_search_linear = GridSearchCV(SVM_linear_pipeline, param_grid, cv=tscv, scoring='balanced_accuracy', n_jobs=-1, verbose=1, return_train_score=True)
+    grid_search_linear = GridSearchCV(SVM_linear_pipeline, param_grid, cv=tscv, scoring='balanced_accuracy', n_jobs=MODEL_N_JOBS, verbose=1, return_train_score=True)
     grid_search_linear.fit(X_train, y_train)
+    append_search_history(
+        history_path=history_path,
+        cv_results=grid_search_linear.cv_results_,
+        run_time=run_time,
+        model_name="SVM_linear",
+        search_type="grid",
+        grid_version=grid_label,
+        notes=SEARCH_NOTES,
+        best_params=grid_search_linear.best_params_
+    )
 
     rwb_obj=RollingWindowBacktest(clone(grid_search_linear.best_estimator_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
     rwb_obj.rolling_window_backtest(verbose=1)
@@ -116,7 +166,8 @@ if __name__ == "__main__":
         results.update(download_params)
         log_result(results, cwd / 'output' / 'results', "results.csv")
 
-    input("Press Enter to continue...")
+    if (PAUSE_BETWEEN_MODELS):
+        input("Press Enter to continue...")
 
     # ------- RBF SVM -------
     print("\n\n------- RBF SVM Model -------")
@@ -126,12 +177,30 @@ if __name__ == "__main__":
                                  ('classifier', SVM_rbf)])
 
     param_grid={
-        'classifier__C': [0.1, 1, 10],
-        'classifier__gamma': ['scale', 'auto', 0.01, 0.1, 1]
+        'classifier__C': choose_grid(
+            [0.01, 0.1, 1],
+            [0.1, 1, 10],
+            [1, 10, 100]
+        ),
+        'classifier__gamma': choose_grid(
+            ['scale', 'auto', 0.001, 0.01, 0.1],
+            ['scale', 'auto', 0.01, 0.1, 1],
+            ['scale', 'auto', 0.1, 1, 10]
+        )
     }
     
-    grid_search_rbf = GridSearchCV(SVM_rbf_pipeline, param_grid, cv=tscv, scoring='balanced_accuracy', n_jobs=-1, verbose=1, return_train_score=True)
+    grid_search_rbf = GridSearchCV(SVM_rbf_pipeline, param_grid, cv=tscv, scoring='balanced_accuracy', n_jobs=MODEL_N_JOBS, verbose=1, return_train_score=True)
     grid_search_rbf.fit(X_train, y_train)
+    append_search_history(
+        history_path=history_path,
+        cv_results=grid_search_rbf.cv_results_,
+        run_time=run_time,
+        model_name="SVM_rbf",
+        search_type="grid",
+        grid_version=grid_label,
+        notes=SEARCH_NOTES,
+        best_params=grid_search_rbf.best_params_
+    )
 
     rwb_obj=RollingWindowBacktest(clone(grid_search_rbf.best_estimator_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
     rwb_obj.rolling_window_backtest(verbose=1)
@@ -150,7 +219,8 @@ if __name__ == "__main__":
         results.update(download_params)
         log_result(results, cwd / 'output' / 'results', "results.csv")
 
-    input("Press Enter to continue...")
+    if (PAUSE_BETWEEN_MODELS):
+        input("Press Enter to continue...")
 
     # ------- Polynomial SVM -------
     print("\n\n------- Polynomial SVM Model -------")
@@ -160,13 +230,35 @@ if __name__ == "__main__":
                                   ('classifier', SVM_poly)])
 
     param_grid={
-        'classifier__C': [0.1, 1, 10],
-        'classifier__gamma': ['scale', 'auto', 0.01, 0.1, 1],
-        'classifier__degree': [2, 3, 4, 5]
+        'classifier__C': choose_grid(
+            [0.01, 0.1, 1],
+            [0.1, 1, 10],
+            [1, 10, 100]
+        ),
+        'classifier__gamma': choose_grid(
+            ['scale', 'auto', 0.001, 0.01, 0.1],
+            ['scale', 'auto', 0.01, 0.1, 1],
+            ['scale', 'auto', 0.1, 1, 10]
+        ),
+        'classifier__degree': choose_grid(
+            [1, 2, 3, 4],
+            [2, 3, 4, 5],
+            [3, 4, 5, 6]
+        )
     }
     
-    grid_search_poly = GridSearchCV(SVM_poly_pipeline, param_grid, cv=tscv, scoring='balanced_accuracy', n_jobs=-1, verbose=1, return_train_score=True)
+    grid_search_poly = GridSearchCV(SVM_poly_pipeline, param_grid, cv=tscv, scoring='balanced_accuracy', n_jobs=MODEL_N_JOBS, verbose=1, return_train_score=True)
     grid_search_poly.fit(X_train, y_train)
+    append_search_history(
+        history_path=history_path,
+        cv_results=grid_search_poly.cv_results_,
+        run_time=run_time,
+        model_name="SVM_poly",
+        search_type="grid",
+        grid_version=grid_label,
+        notes=SEARCH_NOTES,
+        best_params=grid_search_poly.best_params_
+    )
 
     rwb_obj=RollingWindowBacktest(clone(grid_search_poly.best_estimator_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
     rwb_obj.rolling_window_backtest(verbose=1)
@@ -185,4 +277,16 @@ if __name__ == "__main__":
         results.update(download_params)
         log_result(results, cwd / 'output' / 'results', "results.csv")
 
-    input("Press Enter to finish...")
+    if (PAUSE_BETWEEN_MODELS):
+        input("Press Enter to finish...")
+    append_search_run(
+        runs_path=runs_path,
+        model_name="SVM",
+        run_time=run_time,
+        run_duration_sec=(time.time() - run_start),
+        grid_version=grid_label,
+        n_jobs=MODEL_N_JOBS,
+        dataset_version=dataset_version,
+        code_commit=get_git_commit(cwd),
+        notes=SEARCH_NOTES
+    )

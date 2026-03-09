@@ -270,28 +270,91 @@ n, so the best achievable generalization can decrease.
 \subsection{Details of Enginearing Features Before Dimensionality Reduction}
 \label{subsec:feature_engineering}
 
-% % Copy infor from slide and milestone 1 and 2:
-% \begin{itemize}
-%   \item Target variable: \textbf{binary} indicator (whether the S\&P 500 index will go up (1) or down (0) the next day, based on the closing value)
-%   \item Predictors is extended with:
-%   \begin{itemize}
-%     \item \textbf{Lag values} --- capture momentum and time-series structure.
-%     \item \textbf{Day-to-day \% change} \& \textbf{daily range} --- relative price movement and intraday volatility.
-%     \item \textbf{Volatility} \& \textbf{rolling z-score} --- variability and outlier/event detection.
-%     \item \textbf{Max/min channel position} --- reflect breakout signals.
-%     \item \textbf{Rolling VWAP} \& \textbf{day of week} --- volume-weighted context and seasonlity.
-%   \end{itemize}
-%   \item \textbf{Non-stationary} features (OP, CP, HP, LP) are \textbf{removed} after engineering.
+Engineered predictors and targets are generated as follows:
 
-%               \item Percent change is utilized to have stationary data. Without this, we can run into issues where a method involving decision trees utilize outdated prices that are not relevant to future prices (i.e. the value of a share goes from \$10 to \$100, an internal node with condition [Close $<$ \$25] will never be activated if the relevant price as of present is \$100)
-%             \item Lag captures momentum, which will allow us to see if past data has any impact on future values.
-%             \item Volatility looks to capture how much a stock can be expected to move within a certain day. For the extent of this project, volatility can be seen as the standard deviation of price movements.
-%             \item The exponential moving average captures more recent price movements quicker than a normal moving average by recursively generating a new average with a weight that emphasizes the new price point. This allows for an increased ability to analyze short-term trends as we are looking to predict the following day while maintaining the benefits of a moving average.
-%             \item A Max/Min channel position allows for identification of support and resistant lines, which can further provide insight of potential breakouts.
-%             \item The rolling volume weighted average price looks to portray the value of share based on the amount people are willing to pay for it. This ensures that price points where investors are primarily buying or selling shares at is reflected, as opposed to seeing potentially a misleading share price.
-%             \item The rolling z-score utilizes the exponential moving average and volatility in order to generate z-scores of a price movement. It is good to note that a t-distribution will probably fit this projects use-case, as there are days influenced by external events that cause price movements you would be believe to not occur given a z-score.
-% \end{itemize}
+\paragraph{(1) Percent-change base variables}
+For each stock and day \(t\), percent-change features are computed from raw prices:
+\[
+\text{Close PC}_t=\frac{\text{Close}_t-\text{Close}_{t-1}}{\text{Close}_{t-1}},\quad
+\text{Open PC}_t=\frac{\text{Open}_t-\text{Open}_{t-1}}{\text{Open}_{t-1}},
+\]
+and similarly for High/Low.
 
+\paragraph{(2) Target construction}
+The regression target is the next-day S\&P 500 open-to-close return:
+\[
+y^{(\mathrm{reg})}_t=
+\left(\frac{\text{Close}^{SPX}_t-\text{Open}^{SPX}_t}{\text{Open}^{SPX}_t}\right)_{\text{shifted by }-1}.
+\]
+The binary target used for classification is:
+\[
+y^{(\mathrm{cls})}_t=\mathbb{1}\{y^{(\mathrm{reg})}_t\ge 0\}.
+\]
+
+\paragraph{(3) Lag features}
+For lag set \(\mathcal{L}\), the model adds:
+\[
+\text{Close PC Lag }l:\ \text{Close PC}_{t-l},\qquad
+\text{Open PC Lag }l:\ \text{Open PC}_{t-l},\quad l\in\mathcal{L}.
+\]
+
+\paragraph{(4) Rolling features with lookback \(k\)}
+For each \(P_t\in\{\text{Close}_t,\text{Open}_t\}\):
+\[
+\mathrm{EMA}_t=\mathrm{EMA}_k(P)_t,\quad
+\mathrm{VOL}_t=\mathrm{SD}_k(P)_t,\quad
+\text{NormVol}_t=\frac{\mathrm{VOL}_t}{\mathrm{EMA}_t},
+\]
+\[
+\text{ZScore}_t=\frac{P_t-\mathrm{EMA}_t}{\mathrm{VOL}_t}
+\quad(\text{set to }0\text{ if denominator }=0).
+\]
+With channel bounds
+\[
+H^{\max}_t=\max_{j=t-k+1}^{t}\text{High}_j,\qquad
+L^{\min}_t=\min_{j=t-k+1}^{t}\text{Low}_j,
+\]
+channel position is:
+\[
+\text{ChannelPos}_t=\frac{P_t-L^{\min}_t}{H^{\max}_t-L^{\min}_t}
+\quad(\text{default }0.5\text{ when denominator }=0).
+\]
+Rolling VWAP uses typical price \(\text{TP}_t=(\text{High}_t+\text{Low}_t+\text{Close}_t)/3\):
+\[
+\text{RollingVWAP}_t=
+\frac{\sum_{j=t-k+1}^{t}\text{TP}_j\cdot \text{Volume}_j}
+{\sum_{j=t-k+1}^{t}\text{Volume}_j}.
+\]
+
+\paragraph{(5) Additional features and cleanup}
+\begin{itemize}
+  \item Day-of-week indicator and daily range \((\text{High}_t-\text{Low}_t)\).
+  \item Forward-lag of open-based metrics (shift by \(-1\)).
+  \item Raw non-stationary price columns (Close/Open/High/Low) are dropped after engineering.
+  \item Rows with missing values are removed after joining predictors and target.
+\end{itemize}
+
+\paragraph{(6) Sector aggregation and correlation filtering}
+When sector mode is enabled, ticker-level features are averaged within sector:
+\[
+X^{(\text{sector})}_{t,m,s}=\frac{1}{|S_s|}\sum_{i\in S_s}X_{t,m,i},
+\]
+where \(m\) is the metric and \(S_s\) is the set of tickers in sector \(s\). 
+
+\paragraph{(7) EDA sector--market correlation computation}
+In EDA, sector daily return series are first built from ticker-level \(\text{Close PC}\) and then aligned by date with the S\&P 500 target return series \(y\). For sector \(s\), the equal-weight sector return is:
+\[
+R^{(\text{sector},\,eq)}_{t,s}=\frac{1}{N_{t,s}}\sum_{i\in s}\text{Close PC}_{t,i},
+\]
+where \(N_{t,s}\) is the number of available tickers in sector \(s\) at day \(t\). The market-cap weighted variant is:
+\[
+R^{(\text{sector},\,mcap)}_{t,s}=\frac{\sum_{i\in s}w_{t,i}\,\text{Close PC}_{t,i}}
+{\sum_{i\in s}w_{t,i}},\qquad w_{t,i}=\text{MarketCap}_{t,i}.
+\]
+For each sector, correlation with the S\&P 500 series is computed using Pearson correlation:
+\[
+\rho_s=\mathrm{corr}\!\left(R_{t,s},\,y_t\right).
+\]
 
 \subsection{Additional figures and tables}
 \begin{figure}[htbp]

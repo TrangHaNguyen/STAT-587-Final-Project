@@ -26,10 +26,13 @@
 \usepackage{apacite}
 
 % --- Presentation info ---
-\title[Forecasting S\&P 500 Direction]{Forecasting S\&P 500 Direction\\[0.3em]
-\large Historical Signals and Market Direction}
-\author{Trang Nguyen \and Takeshi Stormer}
-\institute{STAT 587: Data Science \\ Group 5 \\ Portland State University}
+%\title[Forecasting S\&P 500 Direction]{Forecasting S\&P 500 Direction\\[0.3em]
+%\large Historical Signals and Market Direction}
+
+\title[Historical Signals and Market Direction]{Historical Signals and Market Direction}
+\author{Trang Nguyen %\and Takeshi Stormer}
+%\institute{STAT 587: Data Science \\ Group 5 \\ Portland State University}
+\institute{STAT 587: Data Science \\ Portland State University}
 \date{March 9th, 2026}
 
 % --- Remove default navigation symbols ---
@@ -147,7 +150,6 @@
 %\end{frame}
 
 
-%FORMAT COMMENT:all throughout the presentation, make sure your spacing is proper. Because items are clustered and poorly spaced
 
 \section{Introduction}
 
@@ -155,9 +157,9 @@
 \begin{frame}{Motivation}
 \begin{itemize}
     \item Predicting market direction is important for practical trading decisions.
-    \item Better directional forecasts can improve position sizing and risk control.
-    \item We test whether publicly available price and volume data contain useful signals.
-    \item If such signals are predictive out of sample, this challenges weak-form market efficiency.
+    \item Prediction performance itself also contains important information of historical signals and market direction.
+    \item The result will shed light on the plaussibility of Efficient Market Theory in practice.
+    \item If historical signals are predictive out of sample, this challenges weak-form market efficiency.
     \item If not, the results are more consistent with the \textbf{Efficient Market Hypothesis}.
 
 \end{itemize}
@@ -166,11 +168,14 @@
 \subsection{Research Question}
 \begin{frame}{Research Question}
 \begin{itemize}
-  \item Goal: Forecasting the \textbf{direction} of the S\&P 500 Index.
-  \item Research Problem: Is there information in price and volume that can be used to forecast market direction.
-  \item Modeling approach: Perform feature engineering and selection/dimensionality reduction on raw data; fit logistic regression, random forest classification and support vector machine models with optimal hyperparameter values obtained through iterative selection. %
-  %Compare traditional statistical models (e.g., logistic regression) with modern statistical learning techniques (e.g., random forests, SVM, neural networks) to evaluate their predictive performance and implications for market efficiency
-\end{itemize}
+  \item Goal: Forecasting the \textbf{direction} of the S\&P 500 Index (market direction)
+  \item Research Problem: Is there historical information in price and volume that can be used to forecast market direction.
+  \item Modeling approach: 
+  \begin{itemize}
+    \item Perform feature engineering and selection/dimensionality reduction
+    \item Fit models suitable to data main characteristics
+    \item Select optimal hyperparameter values through iterative selection. %
+  \end{itemize}
 \end{frame}
 \subsection{Background}
 \begin{frame}{Background}
@@ -195,11 +200,11 @@ conditions,
 \begin{itemize}
   \item Raw data: retrieved through Yahoo Finance's API (\texttt{yfinance}). 
   \begin{itemize}
-    \item Contains open, close, high, low prices, and traded volume metrics (OHLCV features) on stocks listed on the S\&P 500 index
+    \item Contains open price (OP), close price (CP), high price (HP), low price (LP), and trading volume (V). They are called OHLCV features) on stocks listed on the S\&P 500 index
     \item From \textbf{January 1, 2018} to \textbf{December 31, 2025}
   \end{itemize}
   \item Cleaning steps: ticker changes (mergers), invalid/frozen-state entries, market holidays, and delisted/newly-listed stocks. Drop missing-value stocks.
-  \item Dimensionality: \textbf{2010 trading days} $\times$ \textbf{2,520 features}.
+  \item Dimensionality: \textbf{2009 trading days} $\times$ \textbf{2,520 features}.% Comment: update later
 \end{itemize}
 \end{frame}
 
@@ -224,9 +229,9 @@ conditions,
 \begin{frame}{Exploratory Data Analysis}
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.45\linewidth]{../output/Used/png/2yrs_sector_correlation.png}
-    \includegraphics[width=0.45\linewidth]{../output/Used/png/2yrs_sector_sp500_correlation.png}
-    \caption{Correlation across sectors and that of each sector with the S\&P 500 daily return. Highlighted are 3 sectors with highest absolute correlation coefficient with the S\&P 500.}
+    \includegraphics[width=0.45\linewidth]{../output/Used/png/8yrs_sector_correlation.png}
+    \includegraphics[width=0.45\linewidth]{../output/Used/png/8yrs_sector_sp500_correlation.png}
+    \caption{Correlation across sectors and that of each sector with the S\&P 500 daily return. Highlighted are the top three sectors by absolute correlation with S\&P 500: Financial Services ($r=-0.1249$), Technology ($r=-0.1170$), and Consumer Defensive ($r=-0.1155$).}
     \label{fig:sector-correlation}
 \end{figure}
 \end{frame}
@@ -234,10 +239,10 @@ conditions,
 \begin{frame}{Exploratory Data Analysis}
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.32\linewidth]{../output/Used/png/2yrs_sector_Technology_clustered.png}
-    \includegraphics[width=0.32\linewidth]{../output/Used/png/2yrs_sector_Healthcare_clustered.png}
-    \includegraphics[width=0.32\linewidth]{../output/Used/png/2yrs_sector_Consumer_Defensive_clustered.png}
-    \caption{Intra-sector correlation matrices for the top three sectors by absolute correlation with S\&P 500 returns. From left to right: Technology, Healthcare , and Consumer Defensive. Hierarchical clustering groups stocks with similar return dynamics. Warm colours indicate strong positive co-movement while cool colours indicate divergence.}
+    \includegraphics[width=0.32\linewidth]{../output/Used/png/8yrs_sector_Financial_Services_clustered.png}
+    \includegraphics[width=0.32\linewidth]{../output/Used/png/8yrs_sector_Technology_clustered.png}
+    \includegraphics[width=0.32\linewidth]{../output/Used/png/8yrs_sector_Consumer_Defensive_clustered.png}
+    \caption{Intra-sector correlation matrices for the top three sectors by absolute correlation with S\&P 500 returns. From left to right: Financial Services ($r=-0.1249$), Technology ($r=-0.1170$), and Consumer Defensive ($r=-0.1155$). Hierarchical clustering groups stocks with similar return dynamics. Warm colours indicate strong positive co-movement while cool colours indicate divergence.}
     \label{fig:top-sectors}
 \end{figure}
 \end{frame}
@@ -245,8 +250,8 @@ conditions,
 \begin{frame}{Exploratory Data Analysis}
   \begin{figure}[h]
     \centering
-    \includegraphics[width=0.45\linewidth]{../output/Used/png/2yrs_sector_volatility_over_time.png}
-    \includegraphics[width=0.45\linewidth]{../output/Used/png/2yrs_smoothed_sector_volatility.png}
+    \includegraphics[width=0.45\linewidth]{../output/Used/png/8yrs_sector_volatility_over_time.png}
+    \includegraphics[width=0.45\linewidth]{../output/Used/png/8yrs_smoothed_sector_volatility.png}
     \caption{Sector volatility. Left panel: 21-day-window average volatility. Right panel: its smoothed version by moving average over 40 days.}
     \label{fig:sector-vol}
 \end{figure}
@@ -281,11 +286,11 @@ conditions,
 
 \section{Methods}
 % Slide 1
-\begin{frame}[t,shrink=8]{Method Overview: Data Challenges and Feature Construction}
+\begin{frame}[t,shrink=8]{Method Overview: Data Challenges and solutions}
 
 \begin{block}{High-Dimensional Predictors ($p$ large relative to $n$)}
 \begin{itemize}
-    \item \textbf{PCA:} reduce predictors to principal components
+    \item \textbf{Principal Component Analysis (PCA):} reduce predictors to M principal components (Ch. 14, Section 14.5.1, ESL)
     % ESL reference:
     % Chapter 14, "Unsupervised Learning", Section 14.5.1 "Principal Components", p. 534.
     % The notation below is a slide-friendly score representation:
@@ -295,20 +300,9 @@ conditions,
     \[
     z_{im} = \sum_{j=1}^p x_{ij} \phi_{jm}, \qquad m=1,\dots,M
     \]
-    where $\phi_m$ is the $m$th loading direction.
+    where $\phi_m$ is the largest $m$th loading direction.
     
-    \item \textbf{Regularization:} control model complexity
-    % ESL reference for ridge:
-    % Chapter 3, "Linear Methods for Regression", Section 3.4.1 "Ridge Regression", starts p. 61.
-    % Penalized least-squares ridge criterion appears as Eq. (3.43), p. 64.
-    \[
-    \hat{\beta}^{\mathrm{ridge}}
-    = \arg\min_{\beta}\left\{
-    \sum_{i=1}^n (y_i-\beta_0-x_i^\top \beta)^2
-    + \lambda \sum_{j=1}^p \beta_j^2
-    \right\}
-    \]
-    
+    \item \textbf{Regularization: LASSO} (Ch. 3, Section 3.4.2, ESL)
     % ESL reference for lasso:
     % Chapter 3, Section 3.4.2 "The Lasso", starts p. 68.
     % More generally, ESL Eq. (3.53) in §3.4.3 gives the bridge penalty, p. 72;
@@ -326,11 +320,18 @@ conditions,
 
 \begin{block}{Multicollinearity}
 \begin{itemize}
+    \item  Regularization: Ridge and LASSO % ESL reference for ridge:
+    % Chapter 3, "Linear Methods for Regression", Section 3.4.1 "Ridge Regression", starts p. 61.
+    % Penalized least-squares ridge criterion appears as Eq. (3.43), p. 64.
+    \[
+    \hat{\beta}^{\mathrm{ridge}}
+    = \arg\min_{\beta}\left\{
+    \sum_{i=1}^n (y_i-\beta_0-x_i^\top \beta)^2
+    + \lambda \sum_{j=1}^p \beta_j^2
+    \right\}
+    \]
     \item Sector-level feature aggregation
-    \item K-means grouping of similar predictors
-    % ESL reference for K-means:
-    % Chapter 14, Section 14.3.6 "K-means", p. 509.
-    \item PCA on stock returns and engineered features
+    \item PCA 
     % ESL reference for PCA:
     % Chapter 14, Section 14.5.1 "Principal Components", p. 534.
 \end{itemize}
@@ -339,7 +340,8 @@ conditions,
 \begin{alertblock}{Time-Series Structure}
 \begin{itemize}
     \item Lagged predictors preserve temporal ordering
-    \item Walk-forward validation respects time dependence
+    \item Models with inherent time-series nature
+    %\item Walk-forward validation respects time dependence
     % ESL reference:
     % Chapter 7, "Model Assessment and Selection", starts p. 219.
     % k-fold cross-validation is discussed in this chapter; walk-forward validation
@@ -367,8 +369,8 @@ conditions,
     \frac{\exp(\beta_0+x^\top\beta)}
     {1+\exp(\beta_0+x^\top\beta)}
     \]
-
-    \item \textbf{Random Forest}
+    Easy to be applied with Ridge and LASSO
+    \item \textbf{Random Forest}: No explicit restriction for large number of features.
     \begin{itemize}
         \item Ensemble of classification trees
         \item Built on bootstrap samples
@@ -377,8 +379,8 @@ conditions,
         % Chapter 15, "Random Forests".
         % Use as a conceptual chapter citation rather than a specific displayed formula.
     \end{itemize}
-
-    \item \textbf{Support Vector Machine}
+    
+    \item \textbf{Support Vector Machine}: No restriction of number of features, non-linear separable
     % ESL reference:
     % Chapter 12, Section 12.2 p. 417. for SVC and Eqs. (12.7)--(12.8), pp. 420--421. for SVM
     \[
@@ -390,10 +392,13 @@ conditions,
     y_i(x_i^\top\beta+\beta_0)\ge 1-\xi_i,\qquad
     \xi_i\ge 0,\quad i=1,\dots,N
     \]
+
+    \item Experiment with some neural net models (CNN-2D, LSTM, RNN)
+    
 \end{itemize}
 \end{block}
 
-\begin{block}{Model Tuning and Selection}
+\begin{block}{Model Tuning and Selection} (Ch. 7, ESL)
 \begin{itemize}
     \item Hyperparameters selected by cross-validation
     \item Validation methods:
@@ -401,10 +406,10 @@ conditions,
         \item $k$-fold cross-validation
             % ESL reference:
             % Chapter 7, "Model Assessment and Selection", p. 219.
-        \item Walk-forward validation
+        %\item Walk-forward validation
     \end{itemize}
     \item Evaluation metrics: Accuracy, F1-score, ROC-AUC
-    \item Prefer the more \textbf{parsimonious} model when performance is similar
+    \item 1SE rule: Prefer the more \textbf{parsimonious} model when performance is similar
           % Chapter 7, "Model Assessment and Selection", p. 219.
 \end{itemize}
 \end{block}
@@ -428,7 +433,6 @@ conditions,
 \end{frame}
 
 \begin{frame}{Results}
-%Prof's comment: proper formatting: spacing
 \begin{itemize}
   \item Overall accuracy around 50\%, only slightly better than random guessing
   \item Raw OHLCV features may not contain strong predictive signals 
@@ -463,6 +467,17 @@ conditions,
 %The table compares Random Forest, SVM, and Logistic Regression models over an 8-year period, reporting accuracy, standard deviation, precision, recall, and F1 for the positive class ("Up").
 \end{frame}
 
+%%%%%%%%%%%%%%%%%%%%NEW PLOT FOR OVER/UNDERFITTING IS HERE%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Visualization of predictions}
+
+\subsection{Validation results}
+
+\subsection{Overfitting/underfitting analysis}
+
+
+
+
+
 
 
 \begin{frame}{Results}
@@ -495,41 +510,47 @@ conditions,
 \end{frame}
 
 \subsection{Experiment with hourly data}
-\begin{frame}{Results}
+\begin{frame}{Experiment with hourly data}
 \input{../output/Used/tex/logistic_regression_24hours_three_model_comparison.tex}
 \FloatBarrier
 \end{frame}
 
-\begin{frame}{Results}
-% Prof's comment: More clarity
+\begin{frame}{Experiment with hourly data}
 \begin{itemize}
-  \item To further investigate the temporal dependencies of the market, we also experimented with similar models for the hourly data. 
-  \item The performance of the hourly models is better than the daily models, with the best performing model  with an accuracy of 0.5478 and ROC-AUC value around 60 \%. 
+  \item To further investigate the temporal dependencies of the market,
+  \item The performance of the hourly models is better than the daily models, 
+  \item The best performing model  with an accuracy of 0.5478 and ROC-AUC value around 60 \%. 
   \item \textbf{Key: a clearer short window of dependencies rather than by days/ weeks.}
 \end{itemize}
 \end{frame}
 
-
+\begin{frame}{Results - Summary}
+\begin{itemize}
+  \item Predictive performance on daily data is not much better than random guessing
+  \item More advanced models suffer from higher variablity (reflected in Validation SE) while not always give better performance
+  \item Supporting evidence for: market is quite efficient when looking overally at daily trading, but not efficient in shorter time window.
+\end{itemize}
+\end{frame}
 
 \section{Limitations \& next steps}
 \begin{frame}{Limitation}
   %Prof's comment: too much matter clustered on one page. summarize this
   \begin{itemize}
-    \item Data limitations: only historical price and volume data, no sentiment analysis, macroeconomic indicators, or alternative data sources
-    \item Model limitations: did not explore mix model methods, more complicated deep learning architectures
-    \item Evaluation limitations: only used accuracy, F1-score, and ROC-AUC mainly based on wark-forward validation and cross validation. Other rules may be applied in extension of this project (1SE rule)
-    \item Time constraints: limited time for extensive hyperparameter tuning and model experimentation
-    \item Resource constraints: computational resources limited the ability to train more complex models or perform extensive cross-validation
+    \item Data: 8 years rather than longer, causing mild response bias
+    \item Models: Limited grid-search lists in main models, too simple neural net architectures in experiment one.
+    \item Evaluation: Hard to use multiple metrics when they are not available for all models
+    \item Time constraints: limited time for extensive hyperparameter tuning 
+    \item Computational resources: limited in training more complex models
     \end{itemize}
 \end{frame}
 
 \begin{frame}{Next steps}
   %Prof's comment: too much matter clustered on one page. summarize this
 \begin{itemize}
-  \item Conduct more extensive hyperparameter tuning and model experimentation
-  \item Implement a more comprehensive evaluation framework, including additional metrics and validation techniques
-  \item Include more political and economic indicators, sentiment analysis, and alternative data sources to enhance predictive power
-  \item Explore more sophisticated models (more complicated deep learning architectures) and some combination with economic method of time series forecasting (e.g., ARIMA, GARCH)
+  \item Conduct more extensive hyperparameter tuning, widen grid search list
+  \item Include longer time series, shorter time window
+  \item Explore more sophisticated models (more complicated deep learning architectures)
+  \item Potential of combination with economic method of time series forecasting (e.g., ARIMA, GARCH)
 \end{itemize}
 \end{frame}
 
@@ -537,9 +558,8 @@ conditions,
 \begin{frame}{Summary}
   %Prof's comment: too much matter clustered on one page. summarize this
 \begin{itemize}
-  \item Predicting the direction of the stock market is a complex task with many influencing factors. 
-  \item While some models can achieve slightly better than random performance, there is still significant room for improvement. 
-  \item Relying solely on historical daily price and volume data may not be sufficient for making informed trading decisions
+  \item Supporting evidence for: market is quite efficient when looking overally at daily trading, but not efficient in shorter time window.
+  \item Relying solely on historical daily price and volume data may not be sufficient. 
   \item Better result for short time windows suggests implications for high-frequency trading strategies and intraday trading.
   \item Future work could focus on short-time dependencies, more sophisticated models, additional features (e.g., sentiment analysis, macroeconomic indicators), and alternative modeling approaches (e.g., ensemble methods, deep learning architectures).
   \end{itemize}
@@ -549,7 +569,7 @@ conditions,
 
 % --- References ---
 \begin{frame}{References}
-%\bibliographystyle{apacite}
-%\bibliography{Bibliography}
+\bibliographystyle{apacite}
+\bibliography{Bibliography}
 \end{frame}
 \end{document}

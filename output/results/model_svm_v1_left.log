@@ -1,0 +1,141 @@
+
+[2026-03-09 03:43:22] CMD: /Library/Frameworks/Python.framework/Versions/3.13/bin/python3 /Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/SVM.py
+[2026-03-09 03:43:22] ENV: MODEL_N_JOBS=4 GRID_VARIANT=left GRID_VERSION=v1
+/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/H_eval.py:228: UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
+  plt.show()
+/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/H_eval.py:228: UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
+  plt.show()
+/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/H_eval.py:228: UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
+  plt.show()
+------- Downloading Data
+Finished Downloading Data -------
+Initial shape: 2010 rows, 2520 columns.
+------- Cleaning data
+Finished Cleaning Data -------
+Current shape: 2010 rows, 2390 columns.
+Created Percent Changes.
+Created Target (Regression).
+---EXTRA---: Created Day of Week.
+---EXTRA---: Created Daily Range.
+MODEL_N_JOBS=4 (set env MODEL_N_JOBS to override)
+GRID_VARIANT=left (left/center/right)
+GRID_VERSION=v1
+------- Finding Optimal lag_period Value
+Total Unique Cleaning Combinations to test: 4
+Optimal data_clean() parameters: {'lag_period': 2, 'sector': True, 'corr_level': 2}
+Best Utility Score (lag_period): 0.478
+Best lag_period: 2
+------- Finding Optimal lookback_period Value
+Total Unique Cleaning Combinations to test: 7
+Optimal data_clean() parameters: {'lookback_period': 5, 'sector': True, 'corr_level': 2}
+Best Utility Score (lookback_period): 0.519
+Best lookback_period: 5
+------- Finding Optimal data_clean() Parameters
+Total Unique Cleaning Combinations to test: 48
+Optimal data_clean() parameters: {'raw': False, 'extra_features': True, 'lag_period': 2, 'lookback_period': 5, 'sector': True, 'corr_level': 2, 'corr_threshold': 0.7}
+Best Utility Score 0.565
+Optimal parameter {'raw': False, 'extra_features': True, 'lag_period': 2, 'lookback_period': 5, 'sector': True, 'corr_level': 2, 'corr_threshold': 0.7}
+------- Generating Necessary Features
+Created Lag.
+Created EMA, Rolling Volatility (Scaled) and Rolling Z-Score.
+Created Max/Min Channel Positions/
+Created Rolling Volume Weighted Average Price.
+---EXTRA---: Created Open Metrics Forward Lag.
+Cleaned up Unnecessary Columns.
+Created Target (Classification)
+Cleaned up remaining/resulting NA values.
+---EXTRA---: Grouped Features by Sector Averages.
+Current shape: 1859 rows, 187 columns.
+---EXTRA---: (corr_level=2) Dropped 133 highly correlated feature columns.
+Predictors, and Target (Regression) successfully split.
+Finished Generating Features -------
+Final shape (X): 1859 rows, 54 columns.
+Final shape (y_regression): 1859 rows, 1 columns.
+
+
+------- Linear SVM Model -------
+Fitting 3 folds for each of 3 candidates, totalling 9 fits
+Rolling Window Backtest over 41 iterations.
+24.39% complete. Current iteration: 10, True iteration: 361
+48.78% complete. Current iteration: 20, True iteration: 761
+73.17% complete. Current iteration: 30, True iteration: 1161
+97.56% complete. Current iteration: 40, True iteration: 1561
+Average Rolling Accuracy (train) (rwb): 0.5212 (±0.0901)
+Average Rolling Accuracy (test)  (rwb): 0.4969 (±0.0605)
+--- Model Report ---
+Avg CV Train Accuracy:          0.6473 (±0.0592)
+Avg CV Validation Accuracy:  0.4810 (±0.0199)
+Avg CV Validation Precision: 0.5418
+Avg CV Validation Recall:    0.3023
+Final Hold-out (Test) Score (Accuracy): 0.5269
+Positive Prediction Rate (Test):        0.6828
+True Up Rate (Test):   0.5320
+Up Precision (Test):   0.5430
+Up Edge Rate (Test):   0.0110
+True Down Rate (Test): 0.4680
+Down Precision (Test): 0.4920
+Down Edge Rate (Test): 0.0240
+             Predicted Down  Predicted Up
+Actual Down              58           116
+Actual Up                60           138
+Utility Score 0.527
+Downloaded results to /Users/tranghanguyen/STAT-587-Final-Project/output/results/results.csv
+
+
+------- RBF SVM Model -------
+Fitting 3 folds for each of 15 candidates, totalling 45 fits
+Rolling Window Backtest over 41 iterations.
+24.39% complete. Current iteration: 10, True iteration: 361
+48.78% complete. Current iteration: 20, True iteration: 761
+73.17% complete. Current iteration: 30, True iteration: 1161
+97.56% complete. Current iteration: 40, True iteration: 1561
+Average Rolling Accuracy (train) (rwb): 0.5258 (±0.0767)
+Average Rolling Accuracy (test)  (rwb): 0.5500 (±0.0625)
+--- Model Report ---
+Avg CV Train Accuracy:          0.9985 (±0.0009)
+Avg CV Validation Accuracy:  0.5239 (±0.0204)
+Avg CV Validation Precision: 0.5442
+Avg CV Validation Recall:    0.7815
+Final Hold-out (Test) Score (Accuracy): 0.5269
+Positive Prediction Rate (Test):        0.7688
+True Up Rate (Test):   0.5320
+Up Precision (Test):   0.5380
+Up Edge Rate (Test):   0.0060
+True Down Rate (Test): 0.4680
+Down Precision (Test): 0.4880
+Down Edge Rate (Test): 0.0200
+             Predicted Down  Predicted Up
+Actual Down              42           132
+Actual Up                44           154
+Utility Score 0.527
+Downloaded results to /Users/tranghanguyen/STAT-587-Final-Project/output/results/results.csv
+
+
+------- Polynomial SVM Model -------
+Fitting 3 folds for each of 60 candidates, totalling 180 fits
+Rolling Window Backtest over 41 iterations.
+24.39% complete. Current iteration: 10, True iteration: 361
+48.78% complete. Current iteration: 20, True iteration: 761
+73.17% complete. Current iteration: 30, True iteration: 1161
+97.56% complete. Current iteration: 40, True iteration: 1561
+Average Rolling Accuracy (train) (rwb): 0.5083 (±0.0856)
+Average Rolling Accuracy (test)  (rwb): 0.5469 (±0.0843)
+--- Model Report ---
+Avg CV Train Accuracy:          1.0000 (±0.0000)
+Avg CV Validation Accuracy:  0.5101 (±0.0239)
+Avg CV Validation Precision: 0.5716
+Avg CV Validation Recall:    0.4269
+Final Hold-out (Test) Score (Accuracy): 0.5161
+Positive Prediction Rate (Test):        0.5968
+True Up Rate (Test):   0.5320
+Up Precision (Test):   0.5410
+Up Edge Rate (Test):   0.0090
+True Down Rate (Test): 0.4680
+Down Precision (Test): 0.4800
+Down Edge Rate (Test): 0.0120
+             Predicted Down  Predicted Up
+Actual Down              72           102
+Actual Up                78           120
+Utility Score 0.516
+Downloaded results to /Users/tranghanguyen/STAT-587-Final-Project/output/results/results.csv
+[2026-03-09 03:44:10] EXIT_CODE=0

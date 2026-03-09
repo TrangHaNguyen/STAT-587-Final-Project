@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import os
 from sklearn.model_selection import cross_validate
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import confusion_matrix
@@ -9,6 +10,8 @@ from sklearn.metrics import matthews_corrcoef
 import datetime
 
 from H_helpers import safe_div
+
+MODEL_N_JOBS=int(os.getenv("MODEL_N_JOBS", "-1"))
 
 # Good note, standard deviation of any accuracies is 0.5 achieved by having a perfectly split accuracy set of all correct and all correct instances.
 
@@ -45,7 +48,15 @@ def display_coef_importances_regression(model, X: pd.DataFrame, n: int =50) -> p
 def get_final_metrics(model_obj, X_train, y_train, X_test, y_test, n_splits: int =5, label: str | None =None) -> dict:
     tscv=TimeSeriesSplit(n_splits=n_splits)
     scoring_metrics=['accuracy', 'precision', 'recall']
-    cv_results=cross_validate(model_obj, X_train, y_train, cv=tscv, scoring=scoring_metrics, return_train_score=True, n_jobs=-1)
+    cv_results=cross_validate(
+        model_obj,
+        X_train,
+        y_train,
+        cv=tscv,
+        scoring=scoring_metrics,
+        return_train_score=True,
+        n_jobs=MODEL_N_JOBS
+    )
 
     mean_train=np.mean(cv_results['train_accuracy'])
     std_train=np.std(cv_results['train_accuracy'])
@@ -223,12 +234,7 @@ class RollingWindowBacktest:
         self.X_train=X_train
 
 def utility_score(results: dict, rwb: dict, w: float =4.0):
-    train_cv_CoV=results['train_std_accuracy'] / results['train_avg_accuracy']
-    val_cv_CoV=results['validation_std_accuracy'] / results['validation_avg_accuracy']
-    train_rwb_CoV=rwb.results[2]['mwfv_train_std_accuracy'] / rwb.results[2]['mwfv_train_avg_accuracy']
-    test_rwb_CoV=rwb.results[2]['mwfv_test_std_accuracy'] / rwb.results[2]['mwfv_test_avg_accuracy']
-    score=(results['test_split_accuracy'] + results['test_up_recall'] + results['test_down_recall'] + results['test_matthew_corr_coef'] - 1.5) - (1 / w) * (train_cv_CoV + train_rwb_CoV + val_cv_CoV + test_rwb_CoV)
-    return score
+    return results['test_split_accuracy']
 
 class ModelResults:
     """Class to store and compare classification model results"""

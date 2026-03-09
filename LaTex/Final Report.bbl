@@ -1,0 +1,147 @@
+\begin{thebibliography}{}
+
+\bibitem [\protect \citeauthoryear {%
+Global%
+}{%
+Global%
+}{%
+{\protect \APACyear {2024}}%
+}]{%
+spglobal_2024}
+\APACinsertmetastar {%
+spglobal_2024}%
+\begin{APACrefauthors}%
+Global, S.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2024}{}{}.
+\newblock
+\APACrefbtitle {S\&P U.S. Indices Methodology.} {S\&p u.s. indices
+  methodology.}
+\newblock
+\APAChowpublished
+  {\url{https://www.spglobal.com/spdji/en/documents/methodologies/methodology-sp-us-indices.pdf}}.
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Investopedia%
+}{%
+Investopedia%
+}{%
+{\protect \APACyear {2024}}%
+}]{%
+investopedia_2024}
+\APACinsertmetastar {%
+investopedia_2024}%
+\begin{APACrefauthors}%
+Investopedia.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2024}{}{}.
+\newblock
+\APACrefbtitle {History of the S\&P 500.} {History of the s\&p 500.}
+\newblock
+\APAChowpublished
+  {\url{https://www.investopedia.com/ask/answers/041015/what-history-sp-500.asp}}.
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Kumbure%
+, Lohrmann%
+, Luukka%
+\BCBL {}\ \BBA {} Porras%
+}{%
+Kumbure%
+\ \protect \BOthers {.}}{%
+{\protect \APACyear {2022}}%
+}]{%
+KUMBURE_2022}
+\APACinsertmetastar {%
+KUMBURE_2022}%
+\begin{APACrefauthors}%
+Kumbure, M\BPBI M.%
+, Lohrmann, C.%
+, Luukka, P.%
+\BCBL {}\ \BBA {} Porras, J.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2022}{}{}.
+\newblock
+{\BBOQ}\APACrefatitle {Machine learning techniques and data for stock market
+  forecasting: A literature review} {Machine learning techniques and data for
+  stock market forecasting: A literature review}.{\BBCQ}
+\newblock
+\APACjournalVolNumPages{Expert Systems with Applications}{197}{}{116659}.
+\newblock
+\begin{APACrefURL}
+  \url{https://www.sciencedirect.com/science/article/pii/S0957417422001452}
+  \end{APACrefURL}
+\newblock
+\begin{APACrefDOI} \doi{https://doi.org/10.1016/j.eswa.2022.116659}
+  \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Lin%
+\ \BBA {} {Lobo Marques}%
+}{%
+Lin%
+\ \BBA {} {Lobo Marques}%
+}{%
+{\protect \APACyear {2024}}%
+}]{%
+LIN_2024}
+\APACinsertmetastar {%
+LIN_2024}%
+\begin{APACrefauthors}%
+Lin, C\BPBI Y.%
+\BCBT {}\ \BBA {} {Lobo Marques}, J\BPBI A.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2024}{}{}.
+\newblock
+{\BBOQ}\APACrefatitle {Stock market prediction using artificial intelligence: A
+  systematic review of systematic reviews} {Stock market prediction using
+  artificial intelligence: A systematic review of systematic reviews}.{\BBCQ}
+\newblock
+\APACjournalVolNumPages{Social Sciences \& Humanities Open}{9}{}{100864}.
+\newblock
+\begin{APACrefURL}
+  \url{https://www.sciencedirect.com/science/article/pii/S2590291124000615}
+  \end{APACrefURL}
+\newblock
+\begin{APACrefDOI} \doi{https://doi.org/10.1016/j.ssaho.2024.100864}
+  \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Wolfers%
+\ \BBA {} Zitzewitz%
+}{%
+Wolfers%
+\ \BBA {} Zitzewitz%
+}{%
+{\protect \APACyear {2004}}%
+}]{%
+wolfers_2004}
+\APACinsertmetastar {%
+wolfers_2004}%
+\begin{APACrefauthors}%
+Wolfers, J.%
+\BCBT {}\ \BBA {} Zitzewitz, E.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2004}{}{}.
+\newblock
+\APACrefbtitle {Prediction Markets.} {Prediction markets.}
+\newblock
+\APAChowpublished
+  {\url{https://users.nber.org/~jwolfers/policy/PredictionMarkets%28CFA%29.pdf}}.
+\PrintBackRefs{\CurrentBib}
+
+\end{thebibliography}

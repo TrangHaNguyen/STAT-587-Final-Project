@@ -1,0 +1,12 @@
+[2026-03-09 03:43:22] Pipeline start | models=['svm', 'logreg', 'rf'] variants=['left', 'right'] grid_version=v1 n_jobs=4 resume=True skip_models=False skip_plots=False
+[2026-03-09 03:43:22] START stage: model:svm:v1_left
+[2026-03-09 03:44:10] DONE stage: model:svm:v1_left (47.9s)
+[2026-03-09 03:44:10] START stage: model:logreg:v1_left
+[2026-03-09 03:44:15] DONE stage: model:logreg:v1_left (5.1s)
+[2026-03-09 03:44:15] START stage: model:rf:v1_left
+[2026-03-09 03:56:41] DONE stage: model:rf:v1_left (746.4s)
+[2026-03-09 03:56:41] START stage: model:svm:v1_right
+[2026-03-09 03:57:52] DONE stage: model:svm:v1_right (71.0s)
+[2026-03-09 03:57:52] START stage: model:logreg:v1_right
+[2026-03-09 03:57:58] DONE stage: model:logreg:v1_right (5.4s)
+[2026-03-09 03:57:58] START stage: model:rf:v1_right

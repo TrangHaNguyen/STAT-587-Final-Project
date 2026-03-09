@@ -12,6 +12,7 @@
 \usepackage{threeparttable}
 \usepackage[T1]{fontenc}
 \usepackage{placeins}
+\usepackage{endnotes}
 
 \pagestyle{plain}
 
@@ -107,8 +108,8 @@ The following heatmaps are created .
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.45\linewidth]{../output/Used/2yrs_sector_correlation.png}
-    \includegraphics[width=0.45\linewidth]{../output/Used/2yrs_sector_sp500_correlation.png}
+    \includegraphics[width=0.45\linewidth]{../output/Used/png/2yrs_sector_correlation.png}
+    \includegraphics[width=0.45\linewidth]{../output/Used/png/2yrs_sector_sp500_correlation.png}
     \caption{Correlation across sectors and that of each sector with the S\&P 500 daily return. Highlighted are 3 sectors with highest absolute correlation coefficient with the S\&P 500. Dark colours indicate stronger correlation while light colours indicate weaker correlation. The correlation is calculated based on the engineered feature `Close PC'.}
     \label{fig:sector-correlation}
 \end{figure}
@@ -119,9 +120,9 @@ Figure \ref{fig:sector-correlation} shows the correlation of mean daily returns 
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.32\linewidth]{../output/Used/2yrs_sector_Technology_clustered.png}
-    \includegraphics[width=0.32\linewidth]{../output/Used/2yrs_sector_Healthcare_clustered.png} 
-    \includegraphics[width=0.32\linewidth]{../output/Used/2yrs_sector_Consumer_Defensive_clustered.png}
+    \includegraphics[width=0.32\linewidth]{../output/Used/png/2yrs_sector_Technology_clustered.png}
+    \includegraphics[width=0.32\linewidth]{../output/Used/png/2yrs_sector_Healthcare_clustered.png} 
+    \includegraphics[width=0.32\linewidth]{../output/Used/png/2yrs_sector_Consumer_Defensive_clustered.png}
     \caption{Intra-sector correlation matrices for the top three sectors by absolute correlation with S\&P 500 returns. From left to right: Technology ($|r| = 0.116$), Healthcare ($|r| = 0.106$), and Consumer Defensive ($|r| = 0.097$) sectors. Hierarchical clustering reveals sub-groups of stocks with similar return dynamics. Warm colours indicate strong positive co-movement while cool colours indicate divergence.}
     \label{fig:top-sectors}
 \end{figure}
@@ -131,8 +132,8 @@ Figure \ref{fig:top-sectors} show the intra-sector correlation matrices for the 
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.45\linewidth]{../output/Used/2yrs_sector_volatility_over_time.png}
-    \includegraphics[width=0.45\linewidth]{../output/Used/2yrs_smoothed_sector_volatility.png}
+    \includegraphics[width=0.45\linewidth]{../output/Used/png/2yrs_sector_volatility_over_time.png}
+    \includegraphics[width=0.45\linewidth]{../output/Used/png/2yrs_smoothed_sector_volatility.png}
     \caption{Sector volatility. Left panel: 21-day-window standard deviation. Right panel: its smoothed version by moving average over 40 days.}
     \label{fig:sector-vol}
 \end{figure}
@@ -187,7 +188,7 @@ The general selection of hyperparameter is mainly based on the model with highes
 \paragraph{Logistic Regression Models}
 
 
-\input{../output/Used/base_logistic_comparison.tex}%Comment: improve on this presentation.
+\input{../output/Used/tex/base_logistic_comparison.tex}%Comment: improve on this presentation.
 \FloatBarrier
 
 Table~\ref{tab:base_logistic_comparison} presents the performance comparison of baseline logistic regression models with different regularization and dimensional reduction techniques. Overall the accuracy is just around 50\%, which is only slightly better than random guessing. This suggests that the raw OHLCV features may not contain strong predictive signals for the market direction, and that the relationship between these features and the target variable is likely complex and non-linear. The regularization techniques (Ridge and LASSO) do not seem to significantly improve performance compared to the unregularized logistic regression. The PCA-based model performs worse than the other models, which could be due to the loss of potential information when reducing dimensionality. Overall, these results suggest that more sophisticated models or additional feature engineering may be necessary to achieve better predictive performance.
@@ -195,7 +196,7 @@ Table~\ref{tab:base_logistic_comparison} presents the performance comparison of 
 \subsubsection{Random Forest Models}%Comment: minimize white spacing, and position this text and tables properly
 
 
-\input{../output/Used/base_rf_comparison.tex}
+\input{../output/Used/tex/base_rf_comparison.tex}
 \FloatBarrier
 
 Table~\ref{tab:base_rf_comparison} presents the performance comparison of different random forest models with predictors of raw features and of selected PCA components. The depth of the tree and number of estimators are selected based on grid search cross validation. The random forest using raw features outperforms the PCA-based logistic regression, and applying PCA before the random forest improves performance even further (accuracy in the test set increased to 54 \%). LASSO and Ridge application in feature selections for random forest does not improve performance compared to PCA. However, the standard deviation of both train and test cross validation accuracy is higher for the random forest compared to logistic regression, which suggests that the random forest may be more sensitive to the data set used to train. 
@@ -205,7 +206,7 @@ Table~\ref{tab:base_rf_comparison} presents the performance comparison of differ
 
 This section will present the performance comparison of models that utilize the engineered features, including lag values, percent change, volatility, max/min channel position, rolling volume weighted average prices, rolling z-scores, daily range, and day of week. The models will include logistic regression with automatic regularization (LASSO and Ridge), random forest classifier, support vector machine with RBF kernel, and neural networks (CNN, simple RNN, LSTM). The performance metrics will include accuracy, precision, recall, F1-score, and ROC-AUC where applicable. The results will be compared to the baseline models that only use raw features to evaluate the impact of feature engineering on predictive performance.
 
-\input{../output/Used/tex/model_comparison_table.tex}
+\input{model_comparison_table.tex}
 \FloatBarrier
 
 Table~\ref{tab:model_comparison} reveals that sequential models (RNN and LSTM) achieve the best overall performance with F1-scores of 0.6592 and 0.6571 respectively, benefiting from their ability to capture temporal dependencies in 7-day windows. The Simple RNN emerges as the recommended model for deployment, achieving the highest accuracy (0.5461) among all models while maintaining a good balance between precision (0.5535) and recall (0.8148). Among linear models, LASSO regularization (L1) demonstrates superior performance with the highest accuracy (0.5486) and the only ROC-AUC above 0.50 (0.5342), indicating actual discriminative ability beyond random guessing. Notably, the SVM with RBF kernel exhibits degenerate behavior, predicting all samples as ``Up'' (Recall=1.0) and achieving a ROC-AUC below random chance (0.4917), rendering it unsuitable for practical application despite a misleadingly high F1-score. The dimensionality reduction models (PCA, LASSO-reduced, Ridge-reduced) show moderate performance with accuracies ranging from 0.4632 to 0.5368, suggesting that while dimension reduction techniques help manage the curse of dimensionality with 41K features, they also risk losing important predictive signals. Overall, all models operate near 50-55\% accuracy, confirming that S\&P 500 direction prediction remains inherently challenging even with sophisticated machine learning approaches. Incorporating different metrics beyond accuracy, such as ROC-AUC and standard deviation of the cross validation accuracy, we propose the use of logistic regression with Ridge and LASSO regularization for the predictors included engineered features.

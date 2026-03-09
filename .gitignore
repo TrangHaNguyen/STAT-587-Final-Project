@@ -6,6 +6,8 @@
 !/LaTex/
 !/output/
 !/requirements.txt
+!/LectureNotes/
+!/LectureNotes/**
 
 /PyScripts/env/
 /PyScripts/*.csv

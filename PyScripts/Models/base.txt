@@ -67,28 +67,6 @@ def clear_base_caches():
 def to_binary_class(y):
     return (y >= 0).astype(int)
 
-def _select_pca_n_components_1se(grid_results):
-    best = max(grid_results, key=lambda r: r['mean_cv_score'])
-    threshold = best['mean_cv_score'] - best['std_cv_score']
-    candidates = [r for r in grid_results if r['mean_cv_score'] >= threshold]
-    # Simpler PCA model means fewer retained components.
-    chosen = min(candidates, key=lambda r: r['n_components_value'])
-    return chosen, best, threshold
-
-def _select_c_1se_from_logregcv(cv_clf):
-    scores = np.array(list(cv_clf.scores_.values())[0])
-    if scores.ndim == 3:
-        scores = scores[:, :, 0]
-    mean_scores = scores.mean(axis=0)
-    std_scores = scores.std(axis=0)
-    cs = np.array(cv_clf.Cs_)
-    best_idx = int(np.argmax(mean_scores))
-    threshold = mean_scores[best_idx] - std_scores[best_idx]
-    candidate_idx = np.where(mean_scores >= threshold)[0]
-    # Simpler model for logistic regularization is smaller C.
-    chosen_idx = int(candidate_idx[np.argmin(cs[candidate_idx])])
-    return float(cs[chosen_idx]), float(cs[best_idx]), float(threshold)
-
 if __name__ == "__main__":
     # Set to False to use cached models; True to retrain all models
     RETRAIN_ALL = True
@@ -128,6 +106,9 @@ if __name__ == "__main__":
     
     # Grid search over different n_components
     n_components_grid = [0.85, 0.90, 0.95, 0.99]
+    best_score = -np.inf
+    best_n_comp = None
+    best_n_comp_value = None
     grid_search_results = []
     
     print(f"Testing n_components: {n_components_grid}")
@@ -138,9 +119,7 @@ if __name__ == "__main__":
         # Cross-validate baseline model
         baseline_temp = LogisticRegression(penalty=None, solver="lbfgs", 
                                           random_state=1, max_iter=500, tol=1e-2)
-        scores = cross_val_score(
-            baseline_temp, X_pca_temp, y_train, cv=tscv, n_jobs=MODEL_N_JOBS, scoring='balanced_accuracy'
-        )
+        scores = cross_val_score(baseline_temp, X_pca_temp, y_train, cv=tscv, n_jobs=MODEL_N_JOBS)
         mean_score = scores.mean()
         std_score = scores.std()
         
@@ -155,18 +134,12 @@ if __name__ == "__main__":
         
         print(f"  n_components={n_comp} ({X_pca_temp.shape[1]} components): CV Score = {mean_score:.4f} ± {std_score:.4f}")
         
-    chosen_pca, best_pca, pca_threshold = _select_pca_n_components_1se(grid_search_results)
-    best_n_comp = chosen_pca['n_components']
-    best_n_comp_value = chosen_pca['n_components_value']
-    best_score = chosen_pca['mean_cv_score']
-    print(
-        f"\nBest-by-mean n_components: {best_pca['n_components']} ({best_pca['n_components_value']} components), "
-        f"CV={best_pca['mean_cv_score']:.4f}±{best_pca['std_cv_score']:.4f}"
-    )
-    print(
-        f"1SE-selected n_components: {best_n_comp} ({best_n_comp_value} components), "
-        f"threshold={pca_threshold:.4f}, CV={best_score:.4f}"
-    )
+        if mean_score > best_score:
+            best_score = mean_score
+            best_n_comp = n_comp
+            best_n_comp_value = X_pca_temp.shape[1]
+    
+    print(f"\nBest n_components: {best_n_comp} ({best_n_comp_value} components) with CV Score = {best_score:.4f}")
     
     # Fit final PCA with best n_components
     pca = PCA(n_components=best_n_comp)
@@ -201,7 +174,7 @@ if __name__ == "__main__":
         ('scaler',     StandardScaler()),
         ('classifier', LogisticRegressionCV(
             Cs=20, cv=tscv, penalty='l2', solver='saga',
-            random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2, scoring='balanced_accuracy'
+            random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2
         ))
     ])
     pipeline_ridge.fit(X_train, y_train)
@@ -209,17 +182,7 @@ if __name__ == "__main__":
     joblib.dump(pipeline_ridge, _ridge_cache)
     
     ridge_cv = pipeline_ridge.named_steps['classifier']
-    ridge_c_1se, ridge_c_best, _ = _select_c_1se_from_logregcv(ridge_cv)
-    print(f"Best C by mean CV (Ridge): {ridge_c_best:.6f}")
-    print(f"1SE-selected C (Ridge):    {ridge_c_1se:.6f}")
-    pipeline_ridge_1se = Pipeline([
-        ('scaler', StandardScaler()),
-        ('classifier', LogisticRegression(
-            C=ridge_c_1se, penalty='l2', solver='saga',
-            random_state=1, max_iter=500, tol=1e-2
-        ))
-    ])
-    pipeline_ridge_1se.fit(X_train, y_train)
+    print(f"Best C (Ridge): {ridge_cv.C_[0]:.6f}")
 
     # ------- LASSO (L1): LogisticRegressionCV — stores per-fold scores for bias-variance plot -------
     print("\n========== LASSO (L1) Logistic Regression CV ==========")
@@ -227,7 +190,7 @@ if __name__ == "__main__":
         ('scaler',     StandardScaler()),
         ('classifier', LogisticRegressionCV(
             Cs=np.logspace(-6, 4, 20), cv=tscv, penalty='l1', solver='saga',
-            random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2, scoring='balanced_accuracy'
+            random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2
         ))
     ])
     pipeline_lasso.fit(X_train, y_train)
@@ -235,17 +198,7 @@ if __name__ == "__main__":
     joblib.dump(pipeline_lasso, _lasso_cache)
     
     lasso_cv = pipeline_lasso.named_steps['classifier']
-    lasso_c_1se, lasso_c_best, _ = _select_c_1se_from_logregcv(lasso_cv)
-    print(f"Best C by mean CV (LASSO): {lasso_c_best:.6f}")
-    print(f"1SE-selected C (LASSO):    {lasso_c_1se:.6f}")
-    pipeline_lasso_1se = Pipeline([
-        ('scaler', StandardScaler()),
-        ('classifier', LogisticRegression(
-            C=lasso_c_1se, penalty='l1', solver='saga',
-            random_state=1, max_iter=500, tol=1e-2
-        ))
-    ])
-    pipeline_lasso_1se.fit(X_train, y_train)
+    print(f"Best C (LASSO): {lasso_cv.C_[0]:.6f}")
 
     # ------- Bias-Variance Tradeoff Plot (Ridge + LASSO) -------
     print("\n========== Generating Bias-Variance Tradeoff Plot ==========")
@@ -279,9 +232,9 @@ if __name__ == "__main__":
     fig.suptitle('Bias-Variance Tradeoff — Raw OHLCV Features\n(Train vs CV Test Error per Regularization Strength)',
                  fontsize=13, fontweight='bold')
 
-    for ax, (label, cv_clf, pipe, pen, solv, color, c_1se) in zip(axes, [
-        ('Ridge (L2)', ridge_cv, pipeline_ridge, 'l2', 'saga', 'darkorange', ridge_c_1se),
-        ('LASSO (L1)', lasso_cv, pipeline_lasso, 'l1', 'saga', 'seagreen', lasso_c_1se),
+    for ax, (label, cv_clf, pipe, pen, solv, color) in zip(axes, [
+        ('Ridge (L2)', ridge_cv, pipeline_ridge, 'l2', 'saga', 'darkorange'),
+        ('LASSO (L1)', lasso_cv, pipeline_lasso, 'l1', 'saga', 'seagreen'),
     ]):
         cs, tr_mean, tr_std, cv_mean, cv_std = _bv_curves(
             cv_clf, pipe, X_train, y_train, tscv, pen, solv)
@@ -289,8 +242,8 @@ if __name__ == "__main__":
         ax.fill_between(cs, tr_mean - tr_std, tr_mean + tr_std, alpha=0.15, color='steelblue')
         ax.semilogx(cs, cv_mean, marker='s', color=color,      linewidth=2, label='CV Test error')
         ax.fill_between(cs, cv_mean - cv_std, cv_mean + cv_std, alpha=0.15, color=color)
-        ax.axvline(c_1se, color='red', linestyle='--',
-                   label=f'1SE C = {c_1se:.4f}')
+        ax.axvline(cv_clf.C_[0], color='red', linestyle='--',
+                   label=f'Best C = {cv_clf.C_[0]:.4f}')
         ax.set_title(f'{label} — Bias-Variance Tradeoff')
         ax.set_xlabel('C  (Inverse Regularization Strength)\n'
                       '← High Regularization, Simpler Model      '
@@ -302,7 +255,7 @@ if __name__ == "__main__":
     plt.tight_layout()
     output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'output')
     os.makedirs(output_dir, exist_ok=True)
-    out_path = os.path.join(output_dir, '8yrs_1SE_base_logistic_bias_variance.png')
+    out_path = os.path.join(output_dir, 'base_logistic_bias_variance.png')
     plt.savefig(out_path, dpi=150, bbox_inches='tight')
     print(f"Figure saved to: {os.path.abspath(out_path)}")
     plt.close()
@@ -345,7 +298,7 @@ if __name__ == "__main__":
         ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    out_path2 = os.path.join(output_dir, '8yrs_1SE_base_logistic_train_test.png')
+    out_path2 = os.path.join(output_dir, 'base_logistic_train_test.png')
     plt.savefig(out_path2, dpi=150, bbox_inches='tight')
     print(f"Figure saved to: {os.path.abspath(out_path2)}")
     plt.close()
@@ -355,35 +308,21 @@ if __name__ == "__main__":
     print("\n========== RIDGE (L2) + PCA — LogisticRegressionCV ==========")
     clf_ridge_pca = LogisticRegressionCV(
         Cs=20, cv=tscv, penalty='l2', solver='saga',
-        random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2, scoring='balanced_accuracy')
+        random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2)
     clf_ridge_pca.fit(X_train_pca, y_train)
     _ridge_pca_cache = os.path.join(CACHE_DIR, 'base_ridge_pca_cv.pkl')
     joblib.dump(clf_ridge_pca, _ridge_pca_cache)
-    ridge_pca_c_1se, ridge_pca_c_best, _ = _select_c_1se_from_logregcv(clf_ridge_pca)
-    print(f"Best C by mean CV (Ridge+PCA): {ridge_pca_c_best:.6f}")
-    print(f"1SE-selected C (Ridge+PCA):    {ridge_pca_c_1se:.6f}")
-    clf_ridge_pca_1se = LogisticRegression(
-        C=ridge_pca_c_1se, penalty='l2', solver='saga',
-        random_state=1, max_iter=500, tol=1e-2
-    )
-    clf_ridge_pca_1se.fit(X_train_pca, y_train)
+    print(f"Best C (Ridge+PCA): {clf_ridge_pca.C_[0]:.6f}")
 
     # ------- LASSO CV after PCA -------
     print("\n========== LASSO (L1) + PCA — LogisticRegressionCV ==========")
     clf_lasso_pca = LogisticRegressionCV(
         Cs=np.logspace(-6, 4, 20), cv=tscv, penalty='l1', solver='saga',
-        random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2, scoring='balanced_accuracy')
+        random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2)
     clf_lasso_pca.fit(X_train_pca, y_train)
     _lasso_pca_cache = os.path.join(CACHE_DIR, 'base_lasso_pca_cv.pkl')
     joblib.dump(clf_lasso_pca, _lasso_pca_cache)
-    lasso_pca_c_1se, lasso_pca_c_best, _ = _select_c_1se_from_logregcv(clf_lasso_pca)
-    print(f"Best C by mean CV (LASSO+PCA): {lasso_pca_c_best:.6f}")
-    print(f"1SE-selected C (LASSO+PCA):    {lasso_pca_c_1se:.6f}")
-    clf_lasso_pca_1se = LogisticRegression(
-        C=lasso_pca_c_1se, penalty='l1', solver='saga',
-        random_state=1, max_iter=500, tol=1e-2
-    )
-    clf_lasso_pca_1se.fit(X_train_pca, y_train)
+    print(f"Best C (LASSO+PCA): {clf_lasso_pca.C_[0]:.6f}")
 
     # ------- Bias-Variance Tradeoff Plot (PCA + Ridge/LASSO) -------
     print("\n========== Generating PCA Bias-Variance Tradeoff Plot ==========")
@@ -393,9 +332,9 @@ if __name__ == "__main__":
                   '(Train vs CV Test Error per Regularization Strength)',
                   fontsize=13, fontweight='bold')
 
-    for ax, (label, cv_clf, pen, solv, color, c_1se) in zip(axes3, [
-        ('Ridge (L2)', clf_ridge_pca, 'l2', 'saga', 'darkorange', ridge_pca_c_1se),
-        ('LASSO (L1)', clf_lasso_pca, 'l1', 'saga', 'seagreen', lasso_pca_c_1se),
+    for ax, (label, cv_clf, pen, solv, color) in zip(axes3, [
+        ('Ridge (L2)', clf_ridge_pca, 'l2', 'saga', 'darkorange'),
+        ('LASSO (L1)', clf_lasso_pca, 'l1', 'saga', 'seagreen'),
     ]):
         cs   = cv_clf.Cs_
         raw  = np.array(list(cv_clf.scores_.values())[0])
@@ -421,8 +360,8 @@ if __name__ == "__main__":
         ax.fill_between(cs, tr_err_mean - tr_err_std, tr_err_mean + tr_err_std, alpha=0.15, color='steelblue')
         ax.semilogx(cs, cv_err_mean, marker='s', color=color, linewidth=2, label='CV Test error')
         ax.fill_between(cs, cv_err_mean - cv_err_std, cv_err_mean + cv_err_std, alpha=0.15, color=color)
-        ax.axvline(c_1se, color='red', linestyle='--',
-                   label=f'1SE C = {c_1se:.4f}')
+        ax.axvline(cv_clf.C_[0], color='red', linestyle='--',
+                   label=f'Best C = {cv_clf.C_[0]:.4f}')
         ax.set_title(f'{label} — Bias-Variance Tradeoff (PCA)')
         ax.set_xlabel('C  (Inverse Regularization Strength)\n'
                       '← High Regularization, Simpler Model      '
@@ -432,7 +371,7 @@ if __name__ == "__main__":
         ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    out_path3 = os.path.join(output_dir, '8yrs_1SE_base_logistic_pca_bias_variance.png')
+    out_path3 = os.path.join(output_dir, 'base_logistic_pca_bias_variance.png')
     plt.savefig(out_path3, dpi=150, bbox_inches='tight')
     print(f"Figure saved to: {os.path.abspath(out_path3)}")
     plt.close()
@@ -473,7 +412,7 @@ if __name__ == "__main__":
         ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    out_path4 = os.path.join(output_dir, '8yrs_1SE_base_logistic_pca_train_test.png')
+    out_path4 = os.path.join(output_dir, 'base_logistic_pca_train_test.png')
     plt.savefig(out_path4, dpi=150, bbox_inches='tight')
     print(f"Figure saved to: {os.path.abspath(out_path4)}")
     plt.close()
@@ -487,7 +426,7 @@ if __name__ == "__main__":
 
     def _metrics(name, model, X_tr, y_tr, X_te, y_te, tscv_splitter, best_c=None):
         cv_res = _cv(model, X_tr, y_tr, cv=tscv_splitter,
-                     return_train_score=True, n_jobs=MODEL_N_JOBS, scoring='balanced_accuracy')
+                     return_train_score=True, n_jobs=MODEL_N_JOBS)
         preds = model.predict(X_te)
         return {
             'Model':              name,
@@ -504,10 +443,10 @@ if __name__ == "__main__":
 
     rows = [
         _metrics(f'Baseline (No Reg) + PCA ({n_components_raw}, {best_n_comp*100:.0f}%)',    baseline_clf,  X_train_pca, y_train, X_test_pca, y_test, tscv, best_c=None),
-        _metrics('Ridge CV (raw)',    pipeline_ridge_1se, X_train, y_train, X_test, y_test, tscv, best_c=ridge_c_1se),
-        _metrics('LASSO CV (raw)',    pipeline_lasso_1se, X_train, y_train, X_test, y_test, tscv, best_c=lasso_c_1se),
-        _metrics(f'Ridge CV (PCA-{n_components_raw})',    clf_ridge_pca_1se,  X_train_pca, y_train, X_test_pca, y_test, tscv, best_c=ridge_pca_c_1se),
-        _metrics(f'LASSO CV (PCA-{n_components_raw})',    clf_lasso_pca_1se,  X_train_pca, y_train, X_test_pca, y_test, tscv, best_c=lasso_pca_c_1se),
+        _metrics('Ridge CV (raw)',    pipeline_ridge, X_train, y_train, X_test, y_test, tscv, best_c=ridge_cv.C_[0]),
+        _metrics('LASSO CV (raw)',    pipeline_lasso, X_train, y_train, X_test, y_test, tscv, best_c=lasso_cv.C_[0]),
+        _metrics(f'Ridge CV (PCA-{n_components_raw})',    clf_ridge_pca,  X_train_pca, y_train, X_test_pca, y_test, tscv, best_c=clf_ridge_pca.C_[0]),
+        _metrics(f'LASSO CV (PCA-{n_components_raw})',    clf_lasso_pca,  X_train_pca, y_train, X_test_pca, y_test, tscv, best_c=clf_lasso_pca.C_[0]),
     ]
 
     comparison_df = pd.DataFrame(rows).set_index('Model')
@@ -537,6 +476,9 @@ if __name__ == "__main__":
     
     # Grid search over different n_components for DOW features
     n_components_grid = [0.85, 0.90, 0.95, 0.99]
+    best_score_dow = -np.inf
+    best_n_comp_dow = None
+    best_n_comp_value_dow = None
     grid_search_results_dow = []
     
     scaler_pca_dow = StandardScaler()
@@ -551,9 +493,7 @@ if __name__ == "__main__":
         # Cross-validate baseline model
         baseline_temp = LogisticRegression(penalty=None, solver="lbfgs", 
                                           random_state=1, max_iter=500, tol=1e-2)
-        scores = cross_val_score(
-            baseline_temp, X_pca_temp, y_train, cv=tscv, n_jobs=MODEL_N_JOBS, scoring='balanced_accuracy'
-        )
+        scores = cross_val_score(baseline_temp, X_pca_temp, y_train, cv=tscv, n_jobs=MODEL_N_JOBS)
         mean_score = scores.mean()
         std_score = scores.std()
         
@@ -568,18 +508,12 @@ if __name__ == "__main__":
         
         print(f"  n_components={n_comp} ({X_pca_temp.shape[1]} components): CV Score = {mean_score:.4f} ± {std_score:.4f}")
         
-    chosen_pca_dow, best_pca_dow, pca_threshold_dow = _select_pca_n_components_1se(grid_search_results_dow)
-    best_n_comp_dow = chosen_pca_dow['n_components']
-    best_n_comp_value_dow = chosen_pca_dow['n_components_value']
-    best_score_dow = chosen_pca_dow['mean_cv_score']
-    print(
-        f"\nBest-by-mean n_components (DOW): {best_pca_dow['n_components']} ({best_pca_dow['n_components_value']} components), "
-        f"CV={best_pca_dow['mean_cv_score']:.4f}±{best_pca_dow['std_cv_score']:.4f}"
-    )
-    print(
-        f"1SE-selected n_components (DOW): {best_n_comp_dow} ({best_n_comp_value_dow} components), "
-        f"threshold={pca_threshold_dow:.4f}, CV={best_score_dow:.4f}"
-    )
+        if mean_score > best_score_dow:
+            best_score_dow = mean_score
+            best_n_comp_dow = n_comp
+            best_n_comp_value_dow = X_pca_temp.shape[1]
+    
+    print(f"\nBest n_components: {best_n_comp_dow} ({best_n_comp_value_dow} components) with CV Score = {best_score_dow:.4f}")
     
     # Fit final PCA with best n_components
     pca_dow = PCA(n_components=best_n_comp_dow)
@@ -614,24 +548,13 @@ if __name__ == "__main__":
         ('scaler',     StandardScaler()),
         ('classifier', LogisticRegressionCV(
             Cs=20, cv=tscv, penalty='l2', solver='saga',
-            random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2, scoring='balanced_accuracy'
+            random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2
         ))
     ])
     pipeline_ridge_dow.fit(X_train_dow, y_train)
     _ridge_dow_cache = os.path.join(CACHE_DIR, 'base_ridge_dow_cv.pkl')
     joblib.dump(pipeline_ridge_dow, _ridge_dow_cache)
-    ridge_dow_cv = pipeline_ridge_dow.named_steps['classifier']
-    ridge_dow_c_1se, ridge_dow_c_best, _ = _select_c_1se_from_logregcv(ridge_dow_cv)
-    print(f"Best C by mean CV (Ridge+DOW): {ridge_dow_c_best:.6f}")
-    print(f"1SE-selected C (Ridge+DOW):    {ridge_dow_c_1se:.6f}")
-    pipeline_ridge_dow_1se = Pipeline([
-        ('scaler', StandardScaler()),
-        ('classifier', LogisticRegression(
-            C=ridge_dow_c_1se, penalty='l2', solver='saga',
-            random_state=1, max_iter=500, tol=1e-2
-        ))
-    ])
-    pipeline_ridge_dow_1se.fit(X_train_dow, y_train)
+    print(f"Best C (Ridge+DOW): {pipeline_ridge_dow.named_steps['classifier'].C_[0]:.6f}")
 
     # --- LASSO CV + DOW ---
     print("\n========== LASSO CV + DOW ==========")
@@ -639,67 +562,42 @@ if __name__ == "__main__":
         ('scaler',     StandardScaler()),
         ('classifier', LogisticRegressionCV(
             Cs=np.logspace(-6, 4, 20), cv=tscv, penalty='l1', solver='saga',
-            random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2, scoring='balanced_accuracy'
+            random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2
         ))
     ])
     pipeline_lasso_dow.fit(X_train_dow, y_train)
     _lasso_dow_cache = os.path.join(CACHE_DIR, 'base_lasso_dow_cv.pkl')
     joblib.dump(pipeline_lasso_dow, _lasso_dow_cache)
-    lasso_dow_cv = pipeline_lasso_dow.named_steps['classifier']
-    lasso_dow_c_1se, lasso_dow_c_best, _ = _select_c_1se_from_logregcv(lasso_dow_cv)
-    print(f"Best C by mean CV (LASSO+DOW): {lasso_dow_c_best:.6f}")
-    print(f"1SE-selected C (LASSO+DOW):    {lasso_dow_c_1se:.6f}")
-    pipeline_lasso_dow_1se = Pipeline([
-        ('scaler', StandardScaler()),
-        ('classifier', LogisticRegression(
-            C=lasso_dow_c_1se, penalty='l1', solver='saga',
-            random_state=1, max_iter=500, tol=1e-2
-        ))
-    ])
-    pipeline_lasso_dow_1se.fit(X_train_dow, y_train)
+    print(f"Best C (LASSO+DOW): {pipeline_lasso_dow.named_steps['classifier'].C_[0]:.6f}")
 
 
     # --- Ridge CV + PCA + DOW ---
     print("\n========== RIDGE CV + PCA + DOW ==========")
     clf_ridge_pca_dow = LogisticRegressionCV(
         Cs=20, cv=tscv, penalty='l2', solver='saga',
-        random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2, scoring='balanced_accuracy')
+        random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2)
     clf_ridge_pca_dow.fit(X_train_dow_pca, y_train)
     _ridge_pca_dow_cache = os.path.join(CACHE_DIR, 'base_ridge_pca_dow_cv.pkl')
     joblib.dump(clf_ridge_pca_dow, _ridge_pca_dow_cache)
-    ridge_pca_dow_c_1se, ridge_pca_dow_c_best, _ = _select_c_1se_from_logregcv(clf_ridge_pca_dow)
-    print(f"Best C by mean CV (Ridge+PCA+DOW): {ridge_pca_dow_c_best:.6f}")
-    print(f"1SE-selected C (Ridge+PCA+DOW):    {ridge_pca_dow_c_1se:.6f}")
-    clf_ridge_pca_dow_1se = LogisticRegression(
-        C=ridge_pca_dow_c_1se, penalty='l2', solver='saga',
-        random_state=1, max_iter=500, tol=1e-2
-    )
-    clf_ridge_pca_dow_1se.fit(X_train_dow_pca, y_train)
+    print(f"Best C (Ridge+PCA+DOW): {clf_ridge_pca_dow.C_[0]:.6f}")
 
     # --- LASSO CV + PCA + DOW ---
     print("\n========== LASSO CV + PCA + DOW ==========")
     clf_lasso_pca_dow = LogisticRegressionCV(
         Cs=np.logspace(-6, 4, 20), cv=tscv, penalty='l1', solver='saga',
-        random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2, scoring='balanced_accuracy')
+        random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2)
     clf_lasso_pca_dow.fit(X_train_dow_pca, y_train)
     _lasso_pca_dow_cache = os.path.join(CACHE_DIR, 'base_lasso_pca_dow_cv.pkl')
     joblib.dump(clf_lasso_pca_dow, _lasso_pca_dow_cache)
-    lasso_pca_dow_c_1se, lasso_pca_dow_c_best, _ = _select_c_1se_from_logregcv(clf_lasso_pca_dow)
-    print(f"Best C by mean CV (LASSO+PCA+DOW): {lasso_pca_dow_c_best:.6f}")
-    print(f"1SE-selected C (LASSO+PCA+DOW):    {lasso_pca_dow_c_1se:.6f}")
-    clf_lasso_pca_dow_1se = LogisticRegression(
-        C=lasso_pca_dow_c_1se, penalty='l1', solver='saga',
-        random_state=1, max_iter=500, tol=1e-2
-    )
-    clf_lasso_pca_dow_1se.fit(X_train_dow_pca, y_train)
+    print(f"Best C (LASSO+PCA+DOW): {clf_lasso_pca_dow.C_[0]:.6f}")
 
     # --- DOW rows using same _metrics helper ---
     rows_dow = [
         _metrics(f'Baseline (No Reg)+DOW+PCA ({n_components_dow}, {best_n_comp_dow*100:.0f}%)',       baseline_dow_clf,  X_train_dow_pca, y_train, X_test_dow_pca, y_test, tscv, best_c=None),
-        _metrics('Ridge CV+DOW',       pipeline_ridge_dow_1se, X_train_dow, y_train, X_test_dow, y_test, tscv, best_c=ridge_dow_c_1se),
-        _metrics('LASSO CV+DOW',       pipeline_lasso_dow_1se, X_train_dow, y_train, X_test_dow, y_test, tscv, best_c=lasso_dow_c_1se),
-        _metrics(f'Ridge CV+PCA ({n_components_dow})+DOW',   clf_ridge_pca_dow_1se,  X_train_dow_pca, y_train, X_test_dow_pca, y_test, tscv, best_c=ridge_pca_dow_c_1se),
-        _metrics(f'LASSO CV+PCA ({n_components_dow})+DOW',   clf_lasso_pca_dow_1se,  X_train_dow_pca, y_train, X_test_dow_pca, y_test, tscv, best_c=lasso_pca_dow_c_1se),
+        _metrics('Ridge CV+DOW',       pipeline_ridge_dow, X_train_dow, y_train, X_test_dow, y_test, tscv, best_c=pipeline_ridge_dow.named_steps['classifier'].C_[0]),
+        _metrics('LASSO CV+DOW',       pipeline_lasso_dow, X_train_dow, y_train, X_test_dow, y_test, tscv, best_c=pipeline_lasso_dow.named_steps['classifier'].C_[0]),
+        _metrics(f'Ridge CV+PCA ({n_components_dow})+DOW',   clf_ridge_pca_dow,  X_train_dow_pca, y_train, X_test_dow_pca, y_test, tscv, best_c=clf_ridge_pca_dow.C_[0]),
+        _metrics(f'LASSO CV+PCA ({n_components_dow})+DOW',   clf_lasso_pca_dow,  X_train_dow_pca, y_train, X_test_dow_pca, y_test, tscv, best_c=clf_lasso_pca_dow.C_[0]),
     ]
     dow_df = pd.DataFrame(rows_dow).set_index('Model')
     print("\nDay-of-Week Models:")
@@ -724,7 +622,7 @@ if __name__ == "__main__":
     print(full_df.to_string())
 
     # Save CSV
-    combined_csv = os.path.join(output_dir, '8yrs_1SE_base_logistic_comparison.csv')
+    combined_csv = os.path.join(output_dir, 'base_logistic_comparison.csv')
     full_df.to_csv(combined_csv)
     print(f"\nFull comparison table saved to: {os.path.abspath(combined_csv)}")
 
@@ -732,7 +630,7 @@ if __name__ == "__main__":
     os.makedirs(tex_output_dir, exist_ok=True)
 
     # Build LaTeX manually with \midrule separating the three groups
-    tex_path = os.path.join(tex_output_dir, '8yrs_1SE_base_logistic_comparison.tex')
+    tex_path = os.path.join(tex_output_dir, '8yrs_base_logistic_comparison.tex')
     col_fmt  = 'l' + 'r' * len(full_df.columns)
     col_header = ' & '.join(['Model'] + list(full_df.columns)) + r' \\'
     lasso_note = (

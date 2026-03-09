@@ -1,0 +1,24 @@
+\begin{table}[htbp]
+\centering
+\caption{Logistic Regression Model Comparison: Raw OHLCV vs Raw OHLCV + Day-of-Week}
+\label{tab:base_logistic_comparison}
+\begin{tabular}{lrrrrrrrrr}
+\toprule
+Model & Best C & Avg Train Acc & Std Train Acc & Avg CV Test Acc & Std CV Test Acc & Hold-out Test Acc & Precision & Recall & F1 \\
+\midrule
+Baseline (No Reg) + PCA (197, 85%) & N/A & 0.7652 & 0.1053 & 0.4991 & 0.0199 & 0.5572 & 0.5534 & 0.9309 & 0.6942 \\
+Ridge CV (raw) & 1.623777 & 0.9557 & 0.0340 & 0.5046 & 0.0085 & 0.5373 & 0.5392 & 0.9816 & 0.6961 \\
+LASSO CV (raw)$^\dagger$ & 0.000001 & 0.5000 & 0.0000 & 0.5000 & 0.0000 & 0.5398 & 0.5398 & 1.0000 & 0.7011 \\
+Ridge CV (PCA-197) & 0.001833 & 0.6805 & 0.0373 & 0.4912 & 0.0125 & 0.5249 & 0.5392 & 0.8249 & 0.6521 \\
+LASSO CV (PCA-197)$^\dagger$ & 0.000001 & 0.5000 & 0.0000 & 0.5000 & 0.0000 & 0.5398 & 0.5398 & 1.0000 & 0.7011 \\
+\midrule
+Baseline (No Reg)+DOW+PCA (329, 90%) & N/A & 0.8716 & 0.0993 & 0.5119 & 0.0034 & 0.5299 & 0.5361 & 0.9585 & 0.6876 \\
+Ridge CV+DOW & 206.913808 & 0.9564 & 0.0334 & 0.5036 & 0.0083 & 0.5398 & 0.5404 & 0.9862 & 0.6982 \\
+LASSO CV+DOW$^\dagger$ & 263.665090 & 0.9564 & 0.0334 & 0.5036 & 0.0083 & 0.5398 & 0.5404 & 0.9862 & 0.6982 \\
+Ridge CV+PCA (329)+DOW & 0.000100 & 0.5921 & 0.0155 & 0.4829 & 0.0246 & 0.5373 & 0.5403 & 0.9585 & 0.6910 \\
+LASSO CV+PCA (329)+DOW$^\dagger$ & 0.000001 & 0.5000 & 0.0000 & 0.5000 & 0.0000 & 0.5398 & 0.5398 & 1.0000 & 0.7011 \\
+\bottomrule
+\end{tabular}
+\par\smallskip
+\footnotesize $^\dagger$ Degenerate classifier: optimal $C = 10^{-6}$ shrinks all coefficients to zero; model predicts majority class for every observation (Recall = 1.0, Precision $\approx$ base rate).
+\end{table}

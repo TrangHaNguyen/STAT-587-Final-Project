@@ -408,9 +408,10 @@ conditions,
             % Chapter 7, "Model Assessment and Selection", p. 219.
         %\item Walk-forward validation
     \end{itemize}
-    \item Evaluation metrics: Accuracy, F1-score, ROC-AUC
-    \item 1SE rule: Prefer the more \textbf{parsimonious} model when performance is similar
+    \item Evaluation metric: Mainly Test Accuracy, Model Parsimony
+    \item 1SE rule: prefer the more \textbf{parsimonious} model when performance is similar
           % Chapter 7, "Model Assessment and Selection", p. 219.
+    \item Other metrics are used for analysis: F1 score, ROC-AUC
 \end{itemize}
 \end{block}
 
@@ -428,7 +429,7 @@ conditions,
 \subsubsection{Logistic Regression Models}
 \begin{frame}{Results}
 \textbf{Logistic Regression Models}\\
-\input{../output/Used/tex/base_logistic_comparison.tex}
+\input{../output/Used/tex/8yrs_1SE_base_logistic_comparison.tex}
 \FloatBarrier
 \end{frame}
 
@@ -461,18 +462,10 @@ conditions,
 
 
 \subsection{Extended Feature Models}
-% ADDING 8 years data results of all methods (RF, SVM, Logistic regression) with extended features.
 \begin{frame}{Results}
 \input{../output/Used/tex/8yrs_3methods_comparison.tex}
 %The table compares Random Forest, SVM, and Logistic Regression models over an 8-year period, reporting accuracy, standard deviation, precision, recall, and F1 for the positive class ("Up").
 \end{frame}
-
-%%%%%%%%%%%%%%%%%%%%NEW PLOT FOR OVER/UNDERFITTING IS HERE%%%%%%%%%%%%%%%%%%%%%%
-\subsection{Visualization of predictions}
-
-\subsection{Validation results}
-
-\subsection{Overfitting/underfitting analysis}
 
 
 
@@ -493,6 +486,13 @@ conditions,
 \begin{frame}[t,shrink=10]{Results}
 \input{model_comparison_table.tex}
 \end{frame}
+
+%%%%%%%%%%%%%%%%%%%%NEW PLOT FOR OVER/UNDERFITTING IS HERE%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Visualization of predictions}
+
+\subsection{Validation results}
+
+\subsection{Overfitting/underfitting analysis}
 
 
 
@@ -534,7 +534,7 @@ conditions,
 
 \section{Limitations \& next steps}
 \begin{frame}{Limitation}
-  %Prof's comment: too much matter clustered on one page. summarize this
+
   \begin{itemize}
     \item Data: 8 years rather than longer, causing mild response bias
     \item Models: Limited grid-search lists in main models, too simple neural net architectures in experiment one.
@@ -545,7 +545,7 @@ conditions,
 \end{frame}
 
 \begin{frame}{Next steps}
-  %Prof's comment: too much matter clustered on one page. summarize this
+
 \begin{itemize}
   \item Conduct more extensive hyperparameter tuning, widen grid search list
   \item Include longer time series, shorter time window
@@ -556,7 +556,7 @@ conditions,
 
 \section{Final summary}
 \begin{frame}{Summary}
-  %Prof's comment: too much matter clustered on one page. summarize this
+
 \begin{itemize}
   \item Supporting evidence for: market is quite efficient when looking overally at daily trading, but not efficient in shorter time window.
   \item Relying solely on historical daily price and volume data may not be sufficient. 

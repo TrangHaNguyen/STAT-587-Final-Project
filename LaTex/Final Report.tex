@@ -188,7 +188,7 @@ The general selection of hyperparameter is mainly based on the model with highes
 \paragraph{Logistic Regression Models}
 
 
-\input{../output/Used/tex/base_logistic_comparison.tex}%Comment: improve on this presentation.
+\input{../output/Used/tex/8yrs_base_logistic_comparison.tex}%Comment: improve on this presentation.
 \FloatBarrier
 
 Table~\ref{tab:base_logistic_comparison} presents the performance comparison of baseline logistic regression models with different regularization and dimensional reduction techniques. Overall the accuracy is just around 50\%, which is only slightly better than random guessing. This suggests that the raw OHLCV features may not contain strong predictive signals for the market direction, and that the relationship between these features and the target variable is likely complex and non-linear. The regularization techniques (Ridge and LASSO) do not seem to significantly improve performance compared to the unregularized logistic regression. The PCA-based model performs worse than the other models, which could be due to the loss of potential information when reducing dimensionality. Overall, these results suggest that more sophisticated models or additional feature engineering may be necessary to achieve better predictive performance.

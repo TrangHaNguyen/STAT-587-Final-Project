@@ -468,6 +468,15 @@ conditions,
 \end{itemize}
 \end{frame}
 
+\begin{frame}{Logistic - base with optimal PCA}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\linewidth]{../output/8yrs_1SE_base_logistic_bias_variance.png}
+    \caption{Bias Variance trade off in tuning parameter of Base Logistic Regression with Optimal PCA - Also over and under fitting analysis}
+    \label{fig:vb_log_base}
+\end{figure}
+\end{frame}
+
 
 \subsubsection{Random Forest Models}
 \begin{frame}[t,shrink=25]{Results}
@@ -480,10 +489,40 @@ conditions,
 \begin{itemize}
   \item The random forest using raw features outperforms logistic regression
   \item Applying PCA and LASSO before the random forest does not improve performance. 
-  \item Ridge application in filtering out noises improves performance. 
+  \item Ridge application in filtering out noises give the best performance. 
+  \item Models with DOW and Lag is not competitive compared to raw features.
   \item The standard deviation of both train and test cross validation accuracy is higher $\to$ sensitive method. 
 \end{itemize}
 \end{frame}
+
+\begin{frame}{RF - base with optimal Ridge}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\linewidth]{../output/8yrs_1SE_base_rf_ridge_bias_variance.png}
+    \caption{Bias Variance trade off in tuning parameter of Base Logistic Regression with Optimal PCA - Also over and under fitting analysis}
+    \label{fig:vb_rf_base_ridge}
+\end{figure}
+\end{frame}
+
+\begin{frame}{RF with raw features}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\linewidth]{../output/8yrs_base_rf_train_test.png}
+    \caption{RF Tree Classification}
+    \label{fig:vb_rf_base_treedeepth}
+\end{figure}
+\end{frame}
+
+
+\begin{frame}{RF with raw features}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\linewidth]{../output/8yrs_base_rf_best_tree.png}
+    \caption{RF Tree Classification}
+    \label{fig:rf_base_besttree}
+\end{figure}
+\end{frame}
+
 
 
 \subsection{Extended Feature Models}
@@ -492,10 +531,13 @@ conditions,
 %The table compares Random Forest, SVM, and Logistic Regression models over an 8-year period, reporting accuracy, standard deviation, precision, recall, and F1 for the positive class ("Up").
 \end{frame}
 
+
+
+
 \begin{frame}{Results}
 \begin{itemize}
-  \item All models perform only slightly better than random guessing
   \item Random Forest models (especially Base RF) achieve the highest test accuracy but CV bias up
+  \item Other models is just better than random guess
   \item RF variants using dimensionality reduction have lower test accuracy and higher variability.
   \item SVM with polynomial kernel has the highest F1 score and second in accuracy. Also bias "Up".
   \item Logistic Regression (Ridge and LASSO) provides balanced performance, with moderate accuracy and F1, and low standard deviation.
@@ -508,44 +550,25 @@ conditions,
 \end{frame}
 
 %%%%%%%%%%%%%%%%%%%%NEW PLOT FOR OVER/UNDERFITTING IS HERE%%%%%%%%%%%%%%%%%%%%%%
-\subsection{Visualization of predictions}
 
-\subsection{Overfitting/underfitting analysis}
-\begin{frame}{Logistic - base with optimal PCA}
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.32\linewidth]{../output/8yrs_1SE_base_logistic_bias_variance.png}
-    \caption{Bias Variance trade off in tuning parameter of Base Logistic Regression with Optimal PCA - Also over and under fitting analysis}
-    \label{fig:top-sectors}
-\end{figure}
-\end{frame}
 
-\begin{frame}{Logistic - enginereed features}
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.32\linewidth]{../output/8yrs_1SE_base_logistic_bias_variance.png}
-    \caption{Bias Variance trade off in tuning parameter of Feature engineered Logistic Regression with Optimal PCA - Also over and under fitting analysis}
-    \label{fig:top-sectors}
-\end{figure}
-\end{frame}
+% \begin{frame}{Random Forest - enginereed features}
+% \begin{figure}[h]
+%     \centering
+%     \includegraphics[width=\linewidth]{../output/8yrs_1SE_base_logistic_bias_variance.png}
+%     \caption{Bias Variance trade off in tuning parameter of Feature engineered Random Forest - Also over and under fitting analysis}
+%     \label{fig:top-sectors}
+% \end{figure}
+% \end{frame}
 
-\begin{frame}{Random Forest - enginereed features}
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.32\linewidth]{../output/8yrs_1SE_base_logistic_bias_variance.png}
-    \caption{Bias Variance trade off in tuning parameter of Feature engineered Random Forest - Also over and under fitting analysis}
-    \label{fig:top-sectors}
-\end{figure}
-\end{frame}
-
-\begin{frame}{SVM - enginereed features}
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.32\linewidth]{../output/8yrs_1SE_base_logistic_bias_variance.png}
-    \caption{Bias Variance trade off in tuning parameter of Feature engineered Random Forest - Also over and under fitting analysis}
-    \label{fig:top-sectors}
-\end{figure}
-\end{frame}
+% \begin{frame}{SVM - enginereed features}
+% \begin{figure}[h]
+%     \centering
+%     \includegraphics[width=\linewidth]{../output/8yrs_1SE_base_logistic_bias_variance.png}
+%     \caption{Bias Variance trade off in tuning parameter of Feature engineered Random Forest - Also over and under fitting analysis}
+%     \label{fig:top-sectors}
+% \end{figure}
+% \end{frame}
 
 
 \begin{frame}{Results}
@@ -577,9 +600,9 @@ conditions,
 
 \begin{frame}{Results - Summary}
 \begin{itemize}
-  \item Predictive performance on daily data is not much better than random guessing
+  \item Predictive performance of RF is the best
   \item More advanced models suffer from higher variablity (reflected in Validation SE) while not always give better performance
-  \item Supporting evidence for: market is quite efficient when looking overally at daily trading, but not efficient in shorter time window.
+  \item RF models suggest that the EMH is not supported.
 \end{itemize}
 \end{frame}
 

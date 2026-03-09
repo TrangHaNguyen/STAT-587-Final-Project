@@ -3,7 +3,7 @@
 \beamer@slide {fig:sector-vol}{10}
 \beamer@slide {tab:descriptive_stats}{11}
 \beamer@slide {tab:base_logistic_comparison}{18}
-\beamer@slide {fig:top-sectors}{20}
+\beamer@slide {fig:vb_log_base}{20}
 \beamer@slide {tab:base_rf_comparison_1se}{21}
 \beamer@slide {fig:vb_rf_base_ridge}{23}
 \beamer@slide {fig:vb_rf_base_treedeepth}{24}

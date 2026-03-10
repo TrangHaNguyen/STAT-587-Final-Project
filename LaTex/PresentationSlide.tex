@@ -1,4 +1,4 @@
-\documentclass[aspectratio=43,t]{beamer} % 4:3 like your 128mm:96mm; top-align frame content
+\documentclass[aspectratio=169,t]{beamer} % widescreen 16:9; top-align frame content
 % If you want widescreen use: \documentclass[aspectratio=169]{beamer}
 
 % --- Colors ---
@@ -19,7 +19,7 @@
 \usepackage{booktabs,multicol}
 \usepackage{placeins}
 \usepackage{tikz}
-
+\usepackage{todonotes}
 \usetikzlibrary{positioning}
 \usepackage[english]{babel}
 \usepackage{microtype}
@@ -30,8 +30,7 @@
 %\large Historical Signals and Market Direction}
 
 \title[Historical Signals and Market Direction]{Historical Signals and Market Direction}
-\author{Trang Nguyen} %\and Takeshi Stormer
-%\institute{STAT 587: Data Science \\ Group 5 \\ Portland State University}
+\author{Trang Nguyen} 
 \institute{STAT 587: Data Science \\ Portland State University}
 \date{March 9th, 2026}
 
@@ -155,12 +154,13 @@
 \section{Introduction}
 
 \subsection{Motivation}
+
 \begin{frame}{Motivation}
 \begin{itemize}
-    \item Predicting market direction is important for practical trading decisions.
-    \item Prediction performance itself also contains important information of historical signals and market direction.
-    \item The result will shed light on the plaussibility of \textbf{Efficient Market Hypothesis (EMH)} in practice.
-    \item If historical signals are predictive out of sample, this challenges weak-form market efficiency.
+    \item Market direction forecast is important for trading decisions.
+    \item Predictability reveals whether historical signals are informative about market direction.
+    \item It is an empirical test of weak-form of the \textbf{Efficient Market Hypothesis (EMH)} in practice.
+    \item If historical signals are predictive out of sample, this challenges weak-form EMH.
     \item If not, the results are more consistent with the \textbf{EMH}.
 
 \end{itemize}
@@ -169,25 +169,28 @@
 \subsection{Research Question}
 \begin{frame}{Research Question}
 \begin{itemize}
-  \item Goal: Forecasting the \textbf{direction} of the S\&P 500 Index (market direction)
-  \item Research Problem: Is there historical information in price and volume that can be used to forecast market direction.
-  \item Modeling approach: 
-	  \begin{itemize}
-	    \item Perform feature engineering and selection/dimensionality reduction
-	    \item Fit models suitable to data main characteristics
-	    \item Select optimal hyperparameter values through iterative selection. %
-	  \end{itemize}
+  \item Objective: Forecasting whether the S\&P 500 goes up or down the next trading day.
+  \item Main question: Do historical price and volume contain usable predictive information?
+  \item Scope: Prediction from market history only, without macro or news variables.
 \end{itemize}
 \end{frame}
+\begin{frame}{Modeling Strategy}
+\begin{itemize}
+  \item Engineer features from OHLCV data.
+  \item Reduce dimensionality through screening and selection.
+  \item Fit classification models aligned with the data structure and characteristics.
+  \item Tune hyperparameters using iterative cross validation evaluation.
+\end{itemize}
+\end{frame}
+
+
 \subsection{Background}
 \begin{frame}{Background}
 \begin{itemize}
-  \item \textbf{Weak-form EMH}: past prices/volume should not predict future returns; model performance tests weak-form efficiency.
-  \item The \textbf{S\&P 500} index tracks the top 500 US companies by their \textbf{float-adjusted market capitalization (FMC)} and serves as the leading benchmark for the health of the US economy.
-  % \item Index values are computed using \textbf{float-adjusted market capitalization (FMC)}, so larger companies have a proportionally greater impact on the index
-  \item Forecasting the direction of the S\&P 500 Index is \textbf{complex} %the index point value is influenced by individual company performance, economic indicators, geopolitical events, and investor sentiment. Comment so that we talk about it but not too much on the slide
-  \item The data utilized is purely \textbf{historical} prices and trading volume. %when markets close at the end of the day, it already reflects economic and political condition of that day while concurrent indicators are typically unavailable at prediction time
-conditions,
+  \item Weak-form EMH: past prices and volume should not predict future returns.
+  \item S\&P 500: primary large-cap U.S. equity benchmark.
+  \item Forecasting challenge: many firm-level signals plus shifting, sometimes abrupt, political and macroeconomic conditions.
+  \item Study focus: whether past market signals retain predictive value in today’s faster and rapidly updating market.
 \end{itemize}
 \end{frame}
 
@@ -198,31 +201,30 @@ conditions,
 
 \section{Dataset \& preprocessing}
 \subsection{Dataset \& preprocessing}
-\begin{frame}{Data collection and preprocessing}
+\begin{frame}{Dataset}
 \begin{itemize}
-  \item Raw data: retrieved through Yahoo Finance's API (\texttt{yfinance}). 
-  \begin{itemize}
-    \item Contains open price (OP), close price (CP), high price (HP), low price (LP), and trading volume (V). They are called OHLCV features) on stocks listed on the S\&P 500 index
-    \item From \textbf{January 1, 2018} to \textbf{December 31, 2025}
-  \end{itemize}
-  \item Cleaning steps: ticker changes (mergers), invalid/frozen-state entries, market holidays, and delisted/newly-listed stocks. Drop missing-value stocks.
-  \item Dimensionality: \textbf{2009 trading days} $\times$ \textbf{2,520 features}.% Comment: update later
+  \item Source: Yahoo Finance via \texttt{yfinance}.
+  \item Data cover S\&P 500 stocks and the S\&P 500 index.
+  \item Variables: open, high, low, close, and volume. (OHLCV features)
+  \item Sample period: January 1, 2018 to December 31, 2025.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Preprocessing}
+\begin{itemize}
+  \item Address ticker changes, delistings, and newly listed stocks.
+  \item Remove invalid observations and holiday-related missing rows.
+  \item Drop observations with missing OHLCV information after cleaning.
+  \item Final scale: about 2{,}009 trading days and 2{,}520 raw features. \todo{Update this after complete code}
 \end{itemize}
 \end{frame}
 
 \subsection{Feature Engineering}
-\begin{frame}{Feature Engineering and target variable}
+\begin{frame}{Target and Features}
 \begin{itemize}
-  \item Target variable: \textbf{binary} indicator (whether the S\&P 500 index will go up (1) or down (0) the next day, based on the closing value)
-  \item Predictors is extended with:
-  \begin{itemize}
-    \item \textbf{Lag values} --- capture momentum and time-series structure.
-    \item \textbf{Day-to-day \% change} \& \textbf{daily range} --- relative price movement and intraday volatility.
-    \item \textbf{Volatility} \& \textbf{rolling z-score} --- variability and outlier/event detection.
-    \item \textbf{Max/min channel position} --- reflect breakout signals.
-    \item \textbf{Rolling VWAP} \& \textbf{day of week} --- volume-weighted context and seasonlity.
-  \end{itemize}
-  \item \textbf{Non-stationary} features (OP, CP, HP, LP) are \textbf{removed} after engineering.
+  \item Target: binary indicator for next-day S\&P 500 direction.
+  \item Added predictors: lags, daily percent changes, ranges, volatility, rolling z-scores, channel position, rolling VWAP, and day-of-week effects.
+  \item Raw OHLC levels are removed after feature engineering because they are non-stationary. \todo{Might remove later}
 \end{itemize}
 \end{frame}
 

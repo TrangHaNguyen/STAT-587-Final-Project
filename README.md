@@ -13,7 +13,6 @@ For reference, the original upstream repository from the earlier shared project 
 Work flow:
 1. Set up the environment to work
 To recreate the Python environment on another computer, run the setup script from the project root:
-
 ```bash
 bash setup_env.sh
 ```
@@ -30,14 +29,14 @@ source .venv/bin/activate
 ```
 
 Example entry points:
-
-```bash
-python PyScripts/New/loading_daily_data.py
-python PyScripts/Models/Extra/logistic_regression_24hours.py
-```
-
 If you need to compile the report in `LaTex/`, install the LaTeX system packages noted in `requirements.txt`.
+
+
 2. Downloading data. Code and results are infolder Data
 - hourly data: loading_hourly_data.py
-- 2 yrs and 8 yrs data: 
+- 2 yrs and 8 yrs data: loading_daily_data.py. The output is raw_data_8_years.parquet.
+Note: there is slightly differences in the data downloaded for replication on March 10th compared with the original data downloaded by the other contributor in this project.
+They can be found in difference.csv and ticker_largest_difference. Potential explanation: different version of yfinance, different options in downloading(less likely as I tried multiple options)
 
+3. Run codes for different part of the report
+- EDA part: 

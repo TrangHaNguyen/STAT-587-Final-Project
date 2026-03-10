@@ -6,6 +6,8 @@
 \usepackage{apacite}
 \usepackage{booktabs}		 
 \usepackage{a4wide}  
+\usepackage{amsmath}
+\usepackage{amssymb}
 \usepackage{graphicx}
 \usepackage{subcaption}
 \usepackage{tabularx} 
@@ -13,7 +15,8 @@
 \usepackage[T1]{fontenc}
 \usepackage{placeins}
 \usepackage{endnotes}
-
+\usepackage{xcolor}
+\usepackage{todonotes}
 \pagestyle{plain}
 
 \title{STAT 587: Final Project Report\\[0.5em]}
@@ -60,6 +63,7 @@ This work was initially undertaken as part of a group project and was later sepa
 The author acknowledges contributions from the earlier shared project stage in the following areas: initial code for loading daily data and sector grouping, which was later subject to minor adjustment in the present version; portions of the original logistic regression and random forest pipeline code, which were substantially revised; and portions of the exploratory data analysis graphing code, which were moderately revised and incorporated into the present version.
 
 %---------------- Table of Contents ----------------%
+\listoftodos
 \tableofcontents
 \newpage      
 
@@ -136,16 +140,23 @@ Figure \ref{fig:sector-correlation} shows the correlation of mean daily returns 
 
 Figure \ref{fig:top-sectors} show the intra-sector correlation matrices for the Technology, Healthcare, and Consumer Defensive sectors, respectively. The tickers in those plots are sorted by hierarchical clustering, which reveals sub-groups of stocks that tend to move together, such as large-cap tech giants, semiconductor companies, and software firms. This suggests that certain segments within these sectors may be driving their overall correlation with the broader market and that there might be a high degree of redundancy in the data. This motivate the use of dimensionality reduction techniques or regularization further.
 
+
 \begin{figure}[h]
     \centering
     \includegraphics[width=0.45\linewidth]{../output/Used/png/2yrs_sector_volatility_over_time.png}
     \includegraphics[width=0.45\linewidth]{../output/Used/png/2yrs_smoothed_sector_volatility.png}
-    \caption{Sector volatility. Left panel: 21-day-window standard deviation. Right panel: its smoothed version by moving average over 40 days.}
+    \caption{Sector return dispersion. Left panel: sector return dispersion over time. Right panel: smoothed sector return dispersion over time.}
+    \vspace{0.3em}
+    {\footnotesize
+    \textit{Note.} Returns are expressed in decimal form rather than percentage points; for example, 0.01 corresponds to a 1\% return. The left panel reports the 21-day rolling average of the daily cross-sectional standard deviation of stock returns within each sector. The right panel reports a further smoothed version of this series using a 40-day rolling mean.
+    }
     \label{fig:sector-vol}
 \end{figure}
 \FloatBarrier
 
-Figure \ref{fig:sector-vol} shows the rolling 21-day average cross-sectional volatility for each GICS sector and the smoothed version obtained by applying a 40-day rolling mean. This was created utilizing the engineered feature `Close VOL 28'. The volatility series reveal that certain sectors, such as Energy and Financials, tend to exhibit higher volatility compared to others like Utilities and Consumer Staples. This support our earlier construction of volatility features for all stocks (before dimensionality reduction) rather than just a single index. In addition, similar time trend across sectors suggest data redundency.
+
+
+Figure \ref{fig:sector-vol} shows the rolling 21-day average cross-sectional standard deviation of daily stock returns for each GICS sector and the smoothed version obtained by applying a 40-day rolling mean. This was created utilizing the engineered feature `Close VOL 28'. The volatility series reveal that certain sectors, such as \todo{Need to be revised} Energy and Financials, tend to exhibit higher volatility compared to others like Utilities and Consumer Staples. This support our earlier construction of volatility features for all stocks (before dimensionality reduction) rather than just a single index. In addition, similar time trend across sectors suggest data redundency.
 
 
 For a numerical summary, Table \ref{tab:descriptive_stats} reports yearly means and standard deviations of returns for the three key sectors, along with the yearly S\&P 500 up-day proportion.
@@ -200,6 +211,30 @@ The general selection of hyperparameter is mainly based on the model with highes
 Table~\ref{tab:base_logistic_comparison} presents the performance comparison of baseline logistic regression models with different regularization and dimensional reduction techniques. Overall the accuracy is just around 50\%, which is only slightly better than random guessing. This suggests that the raw OHLCV features may not contain strong predictive signals for the market direction, and that the relationship between these features and the target variable is likely complex and non-linear. The regularization techniques (Ridge and LASSO) do not seem to significantly improve performance compared to the unregularized logistic regression. The PCA-based model performs worse than the other models, which could be due to the loss of potential information when reducing dimensionality. Overall, these results suggest that more sophisticated models or additional feature engineering may be necessary to achieve better predictive performance.
 
 \subsubsection{Random Forest Models}%Comment: minimize white spacing, and position this text and tables properly
+
+\begin{table}[h]
+\centering
+\footnotesize
+\resizebox{\textwidth}{!}{
+\begin{tabular}{lcccccc}
+...
+\end{tabular}
+}
+\caption{...}
+\end{table}
+
+
+\begin{table}[h]
+\centering
+\footnotesize
+\begin{tabularx}{\textwidth}{lXXXX}
+\toprule
+...
+\bottomrule
+\end{tabularx}
+\caption{...}
+\end{table}
+
 
 
 \input{../output/Used/tex/base_rf_comparison.tex}

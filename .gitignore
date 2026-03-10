@@ -8,6 +8,8 @@
 !/requirements.txt
 !/LectureNotes/
 !/LectureNotes/**
+!/kaggle/
+!/kaggle/**
 
 /PyScripts/env/
 /PyScripts/*.csv

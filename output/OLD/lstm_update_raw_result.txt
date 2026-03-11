@@ -1,0 +1,29 @@
+======================================================================
+LSTM UPDATE RESULTS - RAW FEATURES (NO ENGINEERING)
+======================================================================
+
+DATA SUMMARY
+----------------------------------------------------------------------
+Feature data shape: (2008, 4293)
+Sequence length: 7
+Reshaped data shape: (2002, 7, 4293)
+Train/Test sizes: 1601/401
+Training epochs: 21
+Training time: 7.9s
+
+TEST SET PERFORMANCE
+----------------------------------------------------------------------
+Accuracy:  0.5237
+Precision: 0.5333
+Recall:    0.9259
+F1-Score:  0.6768
+
+Classification Report:
+              precision    recall  f1-score   support
+
+        Down       0.38      0.05      0.09       185
+          Up       0.53      0.93      0.68       216
+
+    accuracy                           0.52       401
+   macro avg       0.46      0.49      0.39       401
+weighted avg       0.46      0.52      0.41       401

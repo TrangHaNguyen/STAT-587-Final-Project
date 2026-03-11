@@ -12,9 +12,11 @@ For reference, the original upstream repository from the earlier shared project 
 (to be added later)
 Work flow:
 1. Set up the environment to work
+Python requirement: use Python 3.11.x for reproducibility (TensorFlow compatibility).
+
 To recreate the Python environment on another computer, run the setup script from the project root:
 ```bash
-bash setup_env.sh
+PYTHON_BIN=python3.11 bash setup_env.sh
 ```
 
 This script will:
@@ -39,4 +41,5 @@ Note: there is slightly differences in the data downloaded for replication on Ma
 They can be found in difference.csv and ticker_largest_difference. Potential explanation: different version of yfinance, different options in downloading(less likely as I tried multiple options)
 
 3. Run codes for different part of the report
-- EDA part: 
+- EDA part: EDA_simple and EDA_descriptive_stats
+4. Run codes for base model of only OHLCV features (and days of week for cyclical adjustment)

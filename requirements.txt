@@ -1,3 +1,11 @@
+# =============================================================================
+# PYTHON VERSION FOR REPLICATION
+# Recommended interpreter: Python 3.11.x (tested target for this project)
+# Example setup:
+#   PYTHON_BIN=python3.11 bash setup_env.sh
+# TensorFlow support lags newest Python releases; Python 3.13+ is not supported
+# by this requirements set.
+# =============================================================================
 anyio==4.12.1
 argon2-cffi==25.1.0
 argon2-cffi-bindings==25.1.0
@@ -99,7 +107,7 @@ six==1.17.0
 soupsieve==2.8.3
 stack-data==0.6.3
 statsmodels==0.14.6
-tensorflow
+tensorflow==2.17.1; python_version < "3.13"
 terminado==0.18.1
 threadpoolctl==3.6.0
 tinycss2==1.4.0

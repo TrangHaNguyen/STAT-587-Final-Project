@@ -1,0 +1,136 @@
+
+[2026-03-09 10:55:09] CMD: /Library/Frameworks/Python.framework/Versions/3.13/bin/python3 /Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/SVM.py
+[2026-03-09 10:55:09] ENV: MODEL_N_JOBS=-1 GRID_VARIANT=center GRID_VERSION=v1
+------- Downloading Data
+Finished Downloading Data -------
+Initial shape: 2010 rows, 2520 columns.
+------- Cleaning data
+Finished Cleaning Data -------
+Current shape: 2010 rows, 2390 columns.
+Created Percent Changes.
+Created Target (Regression).
+---EXTRA---: Created Day of Week.
+---EXTRA---: Created Daily Range.
+MODEL_N_JOBS=-1 (set env MODEL_N_JOBS to override)
+GRID_VARIANT=center (left/center/right)
+GRID_VERSION=v1
+------- Generating Necessary Features
+Created Lag.
+Created EMA, Rolling Volatility (Scaled) and Rolling Z-Score.
+Created Max/Min Channel Positions/
+Created Rolling Volume Weighted Average Price.
+---EXTRA---: Created Open Metrics Forward Lag.
+Cleaned up Unnecessary Columns.
+Created Target (Classification)
+Cleaned up remaining/resulting NA values.
+---EXTRA---: Grouped Features by Sector Averages.
+Current shape: 1928 rows, 187 columns.
+---EXTRA---: (corr_level=2) Dropped 88 highly correlated feature columns.
+Predictors, and Target (Regression) successfully split.
+Finished Generating Features -------
+Final shape (X): 1928 rows, 99 columns.
+Final shape (y_regression): 1928 rows, 1 columns.
+
+
+------- Linear SVM Model -------
+Fitting 3 folds for each of 3 candidates, totalling 9 fits
+/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/H_eval.py:228: UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
+  plt.show()
+/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/H_eval.py:228: UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
+  plt.show()
+/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/sklearn/metrics/_classification.py:1833: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 due to no predicted samples. Use `zero_division` parameter to control this behavior.
+  _warn_prf(average, modifier, f"{metric.capitalize()} is", result.shape[0])
+/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/sklearn/metrics/_classification.py:1833: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 due to no predicted samples. Use `zero_division` parameter to control this behavior.
+  _warn_prf(average, modifier, f"{metric.capitalize()} is", result.shape[0])
+/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/sklearn/metrics/_classification.py:1833: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 due to no predicted samples. Use `zero_division` parameter to control this behavior.
+  _warn_prf(average, modifier, f"{metric.capitalize()} is", result.shape[0])
+/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/sklearn/metrics/_classification.py:1833: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 due to no predicted samples. Use `zero_division` parameter to control this behavior.
+  _warn_prf(average, modifier, f"{metric.capitalize()} is", result.shape[0])
+/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/sklearn/metrics/_classification.py:1833: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 due to no predicted samples. Use `zero_division` parameter to control this behavior.
+  _warn_prf(average, modifier, f"{metric.capitalize()} is", result.shape[0])
+/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/H_eval.py:228: UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
+  plt.show()
+Rolling Window Backtest over 43 iterations.
+23.26% complete. Current iteration: 10, True iteration: 361
+46.51% complete. Current iteration: 20, True iteration: 761
+69.77% complete. Current iteration: 30, True iteration: 1161
+93.02% complete. Current iteration: 40, True iteration: 1561
+Average Rolling Accuracy (train) (rwb): 0.5140 (±0.0736)
+Average Rolling Accuracy (test)  (rwb): 0.5250 (±0.1021)
+--- Model Report ---
+Avg CV Train Accuracy:          0.6942 (±0.0574)
+Avg CV Validation Accuracy:  0.5097 (±0.0278)
+Avg CV Validation Precision: 0.579
+Avg CV Validation Recall:    0.3238
+Final Hold-out (Test) Score (Accuracy): 0.5207
+Positive Prediction Rate (Test):        0.4948
+True Up Rate (Test):   0.5390
+Up Precision (Test):   0.5600
+Up Edge Rate (Test):   0.0210
+True Down Rate (Test): 0.4610
+Down Precision (Test): 0.4820
+Down Edge Rate (Test): 0.0210
+             Predicted Down  Predicted Up
+Actual Down              94            84
+Actual Up               101           107
+Utility Score 0.521
+Downloaded results to /Users/tranghanguyen/STAT-587-Final-Project/output/results/results.csv
+
+
+------- RBF SVM Model -------
+Fitting 3 folds for each of 15 candidates, totalling 45 fits
+Rolling Window Backtest over 43 iterations.
+23.26% complete. Current iteration: 10, True iteration: 361
+46.51% complete. Current iteration: 20, True iteration: 761
+69.77% complete. Current iteration: 30, True iteration: 1161
+93.02% complete. Current iteration: 40, True iteration: 1561
+Average Rolling Accuracy (train) (rwb): 0.4949 (±0.0872)
+Average Rolling Accuracy (test)  (rwb): 0.4806 (±0.0421)
+--- Model Report ---
+Avg CV Train Accuracy:          0.5084 (±0.0644)
+Avg CV Validation Accuracy:  0.5152 (±0.0515)
+Avg CV Validation Precision: 0.2415
+Avg CV Validation Recall:    0.3203
+Final Hold-out (Test) Score (Accuracy): 0.5233
+Positive Prediction Rate (Test):        0.5026
+True Up Rate (Test):   0.5390
+Up Precision (Test):   0.5620
+Up Edge Rate (Test):   0.0230
+True Down Rate (Test): 0.4610
+Down Precision (Test): 0.4840
+Down Edge Rate (Test): 0.0230
+             Predicted Down  Predicted Up
+Actual Down              93            85
+Actual Up                99           109
+Utility Score 0.523
+Downloaded results to /Users/tranghanguyen/STAT-587-Final-Project/output/results/results.csv
+
+
+------- Polynomial SVM Model -------
+Fitting 3 folds for each of 60 candidates, totalling 180 fits
+Rolling Window Backtest over 43 iterations.
+23.26% complete. Current iteration: 10, True iteration: 361
+46.51% complete. Current iteration: 20, True iteration: 761
+69.77% complete. Current iteration: 30, True iteration: 1161
+93.02% complete. Current iteration: 40, True iteration: 1561
+Average Rolling Accuracy (train) (rwb): 0.5228 (±0.0791)
+Average Rolling Accuracy (test)  (rwb): 0.5111 (±0.0929)
+--- Model Report ---
+Avg CV Train Accuracy:          1.0000 (±0.0000)
+Avg CV Validation Accuracy:  0.5300 (±0.0319)
+Avg CV Validation Precision: 0.5639
+Avg CV Validation Recall:    0.598
+Final Hold-out (Test) Score (Accuracy): 0.4948
+Positive Prediction Rate (Test):        0.7176
+True Up Rate (Test):   0.5390
+Up Precision (Test):   0.5230
+Up Edge Rate (Test):   -0.0160
+True Down Rate (Test): 0.4610
+Down Precision (Test): 0.4220
+Down Edge Rate (Test): -0.0390
+             Predicted Down  Predicted Up
+Actual Down              46           132
+Actual Up                63           145
+Utility Score 0.495
+Downloaded results to /Users/tranghanguyen/STAT-587-Final-Project/output/results/results.csv
+[2026-03-09 10:55:18] EXIT_CODE=0

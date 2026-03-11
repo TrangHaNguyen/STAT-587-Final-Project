@@ -1,0 +1,11 @@
+
+[2026-03-09 08:11:07] CMD: /Library/Frameworks/Python.framework/Versions/3.13/bin/python3 /Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/over_under_fit.py --model svm --x-param param_classifier__degree --model-name SVM_poly --grid-version v1_right --trend-window 8 --out /Users/tranghanguyen/STAT-587-Final-Project/output/Used/png/over_under_fit_svm_poly_degree_v1_right.png
+[2026-03-09 08:11:07] ENV: MODEL_N_JOBS=-1 GRID_VARIANT=None GRID_VERSION=v1
+Traceback (most recent call last):
+  File "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/over_under_fit.py", line 182, in <module>
+    main()
+    ~~~~^^
+  File "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/over_under_fit.py", line 86, in main
+    raise KeyError(f"{args.x_param} not found in history columns.")
+KeyError: 'param_classifier__degree not found in history columns.'
+[2026-03-09 08:11:07] EXIT_CODE=1

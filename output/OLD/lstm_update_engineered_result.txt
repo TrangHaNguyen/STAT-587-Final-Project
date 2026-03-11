@@ -1,0 +1,29 @@
+======================================================================
+LSTM UPDATE RESULTS - ENGINEERED FEATURES (NO LAG VALUES)
+======================================================================
+
+DATA SUMMARY
+----------------------------------------------------------------------
+Feature data shape: (2003, 5702)
+Sequence length: 7
+Reshaped data shape: (1997, 7, 5702)
+Train/Test sizes: 1597/400
+Training epochs: 19
+Training time: 9.1s
+
+TEST SET PERFORMANCE
+----------------------------------------------------------------------
+Accuracy:  0.5500
+Precision: 0.5563
+Recall:    0.8047
+F1-Score:  0.6578
+
+Classification Report:
+              precision    recall  f1-score   support
+
+        Down       0.53      0.25      0.34       185
+          Up       0.56      0.80      0.66       215
+
+    accuracy                           0.55       400
+   macro avg       0.54      0.53      0.50       400
+weighted avg       0.54      0.55      0.51       400

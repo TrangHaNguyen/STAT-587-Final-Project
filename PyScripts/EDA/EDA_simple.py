@@ -26,42 +26,71 @@ else:
     raise FileNotFoundError("Could not find correct workspace folder.")
 
 # Create output/Used/png directory if it doesn't exist
-output_dir = cwd / "output" / "Used" / "png"
+output_dir = cwd / "output" 
 output_dir.mkdir(parents=True, exist_ok=True)
 
 sys.path.append(os.path.abspath(cwd / "PyScripts" / "Models"))
 from H_prep import import_data, clean_data
 
-# ── Command-line parameters (mirrors clean_data signature) ──────────────────
-parser = argparse.ArgumentParser(description="EDA plots with configurable clean_data options.")
-parser.add_argument("--lookback_period",  type=int,   default=5,    help="Lookback window for EMA/VOL/VWAP features (default: 5)")
-parser.add_argument("--lag_period",       type=int,   nargs="+",    default=[1], help="Lag periods, e.g. --lag_period 1 2 (default: [1])")
-parser.add_argument("--no_extra_features",action="store_true",      help="Disable extra features (day of week, daily range, forward lags)")
-parser.add_argument("--raw",              action="store_true",       help="Return raw OHLCV data without engineered features")
-parser.add_argument("--corr_threshold",   type=float, default=0.95, help="Correlation threshold for dropping (default: 0.95)")
-parser.add_argument("--corr_level",       type=int,   default=1,    choices=[0, 1, 2, 3], help="Correlation drop level: 0=none, 1=before features, 2=after, 3=both (default: 1)")
+# ── Command-line parameters (raw-only EDA, prefix retained for saved plots) ─
+parser = argparse.ArgumentParser(description="EDA plots using raw data only.")
+# parser.add_argument("--lookback_period",  type=int,   default=5,    help="Lookback window for EMA/VOL/VWAP features (default: 5)")
+# parser.add_argument("--lag_period",       type=int,   nargs="+",    default=[1], help="Lag periods, e.g. --lag_period 1 2 (default: [1])")
+# parser.add_argument("--no_extra_features",action="store_true",      help="Disable extra features (day of week, daily range, forward lags)")
+# parser.add_argument("--raw",              action="store_true",       help="Return raw OHLCV data without engineered features")
+# parser.add_argument("--corr_threshold",   type=float, default=0.95, help="Correlation threshold for dropping (default: 0.95)")
+# parser.add_argument("--corr_level",       type=int,   default=1,    choices=[0, 1, 2, 3], help="Correlation drop level: 0=none, 1=before features, 2=after, 3=both (default: 1)")
 parser.add_argument("--prefix",           type=str,   default="8yrs_",   help="Prefix for saved plot filenames (default: '8yrs_')")
 args = parser.parse_args()
-args.extra_features = not args.no_extra_features
+# args.extra_features = not args.no_extra_features
 prefix = args.prefix
+
+# Force raw-data-only behavior for this script while keeping the old options
+# commented above for review.
+raw_mode = True
+extra_features = False
+corr_threshold = 0.95
+corr_level = 0
+# lookback_period = args.lookback_period
+# lag_period = args.lag_period
+# extra_features = args.extra_features
+# raw_mode = args.raw
+# corr_threshold = args.corr_threshold
+# corr_level = args.corr_level
 # ────────────────────────────────────────────────────────────────────────────
 
 lookup_df = pd.read_csv(cwd / "PyScripts" / "Data" / "stock_lookup_table.csv")
 
 print("Loading data via clean_data...")
-DATA, y_regression = import_data(testing=False)
+DATA, y_regression = import_data(
+    testing=False,
+    extra_features=extra_features,
+    corr_level=corr_level,
+)
 X, y = clean_data(
     DATA=DATA,
     y_regression=y_regression,
-    lookback_period=args.lookback_period,
-    lag_period=args.lag_period,
-    extra_features=args.extra_features,
-    raw=args.raw,
-    corr_threshold=args.corr_threshold,
-    corr_level=args.corr_level,
+    lookback_period=5,
+    lag_period=[1],
+    extra_features=extra_features,
+    raw=raw_mode,
+    corr_threshold=corr_threshold,
+    corr_level=corr_level,
 )
 
-# Extract daily returns (Close PC = percent change of close price)
+# # Extract daily returns (Close PC = percent change of close price)
+# # In the current pipeline, import_data() already creates Close PC and
+# # clean_data(..., raw=True) keeps it. This fallback keeps the EDA script
+# # robust if that upstream behavior changes later.
+# if 'Close PC' not in X.columns.get_level_values(0):
+#     close_pc = (
+#         X.loc[:, pd.IndexSlice['Close', :, :]]
+#         .copy()
+#         .pct_change()
+#         .rename(columns={'Close': 'Close PC'}, level=0)
+#     )
+#     X = pd.concat([X, close_pc], axis=1).sort_index(axis=1)
+
 returns_df = X.xs(key='Close PC', axis=1, level=0)
 returns_df.columns = returns_df.columns.droplevel(0)
 returns = returns_df.dropna()
@@ -118,7 +147,7 @@ plt.savefig(output_dir / f"{prefix}sector_correlation.png", dpi=300, bbox_inches
 plt.close()
 print(f"✓ Saved: {prefix}sector_correlation.png")
 
-# Plot 2-4: Individual sector correlations sorted by market cap
+# Plot 2-4: Individual sector correlations sorted by market cap (initially my idea, but I changed my mind to group by correlation for better presentation)
 print("\nGenerating individual sector correlation heat maps...")
 
 def plot_sector_with_marketcap(sector_name, stocks_in_sector, returns_df, output_dir):
@@ -188,17 +217,18 @@ def plot_sector_with_marketcap(sector_name, stocks_in_sector, returns_df, output
     for i, stock in enumerate(sorted_stocks[:10], 1):
         print(f"    {i:2d}. {stock:6s} - ${mc_dict.get(stock, 0):10.2f}M")
 
-# Process top 3 sectors by number of stocks
-sectors_list = sorted(set(stock_sectors.values()), 
-                     key=lambda s: sum(1 for t in available_tickers if stock_sectors.get(t) == s), 
-                     reverse=True)
+# # THIS IS THE PART THAT THE OTHER CONTRIBUTOR USED BUT I DONT, WILL DELETE LATER WHEN DOUBLE CHECK AGAIN
+# #Process top 3 sectors by number of stocks
+# sectors_list = sorted(set(stock_sectors.values()), 
+#                      key=lambda s: sum(1 for t in available_tickers if stock_sectors.get(t) == s), 
+#                      reverse=True)
 
-for sector in sectors_list[:3]:
-    sector_stocks = [t for t in available_tickers if stock_sectors.get(t) == sector]
-    print(f"\nProcessing {sector} ({len(sector_stocks)} stocks)...")
-    plot_sector_with_marketcap(sector, sector_stocks, returns, output_dir)
+# for sector in sectors_list[:3]:
+#     sector_stocks = [t for t in available_tickers if stock_sectors.get(t) == sector]
+#     print(f"\nProcessing {sector} ({len(sector_stocks)} stocks)...")
+#     plot_sector_with_marketcap(sector, sector_stocks, returns, output_dir)
 
-# Plot 5: Sector volatility over time
+# Plot 5: Sector volatility over time (the other contributor's idea. I used it in my report)
 print("\nGenerating volatility plot...")
 volatility_window = 21  # 1 month
 sector_volatility = {}
@@ -239,115 +269,115 @@ plt.savefig(output_dir / f"{prefix}smoothed_sector_volatility.png", dpi=300, bbo
 plt.close()
 print(f"✓ Saved: {prefix}smoothed_sector_volatility.png")
 
-# Plot 6: Sector volatility by day of week (seasonal impact)
-print("\nGenerating day-of-week volatility plot...")
-# Add day of week information
-returns.index = pd.to_datetime(returns.index)
-returns['day_of_week'] = returns.index.dayofweek
-returns['day_name'] = returns.index.day_name()
+# Plot 6: Sector volatility by day of week (seasonal impact) DONT USE FINALLY, TOO MUCH INFOR FOR A SHORT REPORT
+# print("\nGenerating day-of-week volatility plot...")
+# # Add day of week information
+# returns.index = pd.to_datetime(returns.index)
+# returns['day_of_week'] = returns.index.dayofweek
+# returns['day_name'] = returns.index.day_name()
 
-day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
-day_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
+# day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+# day_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
 
-# Calculate volatility by day of week for each sector
-plt.figure(figsize=(14, 8))
-for sector_idx, sector in enumerate(sector_dict.keys()):
-    sector_stocks = [t for t in available_tickers if stock_sectors.get(t) == sector]
-    dayofweek_volatility = []
+# # Calculate volatility by day of week for each sector
+# plt.figure(figsize=(14, 8))
+# for sector_idx, sector in enumerate(sector_dict.keys()):
+#     sector_stocks = [t for t in available_tickers if stock_sectors.get(t) == sector]
+#     dayofweek_volatility = []
     
-    for day in range(5):  # 0=Monday, 4=Friday
-        day_returns = returns[returns['day_of_week'] == day][sector_stocks]
-        if len(day_returns) > 0:
-            vol = day_returns.std().mean()
-        else:
-            vol = 0
-        dayofweek_volatility.append(vol)
+#     for day in range(5):  # 0=Monday, 4=Friday
+#         day_returns = returns[returns['day_of_week'] == day][sector_stocks]
+#         if len(day_returns) > 0:
+#             vol = day_returns.std().mean()
+#         else:
+#             vol = 0
+#         dayofweek_volatility.append(vol)
     
-    plt.plot(range(5), dayofweek_volatility, marker='o', label=sector, linewidth=2, markersize=8, alpha=0.8)
+#     plt.plot(range(5), dayofweek_volatility, marker='o', label=sector, linewidth=2, markersize=8, alpha=0.8)
 
-plt.xticks(range(5), day_names)
-plt.title("Sector Volatility by Day of Week (Seasonal Impact)")
-plt.xlabel("Day of Week")
-plt.ylabel("Average Volatility (Std Dev of Returns)")
-plt.legend(loc='best', ncol=2)
-plt.grid(True, alpha=0.3, axis='y')
-plt.tight_layout()
-plt.savefig(output_dir / f"{prefix}sector_volatility_by_day_of_week.png", dpi=300, bbox_inches='tight')
-plt.close()
-print(f"✓ Saved: {prefix}sector_volatility_by_day_of_week.png")
+# plt.xticks(range(5), day_names)
+# plt.title("Sector Volatility by Day of Week (Seasonal Impact)")
+# plt.xlabel("Day of Week")
+# plt.ylabel("Average Volatility (Std Dev of Returns)")
+# plt.legend(loc='best', ncol=2)
+# plt.grid(True, alpha=0.3, axis='y')
+# plt.tight_layout()
+# plt.savefig(output_dir / f"{prefix}sector_volatility_by_day_of_week.png", dpi=300, bbox_inches='tight')
+# plt.close()
+# print(f"✓ Saved: {prefix}sector_volatility_by_day_of_week.png")
 
-# Remove day_of_week columns before final processing
-if 'day_of_week' in returns.columns:
-    returns_clean = returns.drop(columns=['day_of_week', 'day_name'])
-else:
-    returns_clean = returns.copy()
+# # Remove day_of_week columns before final processing
+# if 'day_of_week' in returns.columns:
+#     returns_clean = returns.drop(columns=['day_of_week', 'day_name'])
+# else:
+#     returns_clean = returns.copy()
 
-# Plot 8: Sector volatility by month (seasonal impact)
-print("\nGenerating monthly volatility plot...")
-returns_clean.index = pd.to_datetime(returns_clean.index)
-returns_clean['month'] = returns_clean.index.month
-returns_clean['month_name'] = returns_clean.index.strftime('%B')
+# # Plot 8: Sector volatility by month (seasonal impact) DONT USE FINALLY, TOO MUCH INFO FOR A SHORT REPORT
+# print("\nGenerating monthly volatility plot...")
+# returns_clean.index = pd.to_datetime(returns_clean.index)
+# returns_clean['month'] = returns_clean.index.month
+# returns_clean['month_name'] = returns_clean.index.strftime('%B')
 
-month_names = ['January', 'February', 'March', 'April', 'May', 'June', 
-               'July', 'August', 'September', 'October', 'November', 'December']
+# month_names = ['January', 'February', 'March', 'April', 'May', 'June', 
+#                'July', 'August', 'September', 'October', 'November', 'December']
 
-plt.figure(figsize=(14, 8))
-for sector in sector_dict.keys():
-    sector_stocks = [t for t in available_tickers if stock_sectors.get(t) == sector]
-    monthly_volatility = []
+# plt.figure(figsize=(14, 8))
+# for sector in sector_dict.keys():
+#     sector_stocks = [t for t in available_tickers if stock_sectors.get(t) == sector]
+#     monthly_volatility = []
     
-    for month in range(1, 13):  # 1=January, 12=December
-        month_returns = returns_clean[returns_clean['month'] == month][sector_stocks]
-        if len(month_returns) > 0:
-            vol = month_returns.std().mean()
-        else:
-            vol = 0
-        monthly_volatility.append(vol)
+#     for month in range(1, 13):  # 1=January, 12=December
+#         month_returns = returns_clean[returns_clean['month'] == month][sector_stocks]
+#         if len(month_returns) > 0:
+#             vol = month_returns.std().mean()
+#         else:
+#             vol = 0
+#         monthly_volatility.append(vol)
     
-    plt.plot(range(1, 13), monthly_volatility, marker='o', label=sector, linewidth=2, markersize=8, alpha=0.8)
+#     plt.plot(range(1, 13), monthly_volatility, marker='o', label=sector, linewidth=2, markersize=8, alpha=0.8)
 
-plt.xticks(range(1, 13), [m[:3] for m in month_names])
-plt.title("Sector Volatility by Month (Seasonal/Monthly Impact)")
-plt.xlabel("Month")
-plt.ylabel("Average Volatility (Std Dev of Returns)")
-plt.legend(loc='best', ncol=2)
-plt.grid(True, alpha=0.3, axis='y')
-plt.tight_layout()
-plt.savefig(output_dir / f"{prefix}sector_volatility_by_month.png", dpi=300, bbox_inches='tight')
-plt.close()
-print(f"✓ Saved: {prefix}sector_volatility_by_month.png")
+# plt.xticks(range(1, 13), [m[:3] for m in month_names])
+# plt.title("Sector Volatility by Month (Seasonal/Monthly Impact)")
+# plt.xlabel("Month")
+# plt.ylabel("Average Volatility (Std Dev of Returns)")
+# plt.legend(loc='best', ncol=2)
+# plt.grid(True, alpha=0.3, axis='y')
+# plt.tight_layout()
+# plt.savefig(output_dir / f"{prefix}sector_volatility_by_month.png", dpi=300, bbox_inches='tight')
+# plt.close()
+# print(f"✓ Saved: {prefix}sector_volatility_by_month.png")
 
-# Plot 9: Heatmap showing volatility pattern by sector and month
-print("\nGenerating monthly volatility heatmap...")
-heatmap_monthly = []
-for sector in sector_dict.keys():
-    sector_stocks = [t for t in available_tickers if stock_sectors.get(t) == sector]
-    monthly_volatility = []
+# # Plot 9: Heatmap showing volatility pattern by sector and month TOO MUCH INFOR FOR A SHORT REPORT, DONT USE FINALLY
+# print("\nGenerating monthly volatility heatmap...")
+# heatmap_monthly = []
+# for sector in sector_dict.keys():
+#     sector_stocks = [t for t in available_tickers if stock_sectors.get(t) == sector]
+#     monthly_volatility = []
     
-    for month in range(1, 13):
-        month_returns = returns_clean[returns_clean['month'] == month][sector_stocks]
-        if len(month_returns) > 0:
-            vol = month_returns.std().mean()
-        else:
-            vol = 0
-        monthly_volatility.append(vol)
+#     for month in range(1, 13):
+#         month_returns = returns_clean[returns_clean['month'] == month][sector_stocks]
+#         if len(month_returns) > 0:
+#             vol = month_returns.std().mean()
+#         else:
+#             vol = 0
+#         monthly_volatility.append(vol)
     
-    heatmap_monthly.append(monthly_volatility)
+#     heatmap_monthly.append(monthly_volatility)
 
-heatmap_monthly_df = pd.DataFrame(heatmap_monthly, 
-                                 index=sector_dict.keys(), 
-                                 columns=[m[:3] for m in month_names])
+# heatmap_monthly_df = pd.DataFrame(heatmap_monthly, 
+#                                  index=sector_dict.keys(), 
+#                                  columns=[m[:3] for m in month_names])
 
-plt.figure(figsize=(14, 8))
-sns.heatmap(heatmap_monthly_df, annot=True, fmt='.4f', cmap='YlOrRd', 
-            cbar_kws={'label': 'Volatility'}, linewidths=0.5, linecolor='gray')
-plt.title("Sector Volatility Heatmap by Month\n(Showing Seasonal/Monthly Patterns)")
-plt.xlabel("Month")
-plt.ylabel("Sector")
-plt.tight_layout()
-plt.savefig(output_dir / f"{prefix}sector_volatility_heatmap_monthly.png", dpi=300, bbox_inches='tight')
-plt.close()
-print(f"✓ Saved: {prefix}sector_volatility_heatmap_monthly.png")
+# plt.figure(figsize=(14, 8))
+# sns.heatmap(heatmap_monthly_df, annot=True, fmt='.4f', cmap='YlOrRd', 
+#             cbar_kws={'label': 'Volatility'}, linewidths=0.5, linecolor='gray')
+# plt.title("Sector Volatility Heatmap by Month\n(Showing Seasonal/Monthly Patterns)")
+# plt.xlabel("Month")
+# plt.ylabel("Sector")
+# plt.tight_layout()
+# plt.savefig(output_dir / f"{prefix}sector_volatility_heatmap_monthly.png", dpi=300, bbox_inches='tight')
+# plt.close()
+# print(f"✓ Saved: {prefix}sector_volatility_heatmap_monthly.png")
 
 # Plot 10: Top 3 sectors by correlation with SP500
 print("\nGenerating SP500 sector correlation ranking...")

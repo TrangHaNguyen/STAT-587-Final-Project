@@ -1,0 +1,614 @@
+{
+  "stages": {
+    "model:logreg:v1_center": {
+      "command": [
+        "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/logistic_regression.py"
+      ],
+      "duration_sec": 5.12,
+      "finished_at": "2026-03-09 10:55:23",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/results/model_logreg_v1_center.log",
+      "return_code": 0,
+      "status": "completed"
+    },
+    "model:logreg:v1_left": {
+      "command": [
+        "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/logistic_regression.py"
+      ],
+      "duration_sec": 5.07,
+      "finished_at": "2026-03-09 03:44:15",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/results/model_logreg_v1_left.log",
+      "return_code": 0,
+      "status": "completed"
+    },
+    "model:logreg:v1_right": {
+      "command": [
+        "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/logistic_regression.py"
+      ],
+      "duration_sec": 5.42,
+      "finished_at": "2026-03-09 03:57:58",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/results/model_logreg_v1_right.log",
+      "return_code": 0,
+      "status": "completed"
+    },
+    "model:rf:v1_center": {
+      "command": [
+        "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/random_forest.py"
+      ],
+      "duration_sec": 78.74,
+      "finished_at": "2026-03-09 10:56:42",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/results/model_rf_v1_center.log",
+      "return_code": 0,
+      "status": "completed"
+    },
+    "model:rf:v1_left": {
+      "command": [
+        "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/random_forest.py"
+      ],
+      "duration_sec": 746.36,
+      "finished_at": "2026-03-09 03:56:41",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/results/model_rf_v1_left.log",
+      "return_code": 0,
+      "status": "completed"
+    },
+    "model:rf:v1_right": {
+      "command": [
+        "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/random_forest.py"
+      ],
+      "duration_sec": 7.74,
+      "finished_at": "2026-03-09 08:11:00",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/results/model_rf_v1_right.log",
+      "return_code": 1,
+      "status": "failed"
+    },
+    "model:svm:v1_center": {
+      "command": [
+        "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/SVM.py"
+      ],
+      "duration_sec": 8.19,
+      "finished_at": "2026-03-09 10:55:18",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/results/model_svm_v1_center.log",
+      "return_code": 0,
+      "status": "completed"
+    },
+    "model:svm:v1_left": {
+      "command": [
+        "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/SVM.py"
+      ],
+      "duration_sec": 47.9,
+      "finished_at": "2026-03-09 03:44:10",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/results/model_svm_v1_left.log",
+      "return_code": 0,
+      "status": "completed"
+    },
+    "model:svm:v1_right": {
+      "command": [
+        "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/SVM.py"
+      ],
+      "duration_sec": 71.01,
+      "finished_at": "2026-03-09 03:57:52",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/results/model_svm_v1_right.log",
+      "return_code": 0,
+      "status": "completed"
+    },
+    "plot:logreg_lasso_c:v1_left": {
+      "command": [
+        "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/over_under_fit.py",
+        "--model",
+        "logreg",
+        "--x-param",
+        "param_classifier__C",
+        "--model-name",
+        "LogReg_LASSO_internal",
+        "--grid-version",
+        "v1_left",
+        "--trend-window",
+        "8",
+        "--out",
+        "/Users/tranghanguyen/STAT-587-Final-Project/output/Used/png/over_under_fit_logreg_lasso_c_v1_left.png"
+      ],
+      "duration_sec": 0.59,
+      "finished_at": "2026-03-09 08:11:02",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/results/plot_logreg_lasso_c_v1_left.log",
+      "return_code": 0,
+      "status": "completed"
+    },
+    "plot:logreg_lasso_c:v1_right": {
+      "command": [
+        "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/over_under_fit.py",
+        "--model",
+        "logreg",
+        "--x-param",
+        "param_classifier__C",
+        "--model-name",
+        "LogReg_LASSO_internal",
+        "--grid-version",
+        "v1_right",
+        "--trend-window",
+        "8",
+        "--out",
+        "/Users/tranghanguyen/STAT-587-Final-Project/output/Used/png/over_under_fit_logreg_lasso_c_v1_right.png"
+      ],
+      "duration_sec": 0.57,
+      "finished_at": "2026-03-09 08:11:08",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/results/plot_logreg_lasso_c_v1_right.log",
+      "return_code": 0,
+      "status": "completed"
+    },
+    "plot:logreg_pca_c:v1_left": {
+      "command": [
+        "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/over_under_fit.py",
+        "--model",
+        "logreg",
+        "--x-param",
+        "param_classifier__C",
+        "--model-name",
+        "LogReg_PCA_Ridge",
+        "--grid-version",
+        "v1_left",
+        "--trend-window",
+        "8",
+        "--out",
+        "/Users/tranghanguyen/STAT-587-Final-Project/output/Used/png/over_under_fit_logreg_pca_c_v1_left.png"
+      ],
+      "duration_sec": 0.44,
+      "finished_at": "2026-03-09 08:11:03",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/results/plot_logreg_pca_c_v1_left.log",
+      "return_code": 1,
+      "status": "failed"
+    },
+    "plot:logreg_pca_c:v1_right": {
+      "command": [
+        "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/over_under_fit.py",
+        "--model",
+        "logreg",
+        "--x-param",
+        "param_classifier__C",
+        "--model-name",
+        "LogReg_PCA_Ridge",
+        "--grid-version",
+        "v1_right",
+        "--trend-window",
+        "8",
+        "--out",
+        "/Users/tranghanguyen/STAT-587-Final-Project/output/Used/png/over_under_fit_logreg_pca_c_v1_right.png"
+      ],
+      "duration_sec": 0.44,
+      "finished_at": "2026-03-09 08:11:09",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/results/plot_logreg_pca_c_v1_right.log",
+      "return_code": 1,
+      "status": "failed"
+    },
+    "plot:logreg_pca_ncomp:v1_left": {
+      "command": [
+        "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/over_under_fit.py",
+        "--model",
+        "logreg",
+        "--x-param",
+        "param_pca__n_components",
+        "--model-name",
+        "LogReg_PCA_Ridge",
+        "--grid-version",
+        "v1_left",
+        "--trend-window",
+        "8",
+        "--out",
+        "/Users/tranghanguyen/STAT-587-Final-Project/output/Used/png/over_under_fit_logreg_pca_ncomp_v1_left.png"
+      ],
+      "duration_sec": 0.43,
+      "finished_at": "2026-03-09 08:11:04",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/results/plot_logreg_pca_ncomp_v1_left.log",
+      "return_code": 1,
+      "status": "failed"
+    },
+    "plot:logreg_pca_ncomp:v1_right": {
+      "command": [
+        "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/over_under_fit.py",
+        "--model",
+        "logreg",
+        "--x-param",
+        "param_pca__n_components",
+        "--model-name",
+        "LogReg_PCA_Ridge",
+        "--grid-version",
+        "v1_right",
+        "--trend-window",
+        "8",
+        "--out",
+        "/Users/tranghanguyen/STAT-587-Final-Project/output/Used/png/over_under_fit_logreg_pca_ncomp_v1_right.png"
+      ],
+      "duration_sec": 0.43,
+      "finished_at": "2026-03-09 08:11:09",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/results/plot_logreg_pca_ncomp_v1_right.log",
+      "return_code": 1,
+      "status": "failed"
+    },
+    "plot:logreg_ridge_c:v1_left": {
+      "command": [
+        "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/over_under_fit.py",
+        "--model",
+        "logreg",
+        "--x-param",
+        "param_classifier__C",
+        "--model-name",
+        "LogReg_Ridge_internal",
+        "--grid-version",
+        "v1_left",
+        "--trend-window",
+        "8",
+        "--out",
+        "/Users/tranghanguyen/STAT-587-Final-Project/output/Used/png/over_under_fit_logreg_ridge_c_v1_left.png"
+      ],
+      "duration_sec": 0.58,
+      "finished_at": "2026-03-09 08:11:03",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/results/plot_logreg_ridge_c_v1_left.log",
+      "return_code": 0,
+      "status": "completed"
+    },
+    "plot:logreg_ridge_c:v1_right": {
+      "command": [
+        "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/over_under_fit.py",
+        "--model",
+        "logreg",
+        "--x-param",
+        "param_classifier__C",
+        "--model-name",
+        "LogReg_Ridge_internal",
+        "--grid-version",
+        "v1_right",
+        "--trend-window",
+        "8",
+        "--out",
+        "/Users/tranghanguyen/STAT-587-Final-Project/output/Used/png/over_under_fit_logreg_ridge_c_v1_right.png"
+      ],
+      "duration_sec": 0.58,
+      "finished_at": "2026-03-09 08:11:08",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/results/plot_logreg_ridge_c_v1_right.log",
+      "return_code": 0,
+      "status": "completed"
+    },
+    "plot:rf_base_depth:v1_left": {
+      "command": [
+        "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/over_under_fit.py",
+        "--model",
+        "rf",
+        "--x-param",
+        "param_classifier__max_depth",
+        "--model-name",
+        "RF_base",
+        "--grid-version",
+        "v1_left",
+        "--trend-window",
+        "8",
+        "--out",
+        "/Users/tranghanguyen/STAT-587-Final-Project/output/Used/png/over_under_fit_rf_base_depth_v1_left.png"
+      ],
+      "duration_sec": 0.59,
+      "finished_at": "2026-03-09 08:11:04",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/results/plot_rf_base_depth_v1_left.log",
+      "return_code": 0,
+      "status": "completed"
+    },
+    "plot:rf_base_depth:v1_right": {
+      "command": [
+        "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/over_under_fit.py",
+        "--model",
+        "rf",
+        "--x-param",
+        "param_classifier__max_depth",
+        "--model-name",
+        "RF_base",
+        "--grid-version",
+        "v1_right",
+        "--trend-window",
+        "8",
+        "--out",
+        "/Users/tranghanguyen/STAT-587-Final-Project/output/Used/png/over_under_fit_rf_base_depth_v1_right.png"
+      ],
+      "duration_sec": 0.58,
+      "finished_at": "2026-03-09 08:11:10",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/results/plot_rf_base_depth_v1_right.log",
+      "return_code": 0,
+      "status": "completed"
+    },
+    "plot:rf_base_nest:v1_left": {
+      "command": [
+        "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/over_under_fit.py",
+        "--model",
+        "rf",
+        "--x-param",
+        "param_classifier__n_estimators",
+        "--model-name",
+        "RF_base",
+        "--grid-version",
+        "v1_left",
+        "--trend-window",
+        "8",
+        "--out",
+        "/Users/tranghanguyen/STAT-587-Final-Project/output/Used/png/over_under_fit_rf_base_nest_v1_left.png"
+      ],
+      "duration_sec": 0.65,
+      "finished_at": "2026-03-09 08:11:05",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/results/plot_rf_base_nest_v1_left.log",
+      "return_code": 0,
+      "status": "completed"
+    },
+    "plot:rf_base_nest:v1_right": {
+      "command": [
+        "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/over_under_fit.py",
+        "--model",
+        "rf",
+        "--x-param",
+        "param_classifier__n_estimators",
+        "--model-name",
+        "RF_base",
+        "--grid-version",
+        "v1_right",
+        "--trend-window",
+        "8",
+        "--out",
+        "/Users/tranghanguyen/STAT-587-Final-Project/output/Used/png/over_under_fit_rf_base_nest_v1_right.png"
+      ],
+      "duration_sec": 0.59,
+      "finished_at": "2026-03-09 08:11:11",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/results/plot_rf_base_nest_v1_right.log",
+      "return_code": 0,
+      "status": "completed"
+    },
+    "plot:rf_lasso_c:v1_left": {
+      "command": [
+        "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/over_under_fit.py",
+        "--model",
+        "rf",
+        "--x-param",
+        "param_feature_selector__estimator__C",
+        "--model-name",
+        "RF_lasso",
+        "--grid-version",
+        "v1_left",
+        "--trend-window",
+        "8",
+        "--out",
+        "/Users/tranghanguyen/STAT-587-Final-Project/output/Used/png/over_under_fit_rf_lasso_c_v1_left.png"
+      ],
+      "duration_sec": 0.45,
+      "finished_at": "2026-03-09 08:11:06",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/results/plot_rf_lasso_c_v1_left.log",
+      "return_code": 1,
+      "status": "failed"
+    },
+    "plot:rf_lasso_c:v1_right": {
+      "command": [
+        "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/over_under_fit.py",
+        "--model",
+        "rf",
+        "--x-param",
+        "param_feature_selector__estimator__C",
+        "--model-name",
+        "RF_lasso",
+        "--grid-version",
+        "v1_right",
+        "--trend-window",
+        "8",
+        "--out",
+        "/Users/tranghanguyen/STAT-587-Final-Project/output/Used/png/over_under_fit_rf_lasso_c_v1_right.png"
+      ],
+      "duration_sec": 0.44,
+      "finished_at": "2026-03-09 08:11:11",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/results/plot_rf_lasso_c_v1_right.log",
+      "return_code": 1,
+      "status": "failed"
+    },
+    "plot:rf_ridge_c:v1_left": {
+      "command": [
+        "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/over_under_fit.py",
+        "--model",
+        "rf",
+        "--x-param",
+        "param_feature_selector__estimator__C",
+        "--model-name",
+        "RF_ridge",
+        "--grid-version",
+        "v1_left",
+        "--trend-window",
+        "8",
+        "--out",
+        "/Users/tranghanguyen/STAT-587-Final-Project/output/Used/png/over_under_fit_rf_ridge_c_v1_left.png"
+      ],
+      "duration_sec": 0.45,
+      "finished_at": "2026-03-09 08:11:06",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/results/plot_rf_ridge_c_v1_left.log",
+      "return_code": 1,
+      "status": "failed"
+    },
+    "plot:rf_ridge_c:v1_right": {
+      "command": [
+        "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/over_under_fit.py",
+        "--model",
+        "rf",
+        "--x-param",
+        "param_feature_selector__estimator__C",
+        "--model-name",
+        "RF_ridge",
+        "--grid-version",
+        "v1_right",
+        "--trend-window",
+        "8",
+        "--out",
+        "/Users/tranghanguyen/STAT-587-Final-Project/output/Used/png/over_under_fit_rf_ridge_c_v1_right.png"
+      ],
+      "duration_sec": 0.43,
+      "finished_at": "2026-03-09 08:11:11",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/results/plot_rf_ridge_c_v1_right.log",
+      "return_code": 1,
+      "status": "failed"
+    },
+    "plot:svm_poly_degree:v1_left": {
+      "command": [
+        "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/over_under_fit.py",
+        "--model",
+        "svm",
+        "--x-param",
+        "param_classifier__degree",
+        "--model-name",
+        "SVM_poly",
+        "--grid-version",
+        "v1_left",
+        "--trend-window",
+        "8",
+        "--out",
+        "/Users/tranghanguyen/STAT-587-Final-Project/output/Used/png/over_under_fit_svm_poly_degree_v1_left.png"
+      ],
+      "duration_sec": 0.48,
+      "finished_at": "2026-03-09 08:11:02",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/results/plot_svm_poly_degree_v1_left.log",
+      "return_code": 1,
+      "status": "failed"
+    },
+    "plot:svm_poly_degree:v1_right": {
+      "command": [
+        "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/over_under_fit.py",
+        "--model",
+        "svm",
+        "--x-param",
+        "param_classifier__degree",
+        "--model-name",
+        "SVM_poly",
+        "--grid-version",
+        "v1_right",
+        "--trend-window",
+        "8",
+        "--out",
+        "/Users/tranghanguyen/STAT-587-Final-Project/output/Used/png/over_under_fit_svm_poly_degree_v1_right.png"
+      ],
+      "duration_sec": 0.44,
+      "finished_at": "2026-03-09 08:11:07",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/results/plot_svm_poly_degree_v1_right.log",
+      "return_code": 1,
+      "status": "failed"
+    },
+    "plot:svm_rbf_c:v1_left": {
+      "command": [
+        "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/over_under_fit.py",
+        "--model",
+        "svm",
+        "--x-param",
+        "param_classifier__C",
+        "--model-name",
+        "SVM_rbf",
+        "--grid-version",
+        "v1_left",
+        "--trend-window",
+        "8",
+        "--out",
+        "/Users/tranghanguyen/STAT-587-Final-Project/output/Used/png/over_under_fit_svm_rbf_c_v1_left.png"
+      ],
+      "duration_sec": 0.46,
+      "finished_at": "2026-03-09 08:11:01",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/results/plot_svm_rbf_c_v1_left.log",
+      "return_code": 1,
+      "status": "failed"
+    },
+    "plot:svm_rbf_c:v1_right": {
+      "command": [
+        "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/over_under_fit.py",
+        "--model",
+        "svm",
+        "--x-param",
+        "param_classifier__C",
+        "--model-name",
+        "SVM_rbf",
+        "--grid-version",
+        "v1_right",
+        "--trend-window",
+        "8",
+        "--out",
+        "/Users/tranghanguyen/STAT-587-Final-Project/output/Used/png/over_under_fit_svm_rbf_c_v1_right.png"
+      ],
+      "duration_sec": 0.44,
+      "finished_at": "2026-03-09 08:11:06",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/results/plot_svm_rbf_c_v1_right.log",
+      "return_code": 1,
+      "status": "failed"
+    },
+    "plot:svm_rbf_gamma:v1_left": {
+      "command": [
+        "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/over_under_fit.py",
+        "--model",
+        "svm",
+        "--x-param",
+        "param_classifier__gamma",
+        "--model-name",
+        "SVM_rbf",
+        "--ordered-x",
+        "0.001,0.01,0.1,1,10,auto,scale",
+        "--grid-version",
+        "v1_left",
+        "--trend-window",
+        "8",
+        "--out",
+        "/Users/tranghanguyen/STAT-587-Final-Project/output/Used/png/over_under_fit_svm_rbf_gamma_v1_left.png"
+      ],
+      "duration_sec": 0.46,
+      "finished_at": "2026-03-09 08:11:01",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/results/plot_svm_rbf_gamma_v1_left.log",
+      "return_code": 1,
+      "status": "failed"
+    },
+    "plot:svm_rbf_gamma:v1_right": {
+      "command": [
+        "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/over_under_fit.py",
+        "--model",
+        "svm",
+        "--x-param",
+        "param_classifier__gamma",
+        "--model-name",
+        "SVM_rbf",
+        "--ordered-x",
+        "0.001,0.01,0.1,1,10,auto,scale",
+        "--grid-version",
+        "v1_right",
+        "--trend-window",
+        "8",
+        "--out",
+        "/Users/tranghanguyen/STAT-587-Final-Project/output/Used/png/over_under_fit_svm_rbf_gamma_v1_right.png"
+      ],
+      "duration_sec": 0.46,
+      "finished_at": "2026-03-09 08:11:07",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/results/plot_svm_rbf_gamma_v1_right.log",
+      "return_code": 1,
+      "status": "failed"
+    }
+  },
+  "updated_at": "2026-03-09 10:56:42"
+}

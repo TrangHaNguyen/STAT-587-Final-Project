@@ -1,0 +1,9 @@
+run_time,model_name,run_duration_sec,grid_version,n_jobs,dataset_version,code_commit,notes
+2026-03-09 03:43:23,SVM,46.54,v1_left,4,"testing=False,extra_features=True,cluster=False,corr_threshold=0.95,corr_level=0",c953f49,
+2026-03-09 03:44:11,LogisticRegression,3.62,v1_left,4,"testing=False,extra_features=True,cluster=False,corr_threshold=0.95,corr_level=0",c953f49,
+2026-03-09 03:44:16,RandomForest,744.89,v1_left,4,"testing=False,extra_features=True,cluster=False,corr_threshold=0.95,corr_level=0",c953f49,
+2026-03-09 03:56:43,SVM,69.56,v1_right,4,"testing=False,extra_features=True,cluster=False,corr_threshold=0.95,corr_level=0",c953f49,
+2026-03-09 03:57:54,LogisticRegression,3.93,v1_right,4,"testing=False,extra_features=True,cluster=False,corr_threshold=0.95,corr_level=0",c953f49,
+2026-03-09 10:55:11,SVM,6.77,v1_center,-1,"testing=False,extra_features=True,cluster=False,corr_threshold=0.95,corr_level=0",84a0447,
+2026-03-09 10:55:19,LogisticRegression,3.55,v1_center,-1,"testing=False,extra_features=True,cluster=False,corr_threshold=0.95,corr_level=0",84a0447,
+2026-03-09 10:55:24,RandomForest,77.23,v1_center,-1,"testing=False,extra_features=True,cluster=False,corr_threshold=0.95,corr_level=0",84a0447,

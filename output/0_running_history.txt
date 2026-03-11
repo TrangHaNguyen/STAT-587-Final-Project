@@ -1,0 +1,13 @@
+Run History Log
+===============
+Use this file to track code runs over time.
+
+Suggested format per entry:
+- Date/Time:
+- Duration of code running time
+- Script Name:
+- Input data/version:
+- Output files:
+- Notes (errors/warnings/performance):
+
+

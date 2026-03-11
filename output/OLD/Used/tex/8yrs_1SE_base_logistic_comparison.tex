@@ -1,0 +1,24 @@
+\begin{table}[htbp]
+\centering
+\caption{Logistic Regression Model Comparison: Raw OHLCV vs Raw OHLCV + Day-of-Week}
+\label{tab:base_logistic_comparison}
+\begin{tabular}{lrrrrr}
+\toprule
+Model & Test Acc & Precision & Recall & F1 & ROC-AUC \\
+\midrule
+No Reg + PCA (197, 85\%) & 0.5572 & 0.5534 & 0.9309 & 0.6942 & 0.5090 \\
+Ridge CV (raw) & 0.5373 & 0.5392 & 0.9816 & 0.6961 & 0.4674 \\
+LASSO CV (raw)$^\dagger$ & 0.5398 & 0.5398 & 1.0000 & 0.7011 & 0.5000 \\
+Ridge CV (PCA-197) & 0.5249 & 0.5392 & 0.8249 & 0.6521 & 0.5155 \\
+LASSO CV (PCA-197)$^\dagger$ & 0.5398 & 0.5398 & 1.0000 & 0.7011 & 0.5000 \\
+\midrule
+No Reg+DOW+PCA (329, 90\%) & 0.5299 & 0.5361 & 0.9585 & 0.6876 & 0.4712 \\
+Ridge CV+DOW & 0.5398 & 0.5404 & 0.9862 & 0.6982 & 0.4675 \\
+LASSO CV+DOW$^\dagger$ & 0.5398 & 0.5404 & 0.9862 & 0.6982 & 0.4675 \\
+Ridge CV+PCA (329)+DOW & 0.5373 & 0.5403 & 0.9585 & 0.6910 & 0.4740 \\
+LASSO CV+PCA (329)+DOW$^\dagger$ & 0.5398 & 0.5398 & 1.0000 & 0.7011 & 0.5000 \\
+\bottomrule
+\end{tabular}
+\par\smallskip
+\footnotesize $^\dagger$ Degenerate classifier: optimal $C = 10^{-6}$ shrinks all coefficients to zero; model predicts majority class for every observation (Recall = 1.0, Precision $\approx$ base rate).
+\end{table}

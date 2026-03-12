@@ -42,6 +42,13 @@ def append_search_history(
     out.insert(1, "model_name", model_name)
     out.insert(2, "search_type", search_type)
     out.insert(3, "grid_version", grid_version)
+    out.insert(4, "selection_metric", "cv_balanced_accuracy")
+    if "mean_train_score" in out.columns:
+        out["mean_cv_train_balanced_accuracy"] = out["mean_train_score"]
+    if "mean_test_score" in out.columns:
+        out["mean_cv_validation_balanced_accuracy"] = out["mean_test_score"]
+    if "std_test_score" in out.columns:
+        out["std_cv_validation_balanced_accuracy"] = out["std_test_score"]
     out["best_params"] = _safe_value(best_params if best_params is not None else {})
     out["notes"] = notes
 

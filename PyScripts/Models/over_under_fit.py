@@ -40,21 +40,31 @@ def sort_by_complexity(df: pd.DataFrame, x_col: str, ordered: list[str] | None =
         out["_x_tick"] = out[x_col]
     return out
 
-def select_1se_row(df: pd.DataFrame) -> pd.Series | None:
+def metric_prefers_lower(metric_label: str) -> bool:
+    label = metric_label.lower()
+    return any(token in label for token in ("error", "loss", "misclassification"))
+
+def select_1se_row(df: pd.DataFrame, lower_is_better: bool =False) -> pd.Series | None:
     if "std_test_score" not in df.columns:
         return None
     tmp = df.dropna(subset=["mean_test_score", "std_test_score", "_x_numeric"]).copy()
     if tmp.empty:
         return None
-    best_idx = tmp["mean_test_score"].idxmax()
+    best_idx = tmp["mean_test_score"].idxmin() if lower_is_better else tmp["mean_test_score"].idxmax()
     best_mean = float(tmp.loc[best_idx, "mean_test_score"])
     best_std = float(tmp.loc[best_idx, "std_test_score"])
-    threshold = best_mean - best_std
-    candidates = tmp[tmp["mean_test_score"] >= threshold].copy()
+    threshold = best_mean + best_std if lower_is_better else best_mean - best_std
+    if lower_is_better:
+        candidates = tmp[tmp["mean_test_score"] <= threshold].copy()
+    else:
+        candidates = tmp[tmp["mean_test_score"] >= threshold].copy()
     if candidates.empty:
         return None
     # Simpler model = lower complexity score on x-axis.
-    candidates = candidates.sort_values(["_x_numeric", "mean_test_score"], ascending=[True, False])
+    candidates = candidates.sort_values(
+        ["_x_numeric", "mean_test_score"],
+        ascending=[True, lower_is_better]
+    )
     chosen = candidates.iloc[0].copy()
     chosen["one_se_threshold"] = threshold
     return chosen
@@ -97,6 +107,7 @@ def main() -> None:
     df = sort_by_complexity(df, args.x_param, ordered=ordered)
     if df.empty:
         raise ValueError("No rows left after filters.")
+    lower_is_better = metric_prefers_lower(args.score_label)
 
     x = df["_x_numeric"].to_numpy()
     y_test = df["mean_test_score"].to_numpy()
@@ -121,7 +132,17 @@ def main() -> None:
             trend_train = pd.Series(y_train).rolling(win, min_periods=2).mean()
             plt.plot(x, trend_train, linewidth=2, label=f"Train Trend (w={win})")
 
-    one_se_row = select_1se_row(df)
+    one_se_row = select_1se_row(df, lower_is_better=lower_is_better)
+    best_idx = int(np.argmin(y_test)) if lower_is_better else int(np.argmax(y_test))
+    plt.scatter(
+        [x[best_idx]],
+        [y_test[best_idx]],
+        color="gold",
+        edgecolor="black",
+        s=42,
+        zorder=6,
+        label=f"Best {args.score_label} point"
+    )
     if one_se_row is not None:
         x_1se = float(one_se_row["_x_numeric"])
         y_1se = float(one_se_row["mean_test_score"])

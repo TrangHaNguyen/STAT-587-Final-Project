@@ -14,7 +14,14 @@ from sklearn.feature_selection import SelectFromModel
 from sklearn.model_selection import (train_test_split, TimeSeriesSplit,
                                      GridSearchCV, cross_validate)
 from sklearn.pipeline import Pipeline
-from sklearn.metrics import precision_score, recall_score, f1_score, roc_auc_score
+from sklearn.metrics import (
+    accuracy_score,
+    balanced_accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
+    roc_auc_score,
+)
 
 from H_prep import clean_data, import_data
 from H_eval import RollingWindowBacktest, get_final_metrics
@@ -23,6 +30,9 @@ from model_grids import BASE_RF_PCA_GRID
 CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'cache')
 os.makedirs(CACHE_DIR, exist_ok=True)
 MODEL_N_JOBS = int(os.getenv("MODEL_N_JOBS", "-1"))
+# Keep the outer GridSearchCV/cross-validation parallel, but make each
+# RandomForest fit single-threaded to avoid nested parallel oversubscription.
+RF_FIT_N_JOBS = 1
 # GridSearchCV objects with callable refit (1SE rule) are not pickle-safe.
 USE_GRID_CACHE = False
 
@@ -114,10 +124,73 @@ def write_latex_table(df: pd.DataFrame, path: str, caption: str, label: str, not
 def build_export_table(df: pd.DataFrame) -> pd.DataFrame:
     """Keep only compact metrics for reporting/export."""
     out = df.copy()
-    rename_map = {"Hold-out Test Acc": "Test Acc"}
-    out = out.rename(columns=rename_map)
-    keep_cols = ["Test Acc", "Precision", "Recall", "F1", "ROC-AUC"]
+    keep_cols = ["Hold-out Test Plain Acc", "Precision", "Recall", "F1", "ROC-AUC"]
     return out[keep_cols]
+
+RECALL_NOTE = "Recall = Sensitivity for the positive (Up) class."
+
+def _highlight_best_balanced_selection_on_plain_curve(
+    ax,
+    x_vals,
+    plain_curve,
+    best_idx,
+    label_prefix="CV test plain error at best CV balanced error parameter"
+):
+    ax.scatter(
+        [x_vals[best_idx]],
+        [plain_curve[best_idx]],
+        color='gold',
+        edgecolor='black',
+        s=90,
+        zorder=6,
+        label=f'{label_prefix} point'
+    )
+
+
+def _compute_cv_metric_curves(model_factory, X_train, y_train, cv):
+    """Return plain/balanced train and CV error curves with fold SDs."""
+    train_plain_errors, cv_plain_errors = [], []
+    train_bal_errors, cv_bal_errors = [], []
+
+    for train_idx, test_idx in cv.split(X_train):
+        X_fold_train = X_train.iloc[train_idx]
+        y_fold_train = y_train.iloc[train_idx]
+        X_fold_test = X_train.iloc[test_idx]
+        y_fold_test = y_train.iloc[test_idx]
+
+        fold_train_plain = []
+        fold_cv_plain = []
+        fold_train_bal = []
+        fold_cv_bal = []
+
+        for model in model_factory():
+            model.fit(X_fold_train, y_fold_train)
+            y_pred_train = model.predict(X_fold_train)
+            y_pred_test = model.predict(X_fold_test)
+            fold_train_plain.append(1 - accuracy_score(y_fold_train, y_pred_train))
+            fold_cv_plain.append(1 - accuracy_score(y_fold_test, y_pred_test))
+            fold_train_bal.append(1 - balanced_accuracy_score(y_fold_train, y_pred_train))
+            fold_cv_bal.append(1 - balanced_accuracy_score(y_fold_test, y_pred_test))
+
+        train_plain_errors.append(fold_train_plain)
+        cv_plain_errors.append(fold_cv_plain)
+        train_bal_errors.append(fold_train_bal)
+        cv_bal_errors.append(fold_cv_bal)
+
+    train_plain_errors = np.asarray(train_plain_errors, dtype=float)
+    cv_plain_errors = np.asarray(cv_plain_errors, dtype=float)
+    train_bal_errors = np.asarray(train_bal_errors, dtype=float)
+    cv_bal_errors = np.asarray(cv_bal_errors, dtype=float)
+
+    return {
+        'train_plain_err_mean': train_plain_errors.mean(axis=0),
+        'cv_plain_err_mean': cv_plain_errors.mean(axis=0),
+        'train_bal_err_mean': train_bal_errors.mean(axis=0),
+        'train_bal_err_std': train_bal_errors.std(axis=0),
+        'cv_bal_err_mean': cv_bal_errors.mean(axis=0),
+        'cv_bal_err_std': cv_bal_errors.std(axis=0),
+        'cv_bal_err_se': cv_bal_errors.std(axis=0) / np.sqrt(cv.get_n_splits()),
+    }
 
 if __name__ == "__main__":
     # ------- Load raw data (no extra clean_data feature engineering) -------
@@ -147,7 +220,7 @@ if __name__ == "__main__":
     }
     pipeline_rf = Pipeline([
         ('scaler',     StandardScaler()),
-        ('classifier', RandomForestClassifier(random_state=1, n_jobs=MODEL_N_JOBS))
+        ('classifier', RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))
     ])
     if USE_GRID_CACHE and os.path.exists(_rf_cache):
         print("Loading RF GridSearch from cache...")
@@ -182,7 +255,7 @@ if __name__ == "__main__":
     pipeline_rf_pca = Pipeline([
         ('scaler',     StandardScaler()),
         ('reducer',    PCA()),
-        ('classifier', RandomForestClassifier(random_state=1, n_jobs=MODEL_N_JOBS))
+        ('classifier', RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))
     ])
     if USE_GRID_CACHE and os.path.exists(_rf_pca_cache):
         print("Loading PCA RF GridSearch from cache...")
@@ -214,9 +287,14 @@ if __name__ == "__main__":
     pipeline_rf_lasso = Pipeline([
         ('scaler',           StandardScaler()),
         ('feature_selector', SelectFromModel(
+            # Use sklearn's current single-stage regularization API:
+            # l1_ratio=1 for lasso feature selection. This avoids the
+            # deprecated penalty=... path and the inconsistent-parameter warning
+            # that occurs when penalty='l1' is combined with default l1_ratio=0.
             LogisticRegression(l1_ratio=1, solver='saga', random_state=1,
+                               class_weight='balanced',
                                max_iter=500, tol=5e-2), threshold='mean')),
-        ('classifier',       RandomForestClassifier(random_state=1, n_jobs=MODEL_N_JOBS))
+        ('classifier',       RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))
     ])
     if USE_GRID_CACHE and os.path.exists(_rf_lasso_cache):
         print("Loading LASSO RF GridSearch from cache...")
@@ -248,9 +326,12 @@ if __name__ == "__main__":
     pipeline_rf_ridge = Pipeline([
         ('scaler',           StandardScaler()),
         ('feature_selector', SelectFromModel(
+            # Same adjustment for ridge-style feature selection: l1_ratio=0
+            # replaces penalty='l2' under sklearn's new API.
             LogisticRegression(l1_ratio=0, solver='saga', random_state=1,
+                               class_weight='balanced',
                                max_iter=500, tol=5e-2), threshold='mean')),
-        ('classifier',       RandomForestClassifier(random_state=1, n_jobs=MODEL_N_JOBS))
+        ('classifier',       RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))
     ])
     if USE_GRID_CACHE and os.path.exists(_rf_ridge_cache):
         print("Loading Ridge RF GridSearch from cache...")
@@ -282,80 +363,62 @@ if __name__ == "__main__":
     ridge_best_depth = grid_search_ridge.best_params_['classifier__max_depth']
     ridge_best_nest = grid_search_ridge.best_params_['classifier__n_estimators']
 
-    ridge_train_err_mean, ridge_train_err_std = [], []
-    ridge_test_err_mean, ridge_test_err_std = [], []
+    def _ridge_curve_models():
+        models = []
+        for c_val in ridge_c_grid:
+            models.append(Pipeline([
+                ('scaler', StandardScaler()),
+                ('feature_selector', SelectFromModel(
+                    # Keep the diagnostic curve model on the same single-stage
+                    # ridge parameterization used in the main RF feature selector.
+                    LogisticRegression(
+                        C=c_val, l1_ratio=0, solver='saga', random_state=1,
+                        class_weight='balanced',
+                        max_iter=500, tol=5e-2
+                    ),
+                    threshold='mean'
+                )),
+                ('classifier', RandomForestClassifier(
+                    random_state=1,
+                    n_jobs=RF_FIT_N_JOBS,
+                    class_weight='balanced',
+                    max_depth=ridge_best_depth,
+                    n_estimators=ridge_best_nest
+                ))
+            ]))
+        return models
 
-    for c_val in ridge_c_grid:
-        ridge_curve_model = Pipeline([
-            ('scaler', StandardScaler()),
-            ('feature_selector', SelectFromModel(
-                LogisticRegression(
-                    C=c_val, l1_ratio=0, solver='saga', random_state=1,
-                    max_iter=500, tol=5e-2
-                ),
-                threshold='mean'
-            )),
-            ('classifier', RandomForestClassifier(
-                random_state=1,
-                n_jobs=MODEL_N_JOBS,
-                max_depth=ridge_best_depth,
-                n_estimators=ridge_best_nest
-            ))
-        ])
-        cv_res = cross_validate(
-            ridge_curve_model, X_train, y_train, cv=tscv,
-            return_train_score=True, n_jobs=MODEL_N_JOBS, scoring='balanced_accuracy'
-        )
-        ridge_train_err_mean.append(1 - cv_res['train_score'].mean())
-        ridge_train_err_std.append(cv_res['train_score'].std())
-        ridge_test_err_mean.append(1 - cv_res['test_score'].mean())
-        ridge_test_err_std.append(cv_res['test_score'].std())
-
+    ridge_curves = _compute_cv_metric_curves(_ridge_curve_models, X_train, y_train, tscv)
     ridge_c_grid = np.array(ridge_c_grid, dtype=float)
-    ridge_train_err_mean = np.array(ridge_train_err_mean, dtype=float)
-    ridge_train_err_std = np.array(ridge_train_err_std, dtype=float)
-    ridge_test_err_mean = np.array(ridge_test_err_mean, dtype=float)
-    ridge_test_err_std = np.array(ridge_test_err_std, dtype=float)
-    ridge_test_err_se = ridge_test_err_std / np.sqrt(tscv.get_n_splits())
+    best_ridge_idx = int(np.argmin(ridge_curves['cv_bal_err_mean']))
+    best_ridge_bal_c = float(ridge_c_grid[best_ridge_idx])
 
     fig_ridge, ax_ridge = plt.subplots(figsize=(10, 5))
     fig_ridge.suptitle(
         'Bias-Variance Tradeoff — Ridge-selected RF (Raw OHLCV)\n'
-        f'(Train/CV Test Prediction Error vs Ridge C, depth={ridge_best_depth}, n_estimators={ridge_best_nest})',
+        f'(Train/CV Plain Error vs Ridge C, depth={ridge_best_depth}, n_estimators={ridge_best_nest})',
         fontsize=13, fontweight='bold'
     )
     ax_ridge.semilogx(
-        ridge_c_grid, ridge_train_err_mean, marker='o', color='steelblue',
-        linewidth=2, label='Train error'
-    )
-    ax_ridge.fill_between(
-        ridge_c_grid,
-        ridge_train_err_mean - ridge_train_err_std,
-        ridge_train_err_mean + ridge_train_err_std,
-        alpha=0.15, color='steelblue'
+        ridge_c_grid, ridge_curves['train_plain_err_mean'], marker='o', color='lightsteelblue',
+        linewidth=1.8, label='CV Train plain error'
     )
     ax_ridge.semilogx(
-        ridge_c_grid, ridge_test_err_mean, marker='s', color='darkorange',
-        linewidth=2, label='CV Test error'
+        ridge_c_grid, ridge_curves['cv_plain_err_mean'], marker='s', color='navajowhite',
+        linewidth=1.8, label='CV Test plain error'
     )
-    # 1SE band for CV test error around the mean test-error curve.
-    ax_ridge.fill_between(
-        ridge_c_grid,
-        ridge_test_err_mean - ridge_test_err_se,
-        ridge_test_err_mean + ridge_test_err_se,
-        alpha=0.18, color='darkorange', label='CV Test error ±1SE'
+    _highlight_best_balanced_selection_on_plain_curve(
+        ax_ridge, ridge_c_grid, ridge_curves['cv_plain_err_mean'], best_ridge_idx,
+        label_prefix=f'CV test plain error at best CV balanced error C = {best_ridge_bal_c:.4f}'
     )
-    ax_ridge.axvline(
-        float(ridge_best_c), color='red', linestyle='--', linewidth=1.8,
-        label=f'1SE-selected C = {ridge_best_c}'
-    )
-    ax_ridge.set_title('Ridge-sel RF — Bias-Variance vs Ridge C')
+    ax_ridge.set_title('Ridge-sel RF — Bias-Variance vs Ridge C (Plain Error)')
     ax_ridge.set_xlabel(
         'Ridge C (feature-selection strength)\n'
         '← Lower C, stronger regularization, simpler model      '
         'Higher C, weaker regularization, more complex model →'
     )
-    ax_ridge.set_ylabel('Prediction Error')
+    ax_ridge.set_ylabel('Error')
+    ax_ridge.set_ylim(0, 1.02)
     ax_ridge.legend(fontsize=9)
     ax_ridge.grid(True, alpha=0.3)
 
@@ -374,49 +437,40 @@ if __name__ == "__main__":
     print("\n========== Generating Bias-Variance Tradeoff Plot (CV) ==========")
 
     depth_grid = list(range(1, 21))          # 20 values: 1, 2, ..., 20
-    tr_means, tr_stds = [], []
-    cv_means, cv_stds = [], []
+    def _depth_curve_models():
+        models = []
+        for depth in depth_grid:
+            models.append(Pipeline([
+                ('scaler', StandardScaler()),
+                ('classifier', RandomForestClassifier(
+                    max_depth=depth, n_estimators=best_n_est,
+                    random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))
+            ]))
+        return models
 
-    for depth in depth_grid:
-        clf = Pipeline([
-            ('scaler',     StandardScaler()),
-            ('classifier', RandomForestClassifier(
-                max_depth=depth, n_estimators=best_n_est,
-                random_state=1, n_jobs=MODEL_N_JOBS))
-        ])
-        cv_res = cross_validate(clf, X_train, y_train, cv=tscv,
-                                return_train_score=True, n_jobs=MODEL_N_JOBS, scoring='balanced_accuracy')
-        tr_means.append(1 - cv_res['train_score'].mean())
-        tr_stds.append(cv_res['train_score'].std())
-        cv_means.append(1 - cv_res['test_score'].mean())
-        cv_stds.append(cv_res['test_score'].std())
-
-    tr_means = np.array(tr_means)
-    tr_stds  = np.array(tr_stds)
-    cv_means = np.array(cv_means)
-    cv_stds  = np.array(cv_stds)
+    depth_curves = _compute_cv_metric_curves(_depth_curve_models, X_train, y_train, tscv)
 
     fig1, ax1 = plt.subplots(figsize=(10, 5))
     fig1.suptitle(
         'Bias-Variance Tradeoff — Random Forest, Raw OHLCV Features\n'
-        f'(Train vs CV Test Error, n_estimators={best_n_est})',
+        f'(Train vs CV Plain Error, n_estimators={best_n_est})',
         fontsize=13, fontweight='bold'
     )
-    ax1.plot(depth_grid, tr_means, marker='o', color='steelblue',
-             linewidth=2, label='Train error')
-    ax1.fill_between(depth_grid, tr_means - tr_stds, tr_means + tr_stds,
-                     alpha=0.15, color='steelblue')
-    ax1.plot(depth_grid, cv_means, marker='s', color='darkorange',
-             linewidth=2, label='CV Test error')
-    ax1.fill_between(depth_grid, cv_means - cv_stds, cv_means + cv_stds,
-                     alpha=0.15, color='darkorange')
-    ax1.axvline(best_depth, color='red', linestyle='--',
-                label=f'Best max_depth = {best_depth}')
-    ax1.set_title('Random Forest — Bias-Variance Tradeoff')
+    ax1.plot(depth_grid, depth_curves['train_plain_err_mean'], marker='o', color='lightsteelblue',
+             linewidth=1.8, label='CV Train plain error')
+    ax1.plot(depth_grid, depth_curves['cv_plain_err_mean'], marker='s', color='navajowhite',
+             linewidth=1.8, label='CV Test plain error')
+    best_depth_idx = int(np.argmin(depth_curves['cv_bal_err_mean']))
+    _highlight_best_balanced_selection_on_plain_curve(
+        ax1, depth_grid, depth_curves['cv_plain_err_mean'], best_depth_idx,
+        label_prefix=f'CV test plain error at best CV balanced error max_depth = {depth_grid[best_depth_idx]}'
+    )
+    ax1.set_title('Random Forest — Bias-Variance Tradeoff (Plain Error)')
     ax1.set_xlabel('max_depth\n'
                    '← Low Depth, High Regularization, Simpler Model      '
                    'High Depth, Low Regularization, More Complex →')
-    ax1.set_ylabel('Prediction Error')
+    ax1.set_ylabel('Error')
+    ax1.set_ylim(0, 1.02)
     ax1.set_xticks(depth_grid)
     ax1.legend(fontsize=9)
     ax1.grid(True, alpha=0.3)
@@ -445,14 +499,14 @@ if __name__ == "__main__":
     for depth in depth_grid:
         clf = RandomForestClassifier(
             max_depth=depth, n_estimators=best_n_est,
-            random_state=1, n_jobs=MODEL_N_JOBS)
+            random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced')
         clf.fit(X_tr_sc, y_train)
         train_errors.append(1 - clf.score(X_tr_sc, y_train))
         test_errors.append(1 - clf.score(X_te_sc, y_test))
 
     fig2, ax2 = plt.subplots(figsize=(10, 5))
     fig2.suptitle(
-        'Train vs Test Error — Random Forest, Raw OHLCV Features\n'
+        'Train vs Test Plain Error — Random Forest, Raw OHLCV Features\n'
         f'(Direct Train/Test Split, No CV, n_estimators={best_n_est})',
         fontsize=13, fontweight='bold'
     )
@@ -460,13 +514,16 @@ if __name__ == "__main__":
              linewidth=2, label='Train error')
     ax2.plot(depth_grid, test_errors, marker='s', color='darkorange',
              linewidth=2, label='Test error')
-    ax2.axvline(best_depth, color='red', linestyle='--',
-                label=f'Best max_depth = {best_depth}')
-    ax2.set_title('Random Forest — Train vs Test Error')
+    ax2.scatter(
+        [depth_grid[best_depth_idx]], [test_errors[best_depth_idx]],
+        color='gold', edgecolor='black', s=90, zorder=6,
+        label=f'Test error at best CV balanced error max_depth = {depth_grid[best_depth_idx]}'
+    )
+    ax2.set_title('Random Forest — Train vs Test Error (Plain Error)')
     ax2.set_xlabel('max_depth\n'
                    '← Low Depth, High Regularization, Simpler Model      '
                    'High Depth, Low Regularization, More Complex →')
-    ax2.set_ylabel('Prediction Error')
+    ax2.set_ylabel('Plain Error (1 - accuracy)')
     ax2.set_xticks(depth_grid)
     ax2.legend(fontsize=9)
     ax2.grid(True, alpha=0.3)
@@ -524,11 +581,11 @@ if __name__ == "__main__":
         )
         return {
             'Model':             name,
-            'Avg Train Acc':     shared['train_avg_accuracy'],
-            'Std Train Acc':     shared['train_std_accuracy'],
-            'Avg CV Test Acc':   shared['validation_avg_accuracy'],
-            'Std CV Test Acc':   shared['cv_test_sd_error'],
-            'Test Acc':          shared['test_split_accuracy'],
+            'Avg CV Train Plain Acc':      shared['train_avg_accuracy'],
+            'CV Train Plain Acc SD':       shared['train_std_accuracy'],
+            'Avg CV Validation Plain Acc': shared['validation_avg_accuracy'],
+            'CV Validation Plain Acc SD':  shared['cv_test_sd_error'],
+            'Hold-out Test Plain Acc':     shared['test_split_accuracy'],
             'Precision':         shared['test_precision'],
             'Recall':            shared['test_recall'],
             'F1':                shared['test_f1'],
@@ -580,7 +637,7 @@ if __name__ == "__main__":
     else:
         grid_search_rf_dow = GridSearchCV(
             Pipeline([('scaler', StandardScaler()),
-                      ('classifier', RandomForestClassifier(random_state=1, n_jobs=MODEL_N_JOBS))]),
+                      ('classifier', RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))]),
             param_grid_base, cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy',
             refit=make_one_se_refit(['classifier__max_depth', 'classifier__n_estimators'])
         )
@@ -605,7 +662,7 @@ if __name__ == "__main__":
         grid_search_pca_dow = GridSearchCV(
             Pipeline([('scaler', StandardScaler()),
                       ('reducer', PCA()),
-                      ('classifier', RandomForestClassifier(random_state=1, n_jobs=MODEL_N_JOBS))]),
+                      ('classifier', RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))]),
             param_grid_pca_dow, cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy',
             refit=make_one_se_refit(['reducer__n_components', 'classifier__max_depth', 'classifier__n_estimators'])
         )
@@ -630,9 +687,12 @@ if __name__ == "__main__":
         grid_search_lasso_dow = GridSearchCV(
             Pipeline([('scaler', StandardScaler()),
                       ('feature_selector', SelectFromModel(
+                          # LASSO feature selection stays on l1_ratio=1 to avoid
+                          # the deprecated penalty=... warning path in sklearn.
                           LogisticRegression(l1_ratio=1, solver='saga', random_state=1,
+                                             class_weight='balanced',
                                              max_iter=500, tol=5e-2), threshold='mean')),
-                      ('classifier', RandomForestClassifier(random_state=1, n_jobs=MODEL_N_JOBS))]),
+                      ('classifier', RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))]),
             param_grid_lasso_dow, cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy',
             refit=make_one_se_refit(['feature_selector__estimator__C', 'classifier__max_depth', 'classifier__n_estimators'])
         )
@@ -657,9 +717,12 @@ if __name__ == "__main__":
         grid_search_ridge_dow = GridSearchCV(
             Pipeline([('scaler', StandardScaler()),
                       ('feature_selector', SelectFromModel(
+                          # Ridge feature selection stays on l1_ratio=0 for the
+                          # same reason as above.
                           LogisticRegression(l1_ratio=0, solver='saga', random_state=1,
+                                             class_weight='balanced',
                                              max_iter=500, tol=5e-2), threshold='mean')),
-                      ('classifier', RandomForestClassifier(random_state=1, n_jobs=MODEL_N_JOBS))]),
+                      ('classifier', RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))]),
             param_grid_ridge_dow, cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy',
             refit=make_one_se_refit(['feature_selector__estimator__C', 'classifier__max_depth', 'classifier__n_estimators'])
         )
@@ -695,7 +758,7 @@ if __name__ == "__main__":
         tex_path,
         'Random Forest Model Comparison: Raw OHLCV vs Raw OHLCV + Day-of-Week',
         'tab:base_rf_comparison',
-        note='Test Acc = hold-out accuracy on the final 20% test split.'
+        note=f'Hold-out Test Plain Acc = plain hold-out accuracy on the final 20% test split. All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. {RECALL_NOTE}'
     )
     print(f"LaTeX table saved to:               {os.path.abspath(tex_path)}")
 
@@ -729,7 +792,7 @@ if __name__ == "__main__":
     else:
         grid_search_rf_lag = GridSearchCV(
             Pipeline([('scaler', StandardScaler()),
-                      ('classifier', RandomForestClassifier(random_state=1, n_jobs=MODEL_N_JOBS))]),
+                      ('classifier', RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))]),
             {'classifier__max_depth': [2, 3, 5, 8, 15],
              'classifier__n_estimators': [50, 100, 200, 500]},
             cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy',
@@ -751,7 +814,7 @@ if __name__ == "__main__":
         grid_search_pca_lag = GridSearchCV(
             Pipeline([('scaler', StandardScaler()),
                       ('reducer', PCA()),
-                      ('classifier', RandomForestClassifier(random_state=1, n_jobs=MODEL_N_JOBS))]),
+                      ('classifier', RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))]),
             {'reducer__n_components': BASE_RF_PCA_GRID,
              'classifier__max_depth': [2, 3, 5],
              'classifier__n_estimators': [250, 500]},
@@ -775,8 +838,9 @@ if __name__ == "__main__":
             Pipeline([('scaler', StandardScaler()),
                       ('feature_selector', SelectFromModel(
                           LogisticRegression(l1_ratio=1, solver='saga', random_state=1,
+                                             class_weight='balanced',
                                              max_iter=500, tol=5e-2), threshold='mean')),
-                      ('classifier', RandomForestClassifier(random_state=1, n_jobs=MODEL_N_JOBS))]),
+                      ('classifier', RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))]),
             {'feature_selector__estimator__C': [0.001, 0.01, 0.1],
              'classifier__max_depth': [2, 3, 5],
              'classifier__n_estimators': [500]},
@@ -800,8 +864,9 @@ if __name__ == "__main__":
             Pipeline([('scaler', StandardScaler()),
                       ('feature_selector', SelectFromModel(
                           LogisticRegression(l1_ratio=0, solver='saga', random_state=1,
+                                             class_weight='balanced',
                                              max_iter=500, tol=5e-2), threshold='mean')),
-                      ('classifier', RandomForestClassifier(random_state=1, n_jobs=MODEL_N_JOBS))]),
+                      ('classifier', RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))]),
             {'feature_selector__estimator__C': [0.001, 0.01, 0.1],
              'classifier__max_depth': [2, 3, 5],
              'classifier__n_estimators': [500]},
@@ -840,6 +905,6 @@ if __name__ == "__main__":
         tex_path,
         'Random Forest Model Comparison: Raw OHLCV vs +Day-of-Week vs +Lag1--7',
         'tab:base_rf_comparison',
-        note='Test Acc = hold-out accuracy on the final 20% test split.'
+        note=f'Hold-out Test Plain Acc = plain hold-out accuracy on the final 20% test split. All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. {RECALL_NOTE}'
     )
     print(f"LaTeX table saved to:           {os.path.abspath(tex_path)}")

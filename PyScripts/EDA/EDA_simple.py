@@ -493,7 +493,7 @@ print(f"✓ Saved: {prefix}sector_sp500_correlation_mcap_weighted.png")
 # Export descriptive statistics table using the weighted top 3 sectors.
 selected_sectors = top3_sectors_weighted.index.tolist()
 descriptive_stats_table = build_descriptive_stats_table(sector_returns, y_binary, selected_sectors)
-descriptive_stats_path = output_dir / "descriptive_stats.tex"
+descriptive_stats_path = output_dir / "8yrs_descriptive_stats.tex"
 write_descriptive_stats_latex(descriptive_stats_table, descriptive_stats_path, selected_sectors)
 print(f"✓ Saved: {descriptive_stats_path.name}")
 

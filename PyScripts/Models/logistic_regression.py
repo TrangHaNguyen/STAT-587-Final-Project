@@ -230,7 +230,10 @@ if __name__=="__main__":
     )
 
     best_c = select_logregcv_c_1se(Log_Reg_model_pipeline_R.named_steps['classifier'])
-    Opt_Log_Reg_R=LogisticRegression(C=best_c, l1_ratio=1, solver='saga', random_state=1, max_iter=500, tol=1e-2)
+    Opt_Log_Reg_R=LogisticRegression(
+        C=best_c, l1_ratio=1, solver='saga', class_weight='balanced',
+        random_state=1, max_iter=500, tol=1e-2
+    )
 
     Opt_Log_Reg_model_pipeline_R=Pipeline([('scaler', StandardScaler()), ('classifier', Opt_Log_Reg_R)])
 
@@ -272,7 +275,10 @@ if __name__=="__main__":
     )
 
     best_c = select_logregcv_c_1se(Log_Reg_model_pipeline_L.named_steps['classifier'])
-    Opt_Log_Reg_L=LogisticRegression(C=best_c, l1_ratio=0, solver='saga', random_state=1, max_iter=500, tol=1e-2)
+    Opt_Log_Reg_L=LogisticRegression(
+        C=best_c, l1_ratio=0, solver='saga', class_weight='balanced',
+        random_state=1, max_iter=500, tol=1e-2
+    )
 
     Opt_Log_Reg_model_pipeline_L=Pipeline([('scaler', StandardScaler()), ('classifier', Opt_Log_Reg_L)])
 

@@ -11,30 +11,33 @@ For reference, the original upstream repository from the earlier shared project 
 ## Instruction for Replication
 (to be added later)
 Work flow:
-1. Set up the environment to work
-Python requirement: use Python 3.11.x for reproducibility (TensorFlow compatibility).
+### 1. Set up the environment to work
+This project requires Python 3.11 (TensorFlow compatibility) for reproducible setup because it use some packages in this version (those are not available in the most updated one on March 11th 2026)
 
-To recreate the Python environment on another computer, run the setup script from the project root:
+#### On macOS
+Install Python 3.11 with Homebrew from the terminal:
+```bash
+brew install python@3.11
+```
+From the project root, run:
 ```bash
 PYTHON_BIN=python3.11 bash setup_env.sh
-```
-
-This script will:
-- create a local `.venv`
-- upgrade `pip`
-- install all Python dependencies from `requirements.txt`
-
-After setup, activate the environment with:
-
-```bash
 source .venv/bin/activate
 ```
+This will create a local `.venv` and activate the environment.
 
 Example entry points:
 If you need to compile the report in `LaTex/`, install the LaTeX system packages noted in `requirements.txt`.
+### Example after setting up the enviroment to run code
+```bash
+/opt/homebrew/bin/python3.11 --version
+PYTHON_BIN=/opt/homebrew/bin/python3.11 bash setup_env.sh
+source .venv/bin/activate
+python --version
+python PyScripts/Data/loading_daily_data.py
+```
 
-
-2. Downloading data. Code and results are infolder Data
+### 2. Downloading data. Code and results are infolder Data
 - hourly data: loading_hourly_data.py
 - 2 yrs and 8 yrs data: loading_daily_data.py. The output is raw_data_8_years.parquet.
 Note: there is slightly differences in the data downloaded for replication on March 10th compared with the original data downloaded by the other contributor in this project.

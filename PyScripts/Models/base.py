@@ -169,22 +169,26 @@ def _compute_direct_split_errors(X_train, y_train, X_test, y_test, c_grid, l1_ra
         'test_errors': np.array(test_errors),
     }
 
-def _highlight_best_balanced_selection_on_plain_curve(
+def _highlight_selected_value(
     ax,
     x_vals,
-    plain_curve,
-    best_idx,
-    label_prefix="CV test plain error at best CV balanced error C"
+    curve,
+    selected_idx,
+    label_prefix="Value at 1SE CV balanced error"
 ):
     ax.scatter(
-        [x_vals[best_idx]],
-        [plain_curve[best_idx]],
+        [x_vals[selected_idx]],
+        [curve[selected_idx]],
         color='gold',
         edgecolor='black',
         s=90,
         zorder=6,
         label=f'{label_prefix} point'
     )
+
+def _select_index_for_value(x_vals, selected_value):
+    x_vals = np.asarray(x_vals, dtype=float)
+    return int(np.argmin(np.abs(x_vals - float(selected_value))))
 
 def _compute_single_direct_split_error(X_train, y_train, X_test, y_test, c_val, l1_ratio, solver):
     clf = LogisticRegression(
@@ -377,37 +381,63 @@ if __name__ == "__main__":
         raw_diagnostics = {
             'ridge_bv': _compute_bv_curves(ridge_cv, X_train_raw_sc, y_train, tscv, 0, 'saga'),
             'lasso_bv': _compute_bv_curves(lasso_cv, X_train_raw_sc, y_train, tscv, 1, 'saga'),
-            'ridge_direct': _compute_direct_split_errors(X_train_raw_sc, y_train, X_test_raw_sc, y_test, np.logspace(-10, 2, 30), 0, 'saga'),
-            'lasso_direct': _compute_direct_split_errors(X_train_raw_sc, y_train, X_test_raw_sc, y_test, np.logspace(-10, 2, 30), 1, 'saga'),
+            'ridge_direct': _compute_direct_split_errors(
+                X_train_raw_sc, y_train, X_test_raw_sc, y_test,
+                ridge_cv.Cs_,
+                0, 'saga'
+            ),
+            'lasso_direct': _compute_direct_split_errors(
+                X_train_raw_sc, y_train, X_test_raw_sc, y_test,
+                lasso_cv.Cs_,
+                1, 'saga'
+            ),
         }
         joblib.dump(raw_diagnostics, raw_diag_cache)
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-    fig.suptitle('Bias-Variance Tradeoff — Raw OHLCV Features\n(Train/CV Plain Error per Regularization Strength)',
+    fig.suptitle('Bias-Variance Tradeoff — Raw OHLCV Features\n(Train/CV Balanced Error per Regularization Strength)',
                  fontsize=13, fontweight='bold')
 
-    for ax, (label, diag_key) in zip(axes, [
-        ('Ridge (L2)', 'ridge_bv'),
-        ('LASSO (L1)', 'lasso_bv'),
+    for ax, (label, diag_key, c_1se) in zip(axes, [
+        ('Ridge (L2)', 'ridge_bv', ridge_c_1se),
+        ('LASSO (L1)', 'lasso_bv', lasso_c_1se),
     ]):
         diag = raw_diagnostics[diag_key]
         cs = diag['cs']
-        train_plain_mean = diag['train_plain_err_mean']
-        cv_plain_mean = diag['cv_plain_err_mean']
+        train_bal_mean = diag['train_bal_err_mean']
+        train_bal_std = diag['train_bal_err_std']
         cv_bal_mean = diag['cv_bal_err_mean']
-        best_idx = int(np.argmin(cv_bal_mean))
-        best_bal_c = float(cs[best_idx])
-        ax.semilogx(cs, train_plain_mean, marker='o', color='steelblue', linewidth=1.8, label='CV Train plain error')
-        ax.semilogx(cs, cv_plain_mean, marker='s', color='darkorange', linewidth=1.8, label='CV Test plain error')
-        _highlight_best_balanced_selection_on_plain_curve(
-            ax, cs, cv_plain_mean, best_idx,
-            label_prefix=f'CV test plain error at best CV balanced error C = {best_bal_c:.4f}'
+        cv_bal_std = diag['cv_bal_err_std']
+        selected_idx = _select_index_for_value(cs, c_1se)
+        ax.semilogx(cs, train_bal_mean, marker='o', color='steelblue', linewidth=1.8, label='CV Train balanced error')
+        ax.semilogx(cs, cv_bal_mean, marker='s', color='darkorange', linewidth=1.8, label='CV Test balanced error')
+        ax.fill_between(
+            cs,
+            np.clip(train_bal_mean - train_bal_std, 0.0, 1.0),
+            np.clip(train_bal_mean + train_bal_std, 0.0, 1.0),
+            alpha=0.15,
+            color='steelblue',
+            label='CV Train balanced error ±1 SD'
         )
-        ax.set_title(f'{label} — Bias-Variance Tradeoff (Plain Error)')
+        ax.fill_between(
+            cs,
+            np.clip(cv_bal_mean - cv_bal_std, 0.0, 1.0),
+            np.clip(cv_bal_mean + cv_bal_std, 0.0, 1.0),
+            alpha=0.15,
+            color='darkorange',
+            label='CV Test balanced error ±1 SD'
+        )
+        _highlight_selected_value(
+            ax, cs, cv_bal_mean, selected_idx,
+            label_prefix='Value at 1SE CV balanced error'
+        )
+        ax.axvline(c_1se, color='red', linestyle='--', linewidth=1.5,
+                   label=f'1SE-selected C = {c_1se:.4f}')
+        ax.set_title(f'{label} — Bias-Variance Tradeoff (Balanced Error)')
         ax.set_xlabel('C  (Inverse Regularization Strength)\n'
                       '← High Regularization, Simpler Model      '
                       'Low Regularization, More Complex →')
-        ax.set_ylabel('Error')
+        ax.set_ylabel('Balanced Error (1 - balanced accuracy)')
         ax.set_ylim(0, 1.02)
         ax.legend(fontsize=9)
         ax.grid(True, alpha=0.3)
@@ -432,22 +462,22 @@ if __name__ == "__main__":
         ('LASSO (L1)', 'lasso_direct', 'lasso_bv', 'seagreen'),
     ]):
         diag = raw_diagnostics[diag_key]
-        guide_diag = raw_diagnostics[guide_key]
-        best_idx = int(np.argmin(guide_diag['cv_bal_err_mean']))
-        best_bal_c = float(guide_diag['cs'][best_idx])
+        selected_c = ridge_c_1se if 'ridge' in diag_key else lasso_c_1se
         _, best_test_error = _compute_single_direct_split_error(
             X_train_raw_sc, y_train, X_test_raw_sc, y_test,
-            best_bal_c, 0 if 'ridge' in diag_key else 1, 'saga'
+            selected_c, 0 if 'ridge' in diag_key else 1, 'saga'
         )
         ax.semilogx(diag['cs'], diag['train_errors'], marker='o', color='steelblue',
                     linewidth=2, label='Train error')
         ax.semilogx(diag['cs'], diag['test_errors'], marker='s', color=color,
                     linewidth=2, label='Test error')
         ax.scatter(
-            [best_bal_c], [best_test_error],
+            [selected_c], [best_test_error],
             color='gold', edgecolor='black', s=90, zorder=6,
-            label=f'Test error at best CV balanced error C = {best_bal_c:.4f}'
+            label='Value at 1SE CV balanced error'
         )
+        ax.axvline(selected_c, color='red', linestyle='--', linewidth=1.5,
+                   label=f'1SE-selected C = {selected_c:.4f}')
         ax.set_title(f'{label} — Train vs Test Error (Plain Error)')
         ax.set_xlabel('C  (Inverse Regularization Strength)\n'
                       '← High Regularization, Simpler Model      '
@@ -510,38 +540,64 @@ if __name__ == "__main__":
         pca_diagnostics = {
             'ridge_bv': _compute_bv_curves(clf_ridge_pca, X_train_pca, y_train, tscv, 0, 'saga'),
             'lasso_bv': _compute_bv_curves(clf_lasso_pca, X_train_pca, y_train, tscv, 1, 'saga'),
-            'ridge_direct': _compute_direct_split_errors(X_train_pca, y_train, X_test_pca, y_test, np.logspace(-5, 2, 30), 0, 'saga'),
-            'lasso_direct': _compute_direct_split_errors(X_train_pca, y_train, X_test_pca, y_test, np.logspace(-5, 2, 30), 1, 'saga'),
+            'ridge_direct': _compute_direct_split_errors(
+                X_train_pca, y_train, X_test_pca, y_test,
+                clf_ridge_pca.Cs_,
+                0, 'saga'
+            ),
+            'lasso_direct': _compute_direct_split_errors(
+                X_train_pca, y_train, X_test_pca, y_test,
+                clf_lasso_pca.Cs_,
+                1, 'saga'
+            ),
         }
         joblib.dump(pca_diagnostics, pca_diag_cache)
 
     fig3, axes3 = plt.subplots(1, 2, figsize=(14, 5))
     fig3.suptitle(f'Bias-Variance Tradeoff — PCA Features ({n_components_raw} comps, {best_n_comp*100:.0f}% variance)\n'
-                  '(Train/CV Plain Error per Regularization Strength)',
+                  '(Train/CV Balanced Error per Regularization Strength)',
                   fontsize=13, fontweight='bold')
 
-    for ax, (label, diag_key) in zip(axes3, [
-        ('Ridge (L2)', 'ridge_bv'),
-        ('LASSO (L1)', 'lasso_bv'),
+    for ax, (label, diag_key, c_1se) in zip(axes3, [
+        ('Ridge (L2)', 'ridge_bv', ridge_pca_c_1se),
+        ('LASSO (L1)', 'lasso_bv', lasso_pca_c_1se),
     ]):
         diag = pca_diagnostics[diag_key]
         cs = diag['cs']
-        train_plain_mean = diag['train_plain_err_mean']
-        cv_plain_mean = diag['cv_plain_err_mean']
+        train_bal_mean = diag['train_bal_err_mean']
+        train_bal_std = diag['train_bal_err_std']
         cv_bal_mean = diag['cv_bal_err_mean']
-        best_idx = int(np.argmin(cv_bal_mean))
-        best_bal_c = float(cs[best_idx])
-        ax.semilogx(cs, train_plain_mean, marker='o', color='steelblue', linewidth=1.8, label='CV Train plain error')
-        ax.semilogx(cs, cv_plain_mean, marker='s', color='darkorange', linewidth=1.8, label='CV Test plain error')
-        _highlight_best_balanced_selection_on_plain_curve(
-            ax, cs, cv_plain_mean, best_idx,
-            label_prefix=f'CV test plain error at best CV balanced error C = {best_bal_c:.4f}'
+        cv_bal_std = diag['cv_bal_err_std']
+        selected_idx = _select_index_for_value(cs, c_1se)
+        ax.semilogx(cs, train_bal_mean, marker='o', color='steelblue', linewidth=1.8, label='CV Train balanced error')
+        ax.semilogx(cs, cv_bal_mean, marker='s', color='darkorange', linewidth=1.8, label='CV Test balanced error')
+        ax.fill_between(
+            cs,
+            np.clip(train_bal_mean - train_bal_std, 0.0, 1.0),
+            np.clip(train_bal_mean + train_bal_std, 0.0, 1.0),
+            alpha=0.15,
+            color='steelblue',
+            label='CV Train balanced error ±1 SD'
         )
-        ax.set_title(f'{label} — Bias-Variance Tradeoff (PCA, Plain Error)')
+        ax.fill_between(
+            cs,
+            np.clip(cv_bal_mean - cv_bal_std, 0.0, 1.0),
+            np.clip(cv_bal_mean + cv_bal_std, 0.0, 1.0),
+            alpha=0.15,
+            color='darkorange',
+            label='CV Test balanced error ±1 SD'
+        )
+        _highlight_selected_value(
+            ax, cs, cv_bal_mean, selected_idx,
+            label_prefix='Value at 1SE CV balanced error'
+        )
+        ax.axvline(c_1se, color='red', linestyle='--', linewidth=1.5,
+                   label=f'1SE-selected C = {c_1se:.4f}')
+        ax.set_title(f'{label} — Bias-Variance Tradeoff (PCA, Balanced Error)')
         ax.set_xlabel('C  (Inverse Regularization Strength)\n'
                       '← High Regularization, Simpler Model      '
                       'Low Regularization, More Complex →')
-        ax.set_ylabel('Error')
+        ax.set_ylabel('Balanced Error (1 - balanced accuracy)')
         ax.set_ylim(0, 1.02)
         ax.legend(fontsize=9)
         ax.grid(True, alpha=0.3)
@@ -565,22 +621,22 @@ if __name__ == "__main__":
         ('LASSO (L1)', 'lasso_direct', 'lasso_bv', 'seagreen'),
     ]):
         diag = pca_diagnostics[diag_key]
-        guide_diag = pca_diagnostics[guide_key]
-        best_idx = int(np.argmin(guide_diag['cv_bal_err_mean']))
-        best_bal_c = float(guide_diag['cs'][best_idx])
+        selected_c = ridge_pca_c_1se if 'ridge' in diag_key else lasso_pca_c_1se
         _, best_test_error = _compute_single_direct_split_error(
             X_train_pca, y_train, X_test_pca, y_test,
-            best_bal_c, 0 if 'ridge' in diag_key else 1, 'saga'
+            selected_c, 0 if 'ridge' in diag_key else 1, 'saga'
         )
         ax.semilogx(diag['cs'], diag['train_errors'], marker='o', color='steelblue',
                     linewidth=2, label='Train error')
         ax.semilogx(diag['cs'], diag['test_errors'], marker='s', color=color,
                     linewidth=2, label='Test error')
         ax.scatter(
-            [best_bal_c], [best_test_error],
+            [selected_c], [best_test_error],
             color='gold', edgecolor='black', s=90, zorder=6,
-            label=f'Test error at best CV balanced error C = {best_bal_c:.4f}'
+            label='Value at 1SE CV balanced error'
         )
+        ax.axvline(selected_c, color='red', linestyle='--', linewidth=1.5,
+                   label=f'1SE-selected C = {selected_c:.4f}')
         ax.set_title(f'{label} — Train vs Test Error (PCA, Plain Error)')
         ax.set_xlabel('C  (Inverse Regularization Strength)\n'
                       '← High Regularization, Simpler Model      '

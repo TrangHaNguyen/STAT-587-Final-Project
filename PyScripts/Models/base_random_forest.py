@@ -129,22 +129,26 @@ def build_export_table(df: pd.DataFrame) -> pd.DataFrame:
 
 RECALL_NOTE = "Recall = Sensitivity for the positive (Up) class."
 
-def _highlight_best_balanced_selection_on_plain_curve(
+def _highlight_selected_value(
     ax,
     x_vals,
-    plain_curve,
-    best_idx,
-    label_prefix="CV test plain error at best CV balanced error parameter"
+    curve,
+    selected_idx,
+    label_prefix="Value at 1SE CV balanced error"
 ):
     ax.scatter(
-        [x_vals[best_idx]],
-        [plain_curve[best_idx]],
+        [x_vals[selected_idx]],
+        [curve[selected_idx]],
         color='gold',
         edgecolor='black',
         s=90,
         zorder=6,
         label=f'{label_prefix} point'
     )
+
+def _select_index_for_value(x_vals, selected_value):
+    x_vals = np.asarray(x_vals, dtype=float)
+    return int(np.argmin(np.abs(x_vals - float(selected_value))))
 
 
 def _compute_cv_metric_curves(model_factory, X_train, y_train, cv):
@@ -184,7 +188,9 @@ def _compute_cv_metric_curves(model_factory, X_train, y_train, cv):
 
     return {
         'train_plain_err_mean': train_plain_errors.mean(axis=0),
+        'train_plain_err_std': train_plain_errors.std(axis=0),
         'cv_plain_err_mean': cv_plain_errors.mean(axis=0),
+        'cv_plain_err_std': cv_plain_errors.std(axis=0),
         'train_bal_err_mean': train_bal_errors.mean(axis=0),
         'train_bal_err_std': train_bal_errors.std(axis=0),
         'cv_bal_err_mean': cv_bal_errors.mean(axis=0),
@@ -390,34 +396,53 @@ if __name__ == "__main__":
 
     ridge_curves = _compute_cv_metric_curves(_ridge_curve_models, X_train, y_train, tscv)
     ridge_c_grid = np.array(ridge_c_grid, dtype=float)
-    best_ridge_idx = int(np.argmin(ridge_curves['cv_bal_err_mean']))
-    best_ridge_bal_c = float(ridge_c_grid[best_ridge_idx])
+    selected_ridge_idx = _select_index_for_value(ridge_c_grid, ridge_best_c)
 
     fig_ridge, ax_ridge = plt.subplots(figsize=(10, 5))
     fig_ridge.suptitle(
         'Bias-Variance Tradeoff — Ridge-selected RF (Raw OHLCV)\n'
-        f'(Train/CV Plain Error vs Ridge C, depth={ridge_best_depth}, n_estimators={ridge_best_nest})',
+        f'(Train/CV Balanced Error vs Ridge C, depth={ridge_best_depth}, n_estimators={ridge_best_nest})',
         fontsize=13, fontweight='bold'
     )
     ax_ridge.semilogx(
-        ridge_c_grid, ridge_curves['train_plain_err_mean'], marker='o', color='lightsteelblue',
-        linewidth=1.8, label='CV Train plain error'
+        ridge_c_grid, ridge_curves['train_bal_err_mean'], marker='o', color='lightsteelblue',
+        linewidth=1.8, label='CV Train balanced error'
     )
     ax_ridge.semilogx(
-        ridge_c_grid, ridge_curves['cv_plain_err_mean'], marker='s', color='navajowhite',
-        linewidth=1.8, label='CV Test plain error'
+        ridge_c_grid, ridge_curves['cv_bal_err_mean'], marker='s', color='navajowhite',
+        linewidth=1.8, label='CV Test balanced error'
     )
-    _highlight_best_balanced_selection_on_plain_curve(
-        ax_ridge, ridge_c_grid, ridge_curves['cv_plain_err_mean'], best_ridge_idx,
-        label_prefix=f'CV test plain error at best CV balanced error C = {best_ridge_bal_c:.4f}'
+    ax_ridge.fill_between(
+        ridge_c_grid,
+        np.clip(ridge_curves['train_bal_err_mean'] - ridge_curves['train_bal_err_std'], 0.0, 1.0),
+        np.clip(ridge_curves['train_bal_err_mean'] + ridge_curves['train_bal_err_std'], 0.0, 1.0),
+        alpha=0.15,
+        color='lightsteelblue',
+        label='CV Train balanced error ±1 SD'
     )
-    ax_ridge.set_title('Ridge-sel RF — Bias-Variance vs Ridge C (Plain Error)')
+    ax_ridge.fill_between(
+        ridge_c_grid,
+        np.clip(ridge_curves['cv_bal_err_mean'] - ridge_curves['cv_bal_err_std'], 0.0, 1.0),
+        np.clip(ridge_curves['cv_bal_err_mean'] + ridge_curves['cv_bal_err_std'], 0.0, 1.0),
+        alpha=0.15,
+        color='navajowhite',
+        label='CV Test balanced error ±1 SD'
+    )
+    _highlight_selected_value(
+        ax_ridge, ridge_c_grid, ridge_curves['cv_bal_err_mean'], selected_ridge_idx,
+        label_prefix='Value at 1SE CV balanced error'
+    )
+    ax_ridge.axvline(
+        float(ridge_best_c), color='red', linestyle='--', linewidth=1.5,
+        label=f'1SE-selected C = {float(ridge_best_c):.4f}'
+    )
+    ax_ridge.set_title('Ridge-sel RF — Bias-Variance vs Ridge C (Balanced Error)')
     ax_ridge.set_xlabel(
         'Ridge C (feature-selection strength)\n'
         '← Lower C, stronger regularization, simpler model      '
         'Higher C, weaker regularization, more complex model →'
     )
-    ax_ridge.set_ylabel('Error')
+    ax_ridge.set_ylabel('Balanced Error (1 - balanced accuracy)')
     ax_ridge.set_ylim(0, 1.02)
     ax_ridge.legend(fontsize=9)
     ax_ridge.grid(True, alpha=0.3)
@@ -432,11 +457,11 @@ if __name__ == "__main__":
 
     # ===================================================================
     # PLOT 1: Bias-Variance Tradeoff (CV train + CV test error ± std)
-    # Sweep max_depth 1..20 with fixed best n_estimators
+    # Sweep the same max_depth grid used in GridSearchCV.
     # ===================================================================
     print("\n========== Generating Bias-Variance Tradeoff Plot (CV) ==========")
 
-    depth_grid = list(range(1, 21))          # 20 values: 1, 2, ..., 20
+    depth_grid = list(param_grid['classifier__max_depth'])
     def _depth_curve_models():
         models = []
         for depth in depth_grid:
@@ -453,23 +478,41 @@ if __name__ == "__main__":
     fig1, ax1 = plt.subplots(figsize=(10, 5))
     fig1.suptitle(
         'Bias-Variance Tradeoff — Random Forest, Raw OHLCV Features\n'
-        f'(Train vs CV Plain Error, n_estimators={best_n_est})',
+        f'(Train vs CV Balanced Error, n_estimators={best_n_est})',
         fontsize=13, fontweight='bold'
     )
-    ax1.plot(depth_grid, depth_curves['train_plain_err_mean'], marker='o', color='lightsteelblue',
-             linewidth=1.8, label='CV Train plain error')
-    ax1.plot(depth_grid, depth_curves['cv_plain_err_mean'], marker='s', color='navajowhite',
-             linewidth=1.8, label='CV Test plain error')
-    best_depth_idx = int(np.argmin(depth_curves['cv_bal_err_mean']))
-    _highlight_best_balanced_selection_on_plain_curve(
-        ax1, depth_grid, depth_curves['cv_plain_err_mean'], best_depth_idx,
-        label_prefix=f'CV test plain error at best CV balanced error max_depth = {depth_grid[best_depth_idx]}'
+    ax1.plot(depth_grid, depth_curves['train_bal_err_mean'], marker='o', color='lightsteelblue',
+             linewidth=1.8, label='CV Train balanced error')
+    ax1.plot(depth_grid, depth_curves['cv_bal_err_mean'], marker='s', color='navajowhite',
+             linewidth=1.8, label='CV Test balanced error')
+    ax1.fill_between(
+        depth_grid,
+        np.clip(depth_curves['train_bal_err_mean'] - depth_curves['train_bal_err_std'], 0.0, 1.0),
+        np.clip(depth_curves['train_bal_err_mean'] + depth_curves['train_bal_err_std'], 0.0, 1.0),
+        alpha=0.15,
+        color='lightsteelblue',
+        label='CV Train balanced error ±1 SD'
     )
-    ax1.set_title('Random Forest — Bias-Variance Tradeoff (Plain Error)')
+    ax1.fill_between(
+        depth_grid,
+        np.clip(depth_curves['cv_bal_err_mean'] - depth_curves['cv_bal_err_std'], 0.0, 1.0),
+        np.clip(depth_curves['cv_bal_err_mean'] + depth_curves['cv_bal_err_std'], 0.0, 1.0),
+        alpha=0.15,
+        color='navajowhite',
+        label='CV Test balanced error ±1 SD'
+    )
+    selected_depth_idx = _select_index_for_value(depth_grid, best_depth)
+    _highlight_selected_value(
+        ax1, depth_grid, depth_curves['cv_bal_err_mean'], selected_depth_idx,
+        label_prefix='Value at 1SE CV balanced error'
+    )
+    ax1.axvline(best_depth, color='red', linestyle='--', linewidth=1.5,
+                label=f'1SE-selected max_depth = {best_depth}')
+    ax1.set_title('Random Forest — Bias-Variance Tradeoff (Balanced Error)')
     ax1.set_xlabel('max_depth\n'
                    '← Low Depth, High Regularization, Simpler Model      '
                    'High Depth, Low Regularization, More Complex →')
-    ax1.set_ylabel('Error')
+    ax1.set_ylabel('Balanced Error (1 - balanced accuracy)')
     ax1.set_ylim(0, 1.02)
     ax1.set_xticks(depth_grid)
     ax1.legend(fontsize=9)
@@ -487,7 +530,7 @@ if __name__ == "__main__":
 
     # ===================================================================
     # PLOT 2: Direct Train vs Test Error (no CV averaging)
-    # Sweep max_depth 1..20, fit on X_train, score on X_train and X_test
+    # Sweep the same max_depth grid used in GridSearchCV.
     # ===================================================================
     print("\n========== Generating Train vs Test Error Plot (Direct Split) ==========")
 
@@ -514,11 +557,14 @@ if __name__ == "__main__":
              linewidth=2, label='Train error')
     ax2.plot(depth_grid, test_errors, marker='s', color='darkorange',
              linewidth=2, label='Test error')
+    selected_depth_idx = _select_index_for_value(depth_grid, best_depth)
     ax2.scatter(
-        [depth_grid[best_depth_idx]], [test_errors[best_depth_idx]],
+        [depth_grid[selected_depth_idx]], [test_errors[selected_depth_idx]],
         color='gold', edgecolor='black', s=90, zorder=6,
-        label=f'Test error at best CV balanced error max_depth = {depth_grid[best_depth_idx]}'
+        label='Value at 1SE CV balanced error'
     )
+    ax2.axvline(best_depth, color='red', linestyle='--', linewidth=1.5,
+                label=f'1SE-selected max_depth = {best_depth}')
     ax2.set_title('Random Forest — Train vs Test Error (Plain Error)')
     ax2.set_xlabel('max_depth\n'
                    '← Low Depth, High Regularization, Simpler Model      '

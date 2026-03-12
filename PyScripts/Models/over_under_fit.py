@@ -112,6 +112,7 @@ def main() -> None:
     x = df["_x_numeric"].to_numpy()
     y_test = df["mean_test_score"].to_numpy()
     y_train = df["mean_train_score"].to_numpy() if "mean_train_score" in df.columns else np.full_like(y_test, np.nan, dtype=float)
+    y_train_std = df["std_train_score"].to_numpy() if "std_train_score" in df.columns else np.full_like(y_test, np.nan, dtype=float)
     y_test_std = df["std_test_score"].to_numpy() if "std_test_score" in df.columns else np.full_like(y_test, np.nan, dtype=float)
 
     plt.figure(figsize=(10, 6))
@@ -123,6 +124,10 @@ def main() -> None:
         plt.fill_between(x, lower, upper, alpha=0.18, label=f"Test {args.score_label} ±1 Std")
     if not np.isnan(y_train).all():
         plt.scatter(x, y_train, s=18, alpha=0.5, label=f"CV Train {args.score_label}")
+    if not np.isnan(y_train_std).all() and not np.isnan(y_train).all():
+        lower = np.clip(y_train - y_train_std, 0.0, 1.0)
+        upper = np.clip(y_train + y_train_std, 0.0, 1.0)
+        plt.fill_between(x, lower, upper, alpha=0.18, label=f"Train {args.score_label} ±1 Std")
 
     win = max(2, args.trend_window)
     if len(df) >= win:

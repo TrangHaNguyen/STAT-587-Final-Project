@@ -5,6 +5,7 @@ from sklearn.decomposition import PCA
 from sklearn.base import clone
 from sklearn.model_selection import train_test_split, TimeSeriesSplit, GridSearchCV
 from sklearn.pipeline import Pipeline
+from sklearn.metrics import balanced_accuracy_score
 import numpy as np
 
 from H_prep import clean_data, import_data
@@ -44,7 +45,7 @@ if __name__=="__main__":
     custom_Cs=[0.05, 0.1, 1.0, 10.0]
 
     # ------- LASSO(Internal) APPLICATION -------
-    Log_Reg_R=LogisticRegressionCV(Cs=custom_Cs, cv=tscv, l1_ratios=[1], solver='saga', random_state=1, n_jobs=-1, max_iter=500, tol=1e-2, verbose=VERBOSE)
+    Log_Reg_R=LogisticRegressionCV(Cs=custom_Cs, cv=tscv, l1_ratios=[1], solver='saga', random_state=1, n_jobs=-1, max_iter=500, tol=1e-2, verbose=VERBOSE, scoring='balanced_accuracy')
     
     Log_Reg_model_pipeline_R=Pipeline([('scaler', StandardScaler()), ('classifier', Log_Reg_R)])
 
@@ -70,7 +71,7 @@ if __name__=="__main__":
     # input("Press Enter to continue...")
 
     # ------- RIDGE(Internal) APPLICATION -------
-    Log_Reg_L=LogisticRegressionCV(Cs=custom_Cs, cv=tscv, l1_ratios=[0], solver='saga', random_state=1, n_jobs=-1, max_iter=500, tol=1e-2, verbose=VERBOSE)
+    Log_Reg_L=LogisticRegressionCV(Cs=custom_Cs, cv=tscv, l1_ratios=[0], solver='saga', random_state=1, n_jobs=-1, max_iter=500, tol=1e-2, verbose=VERBOSE, scoring='balanced_accuracy')
     
     Log_Reg_model_pipeline_L=Pipeline([('scaler', StandardScaler()), ('classifier', Log_Reg_L)])
 
@@ -106,7 +107,7 @@ if __name__=="__main__":
         'pca__n_components': [0.7, 0.8, 0.9, 0.95],
         'classifier__C': [0.01, 0.1, 1.0, 10.0]
     }
-    grid_search_PCA_ridge=GridSearchCV(Log_Reg_model_pipeline_PCA_L, param_grid, cv=tscv, return_train_score=True, verbose=VERBOSE)
+    grid_search_PCA_ridge=GridSearchCV(Log_Reg_model_pipeline_PCA_L, param_grid, cv=tscv, return_train_score=True, verbose=VERBOSE, scoring='balanced_accuracy')
 
     grid_search_PCA_ridge.fit(X_train, y_train)
 
@@ -139,7 +140,7 @@ if __name__=="__main__":
     from sklearn.base import clone
 
     def _cv_train_test_errors(pipeline, X, y, cs, cv_splitter, penalty, solver, l1_ratio=None):
-        """Return per-fold train scores shape (n_folds, n_Cs) by refitting plain LogisticRegression."""
+        """Return per-fold balanced train scores shape (n_folds, n_Cs)."""
         scaler = clone(pipeline.named_steps['scaler'])
         train_scores = np.zeros((cv_splitter.get_n_splits(), len(cs)))
         for fold_idx, (tr, _) in enumerate(cv_splitter.split(X, y)):
@@ -153,11 +154,11 @@ if __name__=="__main__":
                     kwargs['penalty'] = penalty
                 clf = LogisticRegression(**kwargs)
                 clf.fit(X_tr, y_tr)
-                train_scores[fold_idx, c_idx] = clf.score(X_tr, y_tr)
+                train_scores[fold_idx, c_idx] = balanced_accuracy_score(y_tr, clf.predict(X_tr))
         return train_scores
 
     fig, axes = plt.subplots(1, 3, figsize=(18, 5))
-    fig.suptitle('Bias-Variance Tradeoff: Train vs CV Test Error across Regularization Strength',
+    fig.suptitle('Bias-Variance Tradeoff: Train vs CV Balanced Error across Regularization Strength',
                  fontsize=14, fontweight='bold')
 
     # --- LASSO (L1) ---
@@ -172,16 +173,16 @@ if __name__=="__main__":
         Log_Reg_model_pipeline_R, X_train, y_train, cs_lasso, tscv, 'l1', 'saga', l1_ratio=1)
     mean_tr_err_lasso = 1 - train_scores_lasso.mean(axis=0)
     std_tr_err_lasso  = train_scores_lasso.std(axis=0)
-    axes[0].semilogx(cs_lasso, mean_tr_err_lasso, marker='o', color='steelblue', linewidth=2, label='Train error')
+    axes[0].semilogx(cs_lasso, mean_tr_err_lasso, marker='o', color='steelblue', linewidth=2, label='CV Train balanced error')
     axes[0].fill_between(cs_lasso, mean_tr_err_lasso - std_tr_err_lasso, mean_tr_err_lasso + std_tr_err_lasso,
                          alpha=0.15, color='steelblue')
-    axes[0].semilogx(cs_lasso, mean_cv_err_lasso, marker='s', color='darkorange', linewidth=2, label='CV Test error')
+    axes[0].semilogx(cs_lasso, mean_cv_err_lasso, marker='s', color='darkorange', linewidth=2, label='CV Test balanced error')
     axes[0].fill_between(cs_lasso, mean_cv_err_lasso - std_cv_err_lasso, mean_cv_err_lasso + std_cv_err_lasso,
                          alpha=0.15, color='darkorange')
-    axes[0].axvline(lasso_cv.C_[0], color='red', linestyle='--', label=f'Best C = {lasso_cv.C_[0]:.4f}')
+    axes[0].axvline(lasso_cv.C_[0], color='red', linestyle='--', label='Best C')
     axes[0].set_title('LASSO (L1) — Bias-Variance Tradeoff')
     axes[0].set_xlabel('C  (Inverse Regularization Strength)\n← High Regularization, Simpler Model      Low Regularization, More Complex →')
-    axes[0].set_ylabel('Prediction Error')
+    axes[0].set_ylabel('Balanced Error (1 - balanced accuracy)')
     axes[0].legend(fontsize=8)
     axes[0].grid(True, alpha=0.3)
 
@@ -197,16 +198,16 @@ if __name__=="__main__":
         Log_Reg_model_pipeline_L, X_train, y_train, cs_ridge, tscv, 'l2', 'saga')
     mean_tr_err_ridge = 1 - train_scores_ridge.mean(axis=0)
     std_tr_err_ridge  = train_scores_ridge.std(axis=0)
-    axes[1].semilogx(cs_ridge, mean_tr_err_ridge, marker='o', color='steelblue', linewidth=2, label='Train error')
+    axes[1].semilogx(cs_ridge, mean_tr_err_ridge, marker='o', color='steelblue', linewidth=2, label='CV Train balanced error')
     axes[1].fill_between(cs_ridge, mean_tr_err_ridge - std_tr_err_ridge, mean_tr_err_ridge + std_tr_err_ridge,
                          alpha=0.15, color='steelblue')
-    axes[1].semilogx(cs_ridge, mean_cv_err_ridge, marker='s', color='darkorange', linewidth=2, label='CV Test error')
+    axes[1].semilogx(cs_ridge, mean_cv_err_ridge, marker='s', color='darkorange', linewidth=2, label='CV Test balanced error')
     axes[1].fill_between(cs_ridge, mean_cv_err_ridge - std_cv_err_ridge, mean_cv_err_ridge + std_cv_err_ridge,
                          alpha=0.15, color='darkorange')
-    axes[1].axvline(ridge_cv.C_[0], color='red', linestyle='--', label=f'Best C = {ridge_cv.C_[0]:.4f}')
+    axes[1].axvline(ridge_cv.C_[0], color='red', linestyle='--', label='Best C')
     axes[1].set_title('Ridge (L2) — Bias-Variance Tradeoff')
     axes[1].set_xlabel('C  (Inverse Regularization Strength)\n← High Regularization, Simpler Model      Low Regularization, More Complex →')
-    axes[1].set_ylabel('Prediction Error')
+    axes[1].set_ylabel('Balanced Error (1 - balanced accuracy)')
     axes[1].legend(fontsize=8)
     axes[1].grid(True, alpha=0.3)
 
@@ -232,16 +233,16 @@ if __name__=="__main__":
     std_cv_err_per_c = np.array(std_cv_err_per_c)
     std_tr_err_per_c = np.array(std_tr_err_per_c)
     best_c_pca = grid_search_PCA_ridge.best_params_['classifier__C']
-    axes[2].semilogx(unique_cs, avg_tr_err_per_c, marker='o', color='steelblue', linewidth=2, label='Train error')
+    axes[2].semilogx(unique_cs, avg_tr_err_per_c, marker='o', color='steelblue', linewidth=2, label='CV Train balanced error')
     axes[2].fill_between(unique_cs, avg_tr_err_per_c - std_tr_err_per_c, avg_tr_err_per_c + std_tr_err_per_c,
                          alpha=0.15, color='steelblue')
-    axes[2].semilogx(unique_cs, avg_cv_err_per_c, marker='s', color='darkorange', linewidth=2, label='CV Test error')
+    axes[2].semilogx(unique_cs, avg_cv_err_per_c, marker='s', color='darkorange', linewidth=2, label='CV Test balanced error')
     axes[2].fill_between(unique_cs, avg_cv_err_per_c - std_cv_err_per_c, avg_cv_err_per_c + std_cv_err_per_c,
                          alpha=0.15, color='darkorange')
-    axes[2].axvline(best_c_pca, color='red', linestyle='--', label=f'Best C = {best_c_pca:.4f}')
+    axes[2].axvline(best_c_pca, color='red', linestyle='--', label='Best C')
     axes[2].set_title('PCA + Ridge — Bias-Variance Tradeoff\n(avg over PCA components)')
     axes[2].set_xlabel('C  (Inverse Regularization Strength)\n← High Regularization, Simpler Model      Low Regularization, More Complex →')
-    axes[2].set_ylabel('Prediction Error')
+    axes[2].set_ylabel('Balanced Error (1 - balanced accuracy)')
     axes[2].legend(fontsize=8)
     axes[2].grid(True, alpha=0.3)
 
@@ -264,7 +265,7 @@ if __name__=="__main__":
 
     n_pca = len(unique_pca_grid)
     fig2, axes2 = plt.subplots(1, n_pca, figsize=(5 * n_pca, 5), sharey=True)
-    fig2.suptitle('GridSearch – Train vs Test Prediction Error\n(PCA + Ridge Logistic Regression)',
+    fig2.suptitle('GridSearch – Train vs Test Balanced Error\n(PCA + Ridge Logistic Regression)',
                   fontsize=13, fontweight='bold')
 
     colors = plt.cm.tab10.colors
@@ -273,19 +274,25 @@ if __name__=="__main__":
         cs_sub = [params[i]['classifier__C']   for i in mask]
         tr_sub = [mean_train[i]                for i in mask]
         te_sub = [mean_test[i]                 for i in mask]
+        tr_std = [cv_results['std_train_score'][i] for i in mask]
+        te_std = [cv_results['std_test_score'][i] for i in mask]
 
         tr_err = [1 - v for v in tr_sub]
         te_err = [1 - v for v in te_sub]
-        ax.semilogx(cs_sub, tr_err, marker='o', color='steelblue',   label='Train error', linewidth=1.8)
-        ax.semilogx(cs_sub, te_err, marker='s', color='darkorange',  label='Test error',  linewidth=1.8)
+        ax.semilogx(cs_sub, tr_err, marker='o', color='steelblue',   label='CV Train balanced error', linewidth=1.8)
+        ax.semilogx(cs_sub, te_err, marker='s', color='darkorange',  label='CV Test balanced error',  linewidth=1.8)
+        ax.fill_between(cs_sub, np.clip(np.array(tr_err) - np.array(tr_std), 0.0, 1.0), np.clip(np.array(tr_err) + np.array(tr_std), 0.0, 1.0),
+                        alpha=0.15, color='steelblue')
+        ax.fill_between(cs_sub, np.clip(np.array(te_err) - np.array(te_std), 0.0, 1.0), np.clip(np.array(te_err) + np.array(te_std), 0.0, 1.0),
+                        alpha=0.15, color='darkorange')
 
         best_idx = int(np.argmin(te_err))
         ax.axvline(cs_sub[best_idx], color='red', linestyle='--', alpha=0.7,
-                   label=f'Best C = {cs_sub[best_idx]:.4f}')
+                   label='Best C')
 
         ax.set_title(f'PCA n_components = {n_comp}')
         ax.set_xlabel('C  (Inverse Regularization Strength)\n← High Regularization, Simpler Model      Low Regularization, More Complex →')
-        ax.set_ylabel('Mean CV Prediction Error')
+        ax.set_ylabel('Mean CV Balanced Error')
         ax.legend(fontsize=8)
         ax.grid(True, alpha=0.3)
 
@@ -319,7 +326,7 @@ if __name__=="__main__":
     ax3.semilogx(fine_c_grid, fine_test_scores,  marker='s', color='darkorange',
                  linewidth=2, label='Test error')
     ax3.axvline(fine_c_grid[best_fine_idx], color='red', linestyle='--', alpha=0.8,
-                label=f'Best C = {fine_c_grid[best_fine_idx]:.4f}')
+                label='Best C')
     ax3.set_title(f'Train vs Test Prediction Error over C Grid\n(PCA n_components = {best_n_components})',
                   fontsize=12, fontweight='bold')
     ax3.set_xlabel('C  (Inverse Regularization Strength)\n← High Regularization, Simpler Model      Low Regularization, More Complex →')

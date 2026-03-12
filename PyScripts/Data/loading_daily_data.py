@@ -37,7 +37,7 @@ OUTPUT_FILE = OUTPUT_DIR / "raw_data_8_years.parquet"
 # Download configuration
 # ---------------------------------------------------------------------
 START_DATE = "2018-01-01"
-END_DATE = "2025-12-31"   # yfinance uses exclusive upper bound
+END_DATE = "2026-01-01"   # yfinance uses exclusive upper bound; includes 2025-12-31
 INTERVAL = "1d"
 INDEX_TICKERS = ["^SPX"]
 PRICE_FIELDS = ["Close", "High", "Low", "Open", "Volume"]
@@ -47,7 +47,7 @@ REPAIR_PRICE_DATA = False
 
 # Optional: include 2018-01-01 in saved output even though it is a market holiday.
 # If True, the row is inserted with missing values.
-FORCE_CALENDAR_START = False
+FORCE_CALENDAR_START = True
 
 # Capacity/network tuning
 CPU_COUNT = os.cpu_count() or 4

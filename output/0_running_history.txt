@@ -3,7 +3,6 @@ Run History Log
 Use this file to track code runs over time.
 
 Suggested format per entry:
-- Date/Time:
 - Duration of code running time
 - Script Name:
 - Input data/version:
@@ -11,3 +10,66 @@ Suggested format per entry:
 - Notes (errors/warnings/performance):
 
 
+# Runing loading_daily_data.py
+Duration of code running time: Total runtime 80.34 seconds
+
+Stocks download time: 71.81 seconds
+
+Index download time: 0.10 seconds
+
+Script Name: PyScripts/Data/loading_daily_data.py
+
+Input data/version:
+
+Environment: .venv activated
+
+Network profile: stable
+
+Configured stock count: 503
+
+Configured index tickers: ['^SPX']
+
+Runtime tuning: cpu=8, batch=20, fallback_batch=8, retries=3, threads=False
+
+Output files:
+
+/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Data/raw_data_8_years.parquet
+
+Notes (errors/warnings/performance):
+
+Run completed successfully
+
+No download errors or retry-failure messages shown in the log
+
+Output shape: (2010, 2520)
+
+Time range: 2018-01-02 to 2025-12-30
+
+Column levels: ['Metric', 'Type', 'Ticker']
+
+Metric values: ['Close', 'High', 'Low', 'Open', 'Volume']
+
+Type values: ['Index', 'Stocks']
+
+Performance appears stable under the stable profile, with all 503 stocks downloaded across 26 batches and 1 index batch
+
+
+# Loading hourly data:
+(.venv) tranghanguyen@Trangs-MacBook-Air STAT-587-Final-Project % source .venv/bin/activate
+YF_NETWORK_PROFILE=stable python PyScripts/Data/loading_hourly_data.py
+Saved hourly parquet: /Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Data/hourly_data.parquet
+Shape: (4900, 2520)
+Time range: 2023-05-19 14:30:00 to 2026-03-11 19:30:00
+Unique days: 704
+Column levels: ['Metric', 'Type', 'Ticker']
+Metric values: ['Close', 'High', 'Low', 'Open', 'Volume']
+Type values: ['Index', 'Stocks']
+Total runtime: 188.19 seconds
+
+# Running EDA part
+- `EDA_simple.py` run used Python 3.13.1 and completed successfully with final data shapes `X: (2008, 4298)`, `y_regression: (2008, 1)`, and returns `(2008, 477)`.
+- 11 sectors were included in the EDA: Basic Materials, Communication Services, Consumer Cyclical, Consumer Defensive, Energy, Financial Services, Healthcare, Industrials, Real Estate, Technology, and Utilities.
+- Exported summary plots directly to `output/`: `8yrs_sector_correlation.png`, `8yrs_sector_volatility_over_time.png`, `8yrs_smoothed_sector_volatility.png`, `8yrs_sector_sp500_correlation.png`, and `8yrs_sector_sp500_correlation_mcap_weighted.png`.
+- Top 3 sectors by absolute SP500 correlation were Financial Services `(-0.1183)`, Consumer Defensive `(-0.1108)`, and Technology `(-0.1076)`.
+- Top 3 sectors by absolute SP500 correlation using market-cap-weighted sector returns were Healthcare `(-0.1244)`, Financial Services `(-0.1198)`, and Consumer Defensive `(-0.1112)`.
+- Clustered intra-sector heatmaps were generated for Financial Services, Consumer Defensive, and Technology, with the corresponding files saved to `output/`.

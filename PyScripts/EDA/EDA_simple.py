@@ -5,16 +5,9 @@ Simple EDA script generating correlation and volatility plots.
 
 import argparse
 import pandas as pd
-import numpy as np
-import seaborn as sns
-import matplotlib.pyplot as plt
-from scipy.cluster.hierarchy import dendrogram, linkage
 from pathlib import Path
 import sys
 import os
-
-pd.set_option('display.max_rows', 100)
-pd.set_option('display.max_columns', 8)
 
 cwd = Path.cwd()
 for _ in range(5):
@@ -25,58 +18,114 @@ for _ in range(5):
 else:
     raise FileNotFoundError("Could not find correct workspace folder.")
 
-# Create output/Used/png directory if it doesn't exist
+mpl_config_dir = cwd / ".mplconfig"
+mpl_config_dir.mkdir(parents=True, exist_ok=True)
+os.environ.setdefault("MPLCONFIGDIR", str(mpl_config_dir))
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+pd.set_option('display.max_rows', 100)
+pd.set_option('display.max_columns', 8)
+
+# Save generated plots directly in the project output directory.
 output_dir = cwd / "output" 
 output_dir.mkdir(parents=True, exist_ok=True)
 
 sys.path.append(os.path.abspath(cwd / "PyScripts" / "Models"))
 from H_prep import import_data, clean_data
 
-# ── Command-line parameters (raw-only EDA, prefix retained for saved plots) ─
+
+def ensure_datetime_index(obj):
+    """Ensure index is DatetimeIndex so yearly grouping is valid."""
+    if not isinstance(obj.index, pd.DatetimeIndex):
+        obj = obj.copy()
+        obj.index = pd.to_datetime(obj.index)
+    return obj
+
+
+def to_binary_class(y: pd.Series) -> pd.Series:
+    """Convert regression target to market-up indicator."""
+    return (y >= 0).astype(int)
+
+
+def build_descriptive_stats_table(
+    sector_returns_df: pd.DataFrame,
+    y_binary: pd.Series,
+    selected_sectors: list[str],
+) -> pd.DataFrame:
+    """Create the yearly summary table used in the report."""
+    selected_sector_returns = sector_returns_df.loc[:, selected_sectors]
+    count_by_year = y_binary.groupby(y_binary.index.year).size().rename("Count")
+    prop_up_by_year = y_binary.groupby(y_binary.index.year).mean().rename("S&P 500 Prop. Up")
+    sector_summary = selected_sector_returns.groupby(selected_sector_returns.index.year).agg(["mean", "std"])
+    return pd.concat([count_by_year, prop_up_by_year, sector_summary], axis=1)
+
+
+def write_descriptive_stats_latex(table: pd.DataFrame, output_path: Path, selected_sectors: list[str]) -> None:
+    """Write the final descriptive statistics table as LaTeX."""
+    lines = [
+        r"\begin{table}[htbp]",
+        r"\centering",
+        r"\begin{tabular}{lrr|rr|rr|rr}",
+        r"\hline",
+        (
+            r"Year & Count & \multicolumn{1}{c|}{S \&P 500 Prop. Up} "
+            rf"& \multicolumn{{2}}{{c|}}{{{selected_sectors[0]}}} "
+            rf"& \multicolumn{{2}}{{c|}}{{{selected_sectors[1]}}} "
+            rf"& \multicolumn{{2}}{{c}}{{{selected_sectors[2]}}} \\"
+        ),
+        r" &  & Value & Mean & SD & Mean & SD & Mean & SD \\",
+        r"\hline",
+    ]
+
+    for year, row in table.iterrows():
+        lines.append(
+            f"{year} & {int(row['Count'])} & {row['S&P 500 Prop. Up']:.4f} "
+            f"& {row[(selected_sectors[0], 'mean')]:.4f} & {row[(selected_sectors[0], 'std')]:.4f} "
+            f"& {row[(selected_sectors[1], 'mean')]:.4f} & {row[(selected_sectors[1], 'std')]:.4f} "
+            f"& {row[(selected_sectors[2], 'mean')]:.4f} & {row[(selected_sectors[2], 'std')]:.4f} \\\\"
+        )
+
+    lines.extend(
+        [
+            r"\hline",
+            r"\end{tabular}",
+            r"\caption{Yearly selected descriptive statistics: trading-day count, S\&P 500 up-day proportion, and sector return moments}",
+            r"\label{tab:descriptive_stats}",
+            r"\end{table}",
+        ]
+    )
+
+    output_path.write_text("\n".join(lines) + "\n")
+
 parser = argparse.ArgumentParser(description="EDA plots using raw data only.")
-# parser.add_argument("--lookback_period",  type=int,   default=5,    help="Lookback window for EMA/VOL/VWAP features (default: 5)")
-# parser.add_argument("--lag_period",       type=int,   nargs="+",    default=[1], help="Lag periods, e.g. --lag_period 1 2 (default: [1])")
-# parser.add_argument("--no_extra_features",action="store_true",      help="Disable extra features (day of week, daily range, forward lags)")
-# parser.add_argument("--raw",              action="store_true",       help="Return raw OHLCV data without engineered features")
-# parser.add_argument("--corr_threshold",   type=float, default=0.95, help="Correlation threshold for dropping (default: 0.95)")
-# parser.add_argument("--corr_level",       type=int,   default=1,    choices=[0, 1, 2, 3], help="Correlation drop level: 0=none, 1=before features, 2=after, 3=both (default: 1)")
-parser.add_argument("--prefix",           type=str,   default="8yrs_",   help="Prefix for saved plot filenames (default: '8yrs_')")
+parser.add_argument("--prefix", type=str, default="8yrs_", help="Prefix for saved plot filenames (default: '8yrs_')")
 args = parser.parse_args()
-# args.extra_features = not args.no_extra_features
 prefix = args.prefix
 
-# Force raw-data-only behavior for this script while keeping the old options
-# commented above for review.
-raw_mode = True
-extra_features = False
-corr_threshold = 0.95
-corr_level = 0
-# lookback_period = args.lookback_period
-# lag_period = args.lag_period
-# extra_features = args.extra_features
-# raw_mode = args.raw
-# corr_threshold = args.corr_threshold
-# corr_level = args.corr_level
-# ────────────────────────────────────────────────────────────────────────────
-
 lookup_df = pd.read_csv(cwd / "PyScripts" / "Data" / "stock_lookup_table.csv")
+market_cap_col = "Market Cap (in tens of millions)"
 
 print("Loading data via clean_data...")
 DATA, y_regression = import_data(
     testing=False,
-    extra_features=extra_features,
-    corr_level=corr_level,
+    extra_features=False,
+    corr_level=0,
 )
+# `clean_data` still requires lookback/lag arguments, but under `raw=True`
+# it keeps the raw-style columns and does not build the rolling/lagged features.
 X, y = clean_data(
     DATA=DATA,
     y_regression=y_regression,
     lookback_period=5,
     lag_period=[1],
-    extra_features=extra_features,
-    raw=raw_mode,
-    corr_threshold=corr_threshold,
-    corr_level=corr_level,
+    extra_features=False,
+    raw=True,
+    corr_threshold=0.95,
+    corr_level=0,
 )
+y_binary = to_binary_class(y)
 
 # # Extract daily returns (Close PC = percent change of close price)
 # # In the current pipeline, import_data() already creates Close PC and
@@ -94,30 +143,38 @@ X, y = clean_data(
 returns_df = X.xs(key='Close PC', axis=1, level=0)
 returns_df.columns = returns_df.columns.droplevel(0)
 returns = returns_df.dropna()
+returns = ensure_datetime_index(returns)
+y = ensure_datetime_index(y)
+y_binary = ensure_datetime_index(y_binary)
 
 print(f"Returns shape: {returns.shape}")
 
 # Create sector mapping
 sector_map = lookup_df.set_index('Ticker')['Sector'].to_dict()
+market_cap_map = lookup_df.set_index('Ticker')[market_cap_col].to_dict()
 
 # Get sector information for available stocks
 available_tickers = returns.columns.tolist()
-stock_sectors = {}
-for ticker in available_tickers:
-    if ticker in sector_map:
-        stock_sectors[ticker] = sector_map[ticker]
+stock_sectors = {
+    ticker: sector_map[ticker]
+    for ticker in available_tickers
+    if ticker in sector_map and pd.notna(sector_map[ticker])
+}
+sector_to_stocks = {}
+for ticker, sector in stock_sectors.items():
+    sector_to_stocks.setdefault(sector, []).append(ticker)
 
 print(f"\nSectors found: {set(stock_sectors.values())}")
 
 # Plot 1: Sector correlation
 print("\nGenerating sector correlation heat map...")
 sector_dict = {}
-for sector in set(stock_sectors.values()):
-    sector_stocks = [t for t in available_tickers if stock_sectors.get(t) == sector]
-    if len(sector_stocks) > 0:
+for sector, sector_stocks in sector_to_stocks.items():
+    if sector_stocks:
         sector_dict[sector] = returns[sector_stocks].mean(axis=1)
 
 sector_returns = pd.DataFrame(sector_dict)
+sector_returns = ensure_datetime_index(sector_returns)
 sector_corr = sector_returns.corr()
 
 # Create clustermap for sector correlation with hierarchical clustering
@@ -172,10 +229,6 @@ def plot_sector_with_marketcap(sector_name, stocks_in_sector, returns_df, output
     sector_returns = returns_df[sorted_stocks]
     corr_matrix = sector_returns.corr()
     
-    # Convert correlation to distance (for clustering)
-    # Distance = 1 - correlation (so perfect correlation = 0 distance)
-    distance_matrix = 1 - corr_matrix
-    
     # Create clustermap with hierarchical clustering
     figsize = (min(16, max(10, len(sorted_stocks)*0.15)), 
                min(14, max(10, len(sorted_stocks)*0.15)))
@@ -213,9 +266,8 @@ def plot_sector_with_marketcap(sector_name, stocks_in_sector, returns_df, output
     
     # Print top stocks
     print(f"\n  {sector_name} - Top 10 stocks by Market Cap:")
-    mc_dict = dict(zip(lookup_df['Ticker'], lookup_df['Market Cap (in tens of millions)']))
     for i, stock in enumerate(sorted_stocks[:10], 1):
-        print(f"    {i:2d}. {stock:6s} - ${mc_dict.get(stock, 0):10.2f}M")
+        print(f"    {i:2d}. {stock:6s} - ${market_cap_map.get(stock, 0):10.2f}M")
 
 # # THIS IS THE PART THAT THE OTHER CONTRIBUTOR USED BUT I DONT, WILL DELETE LATER WHEN DOUBLE CHECK AGAIN
 # #Process top 3 sectors by number of stocks
@@ -232,8 +284,7 @@ def plot_sector_with_marketcap(sector_name, stocks_in_sector, returns_df, output
 print("\nGenerating volatility plot...")
 volatility_window = 21  # 1 month
 sector_volatility = {}
-for sector in sector_dict.keys():
-    sector_stocks = [t for t in available_tickers if stock_sectors.get(t) == sector]
+for sector, sector_stocks in sector_to_stocks.items():
     sector_vol = returns[sector_stocks].std(axis=1).rolling(window=volatility_window).mean()
     sector_volatility[sector] = sector_vol
 
@@ -379,49 +430,17 @@ print(f"✓ Saved: {prefix}smoothed_sector_volatility.png")
 # plt.close()
 # print(f"✓ Saved: {prefix}sector_volatility_heatmap_monthly.png")
 
-# Plot 10: Top 3 sectors by correlation with SP500
-print("\nGenerating SP500 sector correlation ranking...")
-
 # Align SPX returns with the returns index
 spx_returns = y.reindex(returns.index).dropna()
 common_index = returns.index.intersection(spx_returns.index)
 
-sector_spx_corr = {}
-for sector in sector_dict.keys():
-    sector_stocks = [t for t in available_tickers if stock_sectors.get(t) == sector]
-    sector_ret = returns.loc[common_index, sector_stocks].mean(axis=1)
-    sector_spx_corr[sector] = sector_ret.corr(spx_returns.loc[common_index])
-
-corr_series = pd.Series(sector_spx_corr).sort_values(key=lambda x: x.abs(), ascending=False)
-top3_sectors = corr_series.head(3)
-
-print("\nTop 3 sectors by absolute correlation with SP500:")
-for i, (sector, corr_val) in enumerate(top3_sectors.items(), 1):
-    print(f"  {i}. {sector}: {corr_val:.4f} (|{abs(corr_val):.4f}|)")
-
-colors = ['#2ecc71' if s in top3_sectors.index else '#95a5a6' for s in corr_series.index]
-plt.figure(figsize=(12, 6))
-plt.bar(corr_series.index, corr_series.values, color=colors, edgecolor='white', linewidth=0.8)
-plt.axhline(0, color='black', linewidth=0.8, linestyle='--')
-plt.xticks(rotation=45, ha='right')
-plt.title("Sector Correlation with SP500 Returns\n(Top 3 by Absolute Correlation Highlighted in Green)")
-plt.xlabel("Sector")
-plt.ylabel("Pearson Correlation")
-plt.tight_layout()
-plt.savefig(output_dir / f"{prefix}sector_sp500_correlation.png", dpi=300, bbox_inches='tight')
-plt.close()
-print(f"✓ Saved: {prefix}sector_sp500_correlation.png")
-
-# Plot 11: Top 3 sectors by correlation with SP500 (market-cap weighted sector returns)
+# Plot 10: Top 3 sectors by correlation with SP500 (market-cap weighted sector returns)
 print("\nGenerating SP500 sector correlation ranking (market-cap weighted sector returns)...")
-
-market_cap_col = "Market Cap (in tens of millions)"
 if market_cap_col not in lookup_df.columns:
     raise KeyError(f"Expected '{market_cap_col}' in stock lookup table.")
 
 sector_spx_corr_weighted = {}
-for sector in sector_dict.keys():
-    sector_stocks = [t for t in available_tickers if stock_sectors.get(t) == sector]
+for sector, sector_stocks in sector_to_stocks.items():
     if len(sector_stocks) == 0:
         continue
 
@@ -465,11 +484,18 @@ plt.savefig(output_dir / f"{prefix}sector_sp500_correlation_mcap_weighted.png", 
 plt.close()
 print(f"✓ Saved: {prefix}sector_sp500_correlation_mcap_weighted.png")
 
-# Generate individual heatmaps for top 3 sectors by absolute SP500 correlation
-print("\nGenerating individual heatmaps for top 3 SP500-correlated sectors...")
-for sector in top3_sectors.index:
-    sector_stocks = [t for t in available_tickers if stock_sectors.get(t) == sector]
-    print(f"\nProcessing {sector} ({len(sector_stocks)} stocks, SP500 corr={sector_spx_corr[sector]:.4f})...")
+# Export descriptive statistics table using the weighted top 3 sectors.
+selected_sectors = top3_sectors_weighted.index.tolist()
+descriptive_stats_table = build_descriptive_stats_table(sector_returns, y_binary, selected_sectors)
+descriptive_stats_path = output_dir / "descriptive_stats.tex"
+write_descriptive_stats_latex(descriptive_stats_table, descriptive_stats_path, selected_sectors)
+print(f"✓ Saved: {descriptive_stats_path.name}")
+
+# Generate individual heatmaps for top 3 sectors by market-cap-weighted SP500 correlation
+print("\nGenerating individual heatmaps for top 3 market-cap-weighted SP500-correlated sectors...")
+for sector in top3_sectors_weighted.index:
+    sector_stocks = sector_to_stocks.get(sector, [])
+    print(f"\nProcessing {sector} ({len(sector_stocks)} stocks, weighted SP500 corr={sector_spx_corr_weighted[sector]:.4f})...")
     plot_sector_with_marketcap(sector, sector_stocks, returns, output_dir)
 
 print("\n" + "="*60)

@@ -11,11 +11,11 @@ import pandas as pd
 
 def default_history_path(project_root: Path, model: str) -> Path:
     mapping = {
-        "svm": "search_history_svm.csv",
-        "logreg": "search_history_logreg.csv",
-        "rf": "search_history_rf.csv"
+        "svm": "8yrs_search_history_svm.csv",
+        "logreg": "8yrs_search_history_logreg.csv",
+        "rf": "8yrs_search_history_rf.csv"
     }
-    return project_root / "output" / "results" / mapping[model]
+    return project_root / "output" / mapping[model]
 
 
 def sort_by_complexity(df: pd.DataFrame, x_col: str, ordered: list[str] | None =None) -> pd.DataFrame:
@@ -168,7 +168,7 @@ def main() -> None:
     )
 
     out_path = Path(args.out) if args.out else (
-        project_root / "output" / "Used" / "png" / f"over_under_fit_{args.model}_{args.x_param.replace('param_', '')}.png"
+        project_root / "output" / f"8yrs_over_under_fit_{args.model}_{args.x_param.replace('param_', '')}.png"
     )
     out_path.parent.mkdir(parents=True, exist_ok=True)
     plt.tight_layout()

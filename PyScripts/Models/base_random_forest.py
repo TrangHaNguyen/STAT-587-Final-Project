@@ -18,6 +18,7 @@ from sklearn.metrics import precision_score, recall_score, f1_score, roc_auc_sco
 
 from H_prep import clean_data, import_data
 from H_eval import RollingWindowBacktest, get_final_metrics
+from model_grids import BASE_RF_PCA_GRID
 
 CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'cache')
 os.makedirs(CACHE_DIR, exist_ok=True)
@@ -39,8 +40,9 @@ def make_one_se_refit(complexity_cols: list[str]):
     def _pick_index(cv_results):
         mean = np.asarray(cv_results["mean_test_score"], dtype=float)
         std = np.asarray(cv_results["std_test_score"], dtype=float)
+        se = std / np.sqrt(5)
         best_idx = int(np.argmax(mean))
-        threshold = float(mean[best_idx] - std[best_idx])
+        threshold = float(mean[best_idx] - se[best_idx])
         candidate_idx = np.where(mean >= threshold)[0]
         if len(candidate_idx) == 0:
             return best_idx
@@ -70,10 +72,17 @@ def _latex_escape(text: str) -> str:
             .replace("{", r"\{")
             .replace("}", r"\}"))
 
-def write_latex_table(df: pd.DataFrame, path: str, caption: str, label: str) -> None:
+def write_latex_table(df: pd.DataFrame, path: str, caption: str, label: str, note: str | None =None) -> None:
     """Write DataFrame to LaTeX, with a no-jinja fallback."""
     try:
-        df.to_latex(path, float_format='%.4f', caption=caption, label=label)
+        latex = df.to_latex(float_format='%.3f', caption=caption, label=label)
+        if note:
+            latex = latex.replace(
+                "\\end{table}\n",
+                "\\par\\smallskip\n" + f"\\footnotesize {_latex_escape(note)}\n" + "\\end{table}\n"
+            )
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(latex)
         return
     except ImportError:
         pass
@@ -92,11 +101,15 @@ def write_latex_table(df: pd.DataFrame, path: str, caption: str, label: str) -> 
             values = [_latex_escape(idx)]
             for val in row.values:
                 if isinstance(val, (float, np.floating)):
-                    values.append(f"{float(val):.4f}")
+                    values.append(f"{float(val):.3f}")
                 else:
                     values.append(_latex_escape(val))
             f.write(" & ".join(values) + " \\\\\n")
-        f.write("\\hline\n\\end{tabular}\n\\end{table}\n")
+        f.write("\\hline\n\\end{tabular}\n")
+        if note:
+            f.write("\\par\\smallskip\n")
+            f.write(f"\\footnotesize {_latex_escape(note)}\n")
+        f.write("\\end{table}\n")
 
 def build_export_table(df: pd.DataFrame) -> pd.DataFrame:
     """Keep only compact metrics for reporting/export."""
@@ -122,7 +135,8 @@ if __name__ == "__main__":
     X_train, X_test, y_train, y_test = train_test_split(
         X, y_classification, test_size=0.2, shuffle=False
     )
-    tscv = TimeSeriesSplit(n_splits=3)
+    # Previous temporary change used `KFold(n_splits=5, shuffle=False)`.
+    tscv = TimeSeriesSplit(n_splits=5)
 
     # ------- GridSearchCV: 5 depths x 4 n_estimators = 20 combinations -------
     print("\n========== Random Forest GridSearch (20 combinations) ==========")
@@ -152,7 +166,7 @@ if __name__ == "__main__":
     best_n_est  = grid_search_rf.best_params_['classifier__n_estimators']
     print(f"Best params: max_depth={best_depth}, n_estimators={best_n_est}")
     print("\n--- Model Report ---")
-    get_final_metrics(grid_search_rf.best_estimator_, X_train, y_train, X_test, y_test, n_splits=3, label="Base RF")
+    get_final_metrics(grid_search_rf.best_estimator_, X_train, y_train, X_test, y_test, n_splits=5, label="Base RF")
     print("\n--- Rolling Window Backtest ---")
     rwb_obj = RollingWindowBacktest(grid_search_rf.best_estimator_, X, y_classification, X_train, window_size=200, horizon=40)
     rwb_obj.rolling_window_backtest(verbose=1)
@@ -161,7 +175,7 @@ if __name__ == "__main__":
     print("\n========== PCA + Random Forest GridSearch ==========")
     _rf_pca_cache = os.path.join(CACHE_DIR, 'base_rf_pca_gridsearch.pkl')
     param_grid_pca = {
-        'reducer__n_components':    [0.8, 0.9, 0.95],
+        'reducer__n_components':    BASE_RF_PCA_GRID,
         'classifier__max_depth':    [2, 3, 5],
         'classifier__n_estimators': [250, 500],
     }
@@ -184,7 +198,7 @@ if __name__ == "__main__":
             joblib.dump(grid_search_pca, _rf_pca_cache)
     print(f"Best params (PCA RF): {grid_search_pca.best_params_}")
     print("\n--- Model Report ---")
-    get_final_metrics(grid_search_pca.best_estimator_, X_train, y_train, X_test, y_test, n_splits=3, label="PCA RF")
+    get_final_metrics(grid_search_pca.best_estimator_, X_train, y_train, X_test, y_test, n_splits=5, label="PCA RF")
     print("\n--- Rolling Window Backtest ---")
     rwb_obj = RollingWindowBacktest(grid_search_pca.best_estimator_, X, y_classification, X_train, window_size=200, horizon=40)
     rwb_obj.rolling_window_backtest(verbose=1)
@@ -218,7 +232,7 @@ if __name__ == "__main__":
             joblib.dump(grid_search_lasso, _rf_lasso_cache)
     print(f"Best params (LASSO RF): {grid_search_lasso.best_params_}")
     print("\n--- Model Report ---")
-    get_final_metrics(grid_search_lasso.best_estimator_, X_train, y_train, X_test, y_test, n_splits=3, label="LASSO-sel RF")
+    get_final_metrics(grid_search_lasso.best_estimator_, X_train, y_train, X_test, y_test, n_splits=5, label="LASSO-sel RF")
     print("\n--- Rolling Window Backtest ---")
     rwb_obj = RollingWindowBacktest(grid_search_lasso.best_estimator_, X, y_classification, X_train, window_size=200, horizon=40)
     rwb_obj.rolling_window_backtest(verbose=1)
@@ -252,7 +266,7 @@ if __name__ == "__main__":
             joblib.dump(grid_search_ridge, _rf_ridge_cache)
     print(f"Best params (Ridge RF): {grid_search_ridge.best_params_}")
     print("\n--- Model Report ---")
-    get_final_metrics(grid_search_ridge.best_estimator_, X_train, y_train, X_test, y_test, n_splits=3, label="Ridge-sel RF")
+    get_final_metrics(grid_search_ridge.best_estimator_, X_train, y_train, X_test, y_test, n_splits=5, label="Ridge-sel RF")
     print("\n--- Rolling Window Backtest ---")
     rwb_obj = RollingWindowBacktest(grid_search_ridge.best_estimator_, X, y_classification, X_train, window_size=200, horizon=40)
     rwb_obj.rolling_window_backtest(verbose=1)
@@ -302,6 +316,7 @@ if __name__ == "__main__":
     ridge_train_err_std = np.array(ridge_train_err_std, dtype=float)
     ridge_test_err_mean = np.array(ridge_test_err_mean, dtype=float)
     ridge_test_err_std = np.array(ridge_test_err_std, dtype=float)
+    ridge_test_err_se = ridge_test_err_std / np.sqrt(tscv.get_n_splits())
 
     fig_ridge, ax_ridge = plt.subplots(figsize=(10, 5))
     fig_ridge.suptitle(
@@ -326,8 +341,8 @@ if __name__ == "__main__":
     # 1SE band for CV test error around the mean test-error curve.
     ax_ridge.fill_between(
         ridge_c_grid,
-        ridge_test_err_mean - ridge_test_err_std,
-        ridge_test_err_mean + ridge_test_err_std,
+        ridge_test_err_mean - ridge_test_err_se,
+        ridge_test_err_mean + ridge_test_err_se,
         alpha=0.18, color='darkorange', label='CV Test error ±1SE'
     )
     ax_ridge.axvline(
@@ -409,7 +424,7 @@ if __name__ == "__main__":
     plt.tight_layout()
     output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'output')
     os.makedirs(output_dir, exist_ok=True)
-    tex_output_dir = os.path.join(output_dir, 'Used', 'tex')
+    tex_output_dir = output_dir
     os.makedirs(tex_output_dir, exist_ok=True)
     out_path1 = os.path.join(output_dir, '8yrs_base_rf_bias_variance.png')
     plt.savefig(out_path1, dpi=150, bbox_inches='tight')
@@ -503,41 +518,35 @@ if __name__ == "__main__":
     # ===================================================================
     print("\n========== Model Comparison Table ==========")
 
-    def _rf_metrics(name, grid_obj, X_te, y_te, tscv_splitter):
-        idx_best = grid_obj.best_index_
-        res      = grid_obj.cv_results_
-        preds    = grid_obj.predict(X_te)
-        if hasattr(grid_obj, "predict_proba"):
-            y_score = grid_obj.predict_proba(X_te)[:, 1]
-        elif hasattr(grid_obj, "decision_function"):
-            y_score = grid_obj.decision_function(X_te)
-        else:
-            y_score = preds
+    def _rf_metrics(name, grid_obj, X_tr, y_tr, X_te, y_te, n_splits):
+        shared = get_final_metrics(
+            grid_obj.best_estimator_, X_tr, y_tr, X_te, y_te, n_splits=n_splits, label=name
+        )
         return {
             'Model':             name,
-            'Avg Train Acc':     round(res['mean_train_score'][idx_best], 4),
-            'Std Train Acc':     round(res['std_train_score'][idx_best],  4),
-            'Avg CV Test Acc':   round(res['mean_test_score'][idx_best],  4),
-            'Std CV Test Acc':   round(res['std_test_score'][idx_best],   4),
-            'Hold-out Test Acc': round(grid_obj.score(X_te, y_te),        4),
-            'Precision':         round(precision_score(y_te, preds, zero_division=0), 4),
-            'Recall':            round(recall_score(y_te, preds,    zero_division=0), 4),
-            'F1':                round(f1_score(y_te, preds,         zero_division=0), 4),
-            'ROC-AUC':           round(roc_auc_score(y_te, y_score), 4),
+            'Avg Train Acc':     shared['train_avg_accuracy'],
+            'Std Train Acc':     shared['train_std_accuracy'],
+            'Avg CV Test Acc':   shared['validation_avg_accuracy'],
+            'Std CV Test Acc':   shared['cv_test_sd_error'],
+            'Test Acc':          shared['test_split_accuracy'],
+            'Precision':         shared['test_precision'],
+            'Recall':            shared['test_recall'],
+            'F1':                shared['test_f1'],
+            'ROC-AUC':           shared['test_roc_auc_macro'],
         }
 
     rows = [
-        _rf_metrics('Base RF',         grid_search_rf,    X_test, y_test, tscv),
-        _rf_metrics('PCA RF',          grid_search_pca,   X_test, y_test, tscv),
-        _rf_metrics('LASSO-sel RF',    grid_search_lasso, X_test, y_test, tscv),
-        _rf_metrics('Ridge-sel RF',    grid_search_ridge, X_test, y_test, tscv),
+        _rf_metrics('Base RF', grid_search_rf, X_train, y_train, X_test, y_test, tscv.n_splits),
+        _rf_metrics('PCA RF', grid_search_pca, X_train, y_train, X_test, y_test, tscv.n_splits),
+        _rf_metrics('LASSO-sel RF', grid_search_lasso, X_train, y_train, X_test, y_test, tscv.n_splits),
+        _rf_metrics('Ridge-sel RF', grid_search_ridge, X_train, y_train, X_test, y_test, tscv.n_splits),
     ]
 
     comparison_df = pd.DataFrame(rows).set_index('Model')
     print(comparison_df.to_string())
 
     csv_path = os.path.join(output_dir, '8yrs_base_rf_comparison.csv')
-    comparison_df.to_csv(csv_path)
+    comparison_df.to_csv(csv_path, float_format='%.3f')
     print(f"\nComparison table (raw) saved to: {os.path.abspath(csv_path)}")
 
     # ===================================================================
@@ -579,13 +588,13 @@ if __name__ == "__main__":
         if USE_GRID_CACHE:
             joblib.dump(grid_search_rf_dow, _rf_dow_cache)
     print(f"Best params (Base RF+DOW): {grid_search_rf_dow.best_params_}")
-    get_final_metrics(grid_search_rf_dow.best_estimator_, X_train_dow, y_train_dow, X_test_dow, y_test_dow, n_splits=3, label="Base RF+DOW")
+    get_final_metrics(grid_search_rf_dow.best_estimator_, X_train_dow, y_train_dow, X_test_dow, y_test_dow, n_splits=5, label="Base RF+DOW")
 
     # --- PCA RF + DOW ---
     print("\n========== PCA RF + DOW GridSearch ==========")
     _rf_pca_dow_cache = os.path.join(CACHE_DIR, 'base_rf_pca_dow_gridsearch.pkl')
     param_grid_pca_dow = {
-        'reducer__n_components':    [0.8, 0.9, 0.95],
+        'reducer__n_components':    BASE_RF_PCA_GRID,
         'classifier__max_depth':    [2, 3, 5],
         'classifier__n_estimators': [250, 500],
     }
@@ -604,7 +613,7 @@ if __name__ == "__main__":
         if USE_GRID_CACHE:
             joblib.dump(grid_search_pca_dow, _rf_pca_dow_cache)
     print(f"Best params (PCA RF+DOW): {grid_search_pca_dow.best_params_}")
-    get_final_metrics(grid_search_pca_dow.best_estimator_, X_train_dow, y_train_dow, X_test_dow, y_test_dow, n_splits=3, label="PCA RF+DOW")
+    get_final_metrics(grid_search_pca_dow.best_estimator_, X_train_dow, y_train_dow, X_test_dow, y_test_dow, n_splits=5, label="PCA RF+DOW")
 
     # --- LASSO-sel RF + DOW ---
     print("\n========== LASSO-sel RF + DOW GridSearch ==========")
@@ -631,7 +640,7 @@ if __name__ == "__main__":
         if USE_GRID_CACHE:
             joblib.dump(grid_search_lasso_dow, _rf_lasso_dow_cache)
     print(f"Best params (LASSO-sel RF+DOW): {grid_search_lasso_dow.best_params_}")
-    get_final_metrics(grid_search_lasso_dow.best_estimator_, X_train_dow, y_train_dow, X_test_dow, y_test_dow, n_splits=3, label="LASSO-sel RF+DOW")
+    get_final_metrics(grid_search_lasso_dow.best_estimator_, X_train_dow, y_train_dow, X_test_dow, y_test_dow, n_splits=5, label="LASSO-sel RF+DOW")
 
     # --- Ridge-sel RF + DOW ---
     print("\n========== Ridge-sel RF + DOW GridSearch ==========")
@@ -658,16 +667,16 @@ if __name__ == "__main__":
         if USE_GRID_CACHE:
             joblib.dump(grid_search_ridge_dow, _rf_ridge_dow_cache)
     print(f"Best params (Ridge-sel RF+DOW): {grid_search_ridge_dow.best_params_}")
-    get_final_metrics(grid_search_ridge_dow.best_estimator_, X_train_dow, y_train_dow, X_test_dow, y_test_dow, n_splits=3, label="Ridge-sel RF+DOW")
+    get_final_metrics(grid_search_ridge_dow.best_estimator_, X_train_dow, y_train_dow, X_test_dow, y_test_dow, n_splits=5, label="Ridge-sel RF+DOW")
 
     # ===================================================================
     # COMBINED COMPARISON TABLE (raw OHLCV vs raw OHLCV + DOW)
     # ===================================================================
     rows_dow = [
-        _rf_metrics('Base RF+DOW',      grid_search_rf_dow,    X_test_dow, y_test_dow, tscv),
-        _rf_metrics('PCA RF+DOW',       grid_search_pca_dow,   X_test_dow, y_test_dow, tscv),
-        _rf_metrics('LASSO-sel RF+DOW', grid_search_lasso_dow, X_test_dow, y_test_dow, tscv),
-        _rf_metrics('Ridge-sel RF+DOW', grid_search_ridge_dow, X_test_dow, y_test_dow, tscv),
+        _rf_metrics('Base RF+DOW', grid_search_rf_dow, X_train_dow, y_train_dow, X_test_dow, y_test_dow, tscv.n_splits),
+        _rf_metrics('PCA RF+DOW', grid_search_pca_dow, X_train_dow, y_train_dow, X_test_dow, y_test_dow, tscv.n_splits),
+        _rf_metrics('LASSO-sel RF+DOW', grid_search_lasso_dow, X_train_dow, y_train_dow, X_test_dow, y_test_dow, tscv.n_splits),
+        _rf_metrics('Ridge-sel RF+DOW', grid_search_ridge_dow, X_train_dow, y_train_dow, X_test_dow, y_test_dow, tscv.n_splits),
     ]
     dow_df = pd.DataFrame(rows_dow).set_index('Model')
 
@@ -677,7 +686,7 @@ if __name__ == "__main__":
 
     combined_export_df = build_export_table(combined_df)
     combined_csv = os.path.join(output_dir, '8yrs_base_rf_comparison.csv')
-    combined_export_df.to_csv(combined_csv)
+    combined_export_df.to_csv(combined_csv, float_format='%.3f')
     print(f"\nCombined comparison table saved to: {os.path.abspath(combined_csv)}")
 
     tex_path = os.path.join(tex_output_dir, '8yrs_1SE_base_random_forest.tex')
@@ -685,7 +694,8 @@ if __name__ == "__main__":
         combined_export_df,
         tex_path,
         'Random Forest Model Comparison: Raw OHLCV vs Raw OHLCV + Day-of-Week',
-        'tab:base_rf_comparison'
+        'tab:base_rf_comparison',
+        note='Test Acc = hold-out accuracy on the final 20% test split.'
     )
     print(f"LaTeX table saved to:               {os.path.abspath(tex_path)}")
 
@@ -729,7 +739,7 @@ if __name__ == "__main__":
         if USE_GRID_CACHE:
             joblib.dump(grid_search_rf_lag, _rf_lag_cache)
     print(f"Best params (Base RF+Lags): {grid_search_rf_lag.best_params_}")
-    get_final_metrics(grid_search_rf_lag.best_estimator_, X_train_lag, y_train_lag, X_test_lag, y_test_lag, n_splits=3, label="Base RF+Lags")
+    get_final_metrics(grid_search_rf_lag.best_estimator_, X_train_lag, y_train_lag, X_test_lag, y_test_lag, n_splits=5, label="Base RF+Lags")
 
     # --- PCA RF + Lags ---
     print("\n========== PCA RF + Lags GridSearch ==========")
@@ -742,7 +752,7 @@ if __name__ == "__main__":
             Pipeline([('scaler', StandardScaler()),
                       ('reducer', PCA()),
                       ('classifier', RandomForestClassifier(random_state=1, n_jobs=MODEL_N_JOBS))]),
-            {'reducer__n_components': [0.8, 0.9, 0.95],
+            {'reducer__n_components': BASE_RF_PCA_GRID,
              'classifier__max_depth': [2, 3, 5],
              'classifier__n_estimators': [250, 500]},
             cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy',
@@ -752,7 +762,7 @@ if __name__ == "__main__":
         if USE_GRID_CACHE:
             joblib.dump(grid_search_pca_lag, _rf_pca_lag_cache)
     print(f"Best params (PCA RF+Lags): {grid_search_pca_lag.best_params_}")
-    get_final_metrics(grid_search_pca_lag.best_estimator_, X_train_lag, y_train_lag, X_test_lag, y_test_lag, n_splits=3, label="PCA RF+Lags")
+    get_final_metrics(grid_search_pca_lag.best_estimator_, X_train_lag, y_train_lag, X_test_lag, y_test_lag, n_splits=5, label="PCA RF+Lags")
 
     # --- LASSO-sel RF + Lags ---
     print("\n========== LASSO-sel RF + Lags GridSearch ==========")
@@ -777,7 +787,7 @@ if __name__ == "__main__":
         if USE_GRID_CACHE:
             joblib.dump(grid_search_lasso_lag, _rf_lasso_lag_cache)
     print(f"Best params (LASSO-sel RF+Lags): {grid_search_lasso_lag.best_params_}")
-    get_final_metrics(grid_search_lasso_lag.best_estimator_, X_train_lag, y_train_lag, X_test_lag, y_test_lag, n_splits=3, label="LASSO-sel RF+Lags")
+    get_final_metrics(grid_search_lasso_lag.best_estimator_, X_train_lag, y_train_lag, X_test_lag, y_test_lag, n_splits=5, label="LASSO-sel RF+Lags")
 
     # --- Ridge-sel RF + Lags ---
     print("\n========== Ridge-sel RF + Lags GridSearch ==========")
@@ -802,16 +812,16 @@ if __name__ == "__main__":
         if USE_GRID_CACHE:
             joblib.dump(grid_search_ridge_lag, _rf_ridge_lag_cache)
     print(f"Best params (Ridge-sel RF+Lags): {grid_search_ridge_lag.best_params_}")
-    get_final_metrics(grid_search_ridge_lag.best_estimator_, X_train_lag, y_train_lag, X_test_lag, y_test_lag, n_splits=3, label="Ridge-sel RF+Lags")
+    get_final_metrics(grid_search_ridge_lag.best_estimator_, X_train_lag, y_train_lag, X_test_lag, y_test_lag, n_splits=5, label="Ridge-sel RF+Lags")
 
     # ===================================================================
     # FULL COMPARISON TABLE (raw + DOW + Lags)
     # ===================================================================
     rows_lag = [
-        _rf_metrics('Base RF+Lags',      grid_search_rf_lag,    X_test_lag, y_test_lag, tscv),
-        _rf_metrics('PCA RF+Lags',       grid_search_pca_lag,   X_test_lag, y_test_lag, tscv),
-        _rf_metrics('LASSO-sel RF+Lags', grid_search_lasso_lag, X_test_lag, y_test_lag, tscv),
-        _rf_metrics('Ridge-sel RF+Lags', grid_search_ridge_lag, X_test_lag, y_test_lag, tscv),
+        _rf_metrics('Base RF+Lags', grid_search_rf_lag, X_train_lag, y_train_lag, X_test_lag, y_test_lag, tscv.n_splits),
+        _rf_metrics('PCA RF+Lags', grid_search_pca_lag, X_train_lag, y_train_lag, X_test_lag, y_test_lag, tscv.n_splits),
+        _rf_metrics('LASSO-sel RF+Lags', grid_search_lasso_lag, X_train_lag, y_train_lag, X_test_lag, y_test_lag, tscv.n_splits),
+        _rf_metrics('Ridge-sel RF+Lags', grid_search_ridge_lag, X_train_lag, y_train_lag, X_test_lag, y_test_lag, tscv.n_splits),
     ]
     lag_df = pd.DataFrame(rows_lag).set_index('Model')
 
@@ -821,7 +831,7 @@ if __name__ == "__main__":
 
     full_export_df = build_export_table(full_df)
     full_csv = os.path.join(output_dir, '8yrs_base_rf_comparison.csv')
-    full_export_df.to_csv(full_csv)
+    full_export_df.to_csv(full_csv, float_format='%.3f')
     print(f"\nFull comparison table saved to: {os.path.abspath(full_csv)}")
 
     tex_path = os.path.join(tex_output_dir, '8yrs_1SE_base_random_forest.tex')
@@ -829,6 +839,7 @@ if __name__ == "__main__":
         full_export_df,
         tex_path,
         'Random Forest Model Comparison: Raw OHLCV vs +Day-of-Week vs +Lag1--7',
-        'tab:base_rf_comparison'
+        'tab:base_rf_comparison',
+        note='Test Acc = hold-out accuracy on the final 20% test split.'
     )
     print(f"LaTeX table saved to:           {os.path.abspath(tex_path)}")

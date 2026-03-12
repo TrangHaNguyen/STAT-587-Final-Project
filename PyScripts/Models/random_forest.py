@@ -16,6 +16,7 @@ from H_prep import clean_data, data_clean_param_selection, import_data
 from H_eval import RollingWindowBacktest, get_final_metrics, utility_score
 from H_helpers import log_result, get_cwd, append_params_to_dict
 from H_search_history import append_search_history, append_search_run, get_git_commit, now_iso
+from model_grids import RF_PCA_GRID_OPTIONS
 
 VERBOSE=0
 WINDOW_SIZE=220
@@ -50,8 +51,9 @@ def make_one_se_refit(complexity_cols: list[str]):
         import numpy as np
         mean = np.asarray(cv_results["mean_test_score"], dtype=float)
         std = np.asarray(cv_results["std_test_score"], dtype=float)
+        se = std / np.sqrt(5)
         best_idx = int(np.argmax(mean))
-        threshold = float(mean[best_idx] - std[best_idx])
+        threshold = float(mean[best_idx] - se[best_idx])
         candidate_idx = np.where(mean >= threshold)[0]
         if len(candidate_idx) == 0:
             return best_idx
@@ -80,8 +82,8 @@ if __name__=="__main__":
     print(f"GRID_VARIANT={GRID_VARIANT} (left/center/right)")
     print(f"GRID_VERSION={GRID_VERSION}")
     grid_label = f"{GRID_VERSION}_{GRID_VARIANT}"
-    history_path = cwd / "output" / "results" / "search_history_rf.csv"
-    runs_path = cwd / "output" / "results" / "search_runs.csv"
+    history_path = cwd / "output" / "8yrs_search_history_rf.csv"
+    runs_path = cwd / "output" / "8yrs_search_runs.csv"
     dataset_version = "testing=False,extra_features=True,cluster=False,corr_threshold=0.95,corr_level=0"
     # testing: bool =False, extra_features: bool =True, cluster: bool =False, n_clusters: int =100, corr_threshold: float =0.95, corr_level: int =0
     DATA=import_data(extra_features=True, testing=False, cluster=False, n_clusters=100, corr_threshold=0.95, corr_level=0)
@@ -164,7 +166,8 @@ if __name__=="__main__":
     y_classification=to_binary_class(y_regression)
     X_train, X_test, y_train, y_test=train_test_split(X, y_classification, test_size=TEST_SIZE, random_state=1, shuffle=False)
 
-    tscv=TimeSeriesSplit(n_splits=5) # CHANGEABLE (OPTIONAL)
+    # Previous temporary change used `KFold(n_splits=5, shuffle=False)`.
+    tscv = TimeSeriesSplit(n_splits=5)  # CHANGEABLE (OPTIONAL)
     
     # ------- BASE APPLICATION -------
     print("\n\n------- Base RF Model -------")
@@ -217,7 +220,7 @@ if __name__=="__main__":
         results=append_params_to_dict(results, optimized_base_)
         results.update(rwb_obj.results[2])
         results.update(download_params)
-        log_result(results, cwd / 'output' / 'results', "results.csv")
+        log_result(results, cwd / 'output', "8yrs_results.csv")
     
     if (PAUSE_BETWEEN_MODELS):
         input("Press Enter to continue...")
@@ -232,9 +235,7 @@ if __name__=="__main__":
     
     param_grid={
         'reducer__n_components': choose_grid(
-            [0.7, 0.85],
-            [0.8, 0.95],
-            [0.9, 0.99]
+            *RF_PCA_GRID_OPTIONS
         ),
         'classifier__max_depth': choose_grid(
             [1, 2, 3, 5],
@@ -279,7 +280,7 @@ if __name__=="__main__":
         results=append_params_to_dict(results, optimized_PCA_)
         results.update(rwb_obj.results[2])
         results.update(download_params)
-        log_result(results, cwd / 'output' / 'results', "results.csv")
+        log_result(results, cwd / 'output', "8yrs_results.csv")
 
     if (PAUSE_BETWEEN_MODELS):
         input("Press Enter to continue...")
@@ -342,7 +343,7 @@ if __name__=="__main__":
         results=append_params_to_dict(results, optimized_LASSO_)
         results.update(rwb_obj.results[2])
         results.update(download_params)
-        log_result(results, cwd / 'output' / 'results', "results.csv")
+        log_result(results, cwd / 'output', "8yrs_results.csv")
         
     if (PAUSE_BETWEEN_MODELS):
         input("Press Enter to continue...")
@@ -405,7 +406,7 @@ if __name__=="__main__":
         results=append_params_to_dict(results, optimized_ridge_)
         results.update(rwb_obj.results[2])
         results.update(download_params)
-        log_result(results, cwd / 'output' / 'results', "results.csv")
+        log_result(results, cwd / 'output', "8yrs_results.csv")
         
     if (PAUSE_BETWEEN_MODELS):
         input("Press Enter to continue...")
@@ -489,7 +490,7 @@ if __name__=="__main__":
             results=append_params_to_dict(results, RFClassifier_red_sw_wfv_pipeline)
             results.update(rwb_obj.results[2])
             results.update(download_params)
-            log_result(results, cwd / 'output' / 'results', "results.csv")
+            log_result(results, cwd / 'output', "8yrs_results.csv")
             
         if (PAUSE_BETWEEN_MODELS):
             input("Press Enter to Finish...")

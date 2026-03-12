@@ -172,10 +172,10 @@ def main():
     print("\nConfusion Matrix:")
     print(cm)
 
-    output_dir = cwd / "output" / "NotUsed"
+    output_dir = cwd / "output"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    output_path = output_dir / f"cnn_update_{mode_tag}_result.txt"
+    output_path = output_dir / f"8yrs_cnn_update_{mode_tag}_result.txt"
     with open(output_path, "w") as f:
         f.write("=" * 70 + "\n")
         f.write(f"CNN UPDATE RESULTS - {mode_label}\n")

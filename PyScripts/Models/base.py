@@ -18,7 +18,9 @@ SCRIPT STRUCTURE:
   3. Helper Functions (lines 680+): Functions to load cached results for plotting
 
 USAGE:
-  - To retrain all models: Set RETRAIN_ALL = True (line 49)
+  - First run / no cache files yet: keep RETRAIN_ALL = True
+  - To refresh all cached outputs: Set RETRAIN_ALL = True
+  - To reuse only the cached diagnostics curves: Set RETRAIN_ALL = False
   - To load cached results: Use helper functions at the end of this file
     Example: cached_data = load_baseline_pca_results()
 """
@@ -28,6 +30,11 @@ import joblib
 import pandas as pd
 from H_prep import clean_data, import_data
 import numpy as np
+
+MPLCONFIGDIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '.mplconfig')
+os.makedirs(MPLCONFIGDIR, exist_ok=True)
+os.environ.setdefault("MPLCONFIGDIR", os.path.abspath(MPLCONFIGDIR))
+
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -37,6 +44,8 @@ from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split, TimeSeriesSplit, cross_val_score
 from sklearn.pipeline import Pipeline
 from sklearn.metrics import roc_auc_score
+from model_grids import BASELINE_PCA_GRID
+from H_eval import get_final_metrics
 
 CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'cache')
 os.makedirs(CACHE_DIR, exist_ok=True)
@@ -54,6 +63,8 @@ BASE_CACHE_FILES = [
     'base_lasso_dow_cv.pkl',
     'base_ridge_pca_dow_cv.pkl',
     'base_lasso_pca_dow_cv.pkl',
+    'base_raw_diagnostics.pkl',
+    'base_pca_diagnostics.pkl',
 ]
 
 def clear_base_caches():
@@ -70,7 +81,10 @@ def to_binary_class(y):
 
 def _select_pca_n_components_1se(grid_results):
     best = max(grid_results, key=lambda r: r['mean_cv_score'])
-    threshold = best['mean_cv_score'] - best['std_cv_score']
+    # Classic 1SE rule on accuracy: accept any candidate within one standard
+    # error of the best mean CV score, then prefer the simpler representation.
+    best_se = best['std_cv_score'] / np.sqrt(len(best['cv_scores']))
+    threshold = best['mean_cv_score'] - best_se
     candidates = [r for r in grid_results if r['mean_cv_score'] >= threshold]
     # Simpler PCA model means fewer retained components.
     chosen = min(candidates, key=lambda r: r['n_components_value'])
@@ -82,16 +96,77 @@ def _select_c_1se_from_logregcv(cv_clf):
         scores = scores[:, :, 0]
     mean_scores = scores.mean(axis=0)
     std_scores = scores.std(axis=0)
+    se_scores = std_scores / np.sqrt(scores.shape[0])
     cs = np.array(cv_clf.Cs_)
     best_idx = int(np.argmax(mean_scores))
-    threshold = mean_scores[best_idx] - std_scores[best_idx]
+    # Classic 1SE rule on accuracy: choose the smallest C whose mean CV score
+    # is within one standard error of the best-performing C.
+    threshold = mean_scores[best_idx] - se_scores[best_idx]
     candidate_idx = np.where(mean_scores >= threshold)[0]
     # Simpler model for logistic regularization is smaller C.
     chosen_idx = int(candidate_idx[np.argmin(cs[candidate_idx])])
     return float(cs[chosen_idx]), float(cs[best_idx]), float(threshold)
 
+def _compute_bv_curves(cv_clf, X_tr, y_tr, tscv_splitter, penalty, solver):
+    """Extract CV test error from stored scores_ and compute train error per fold."""
+    cs = np.array(cv_clf.Cs_)
+    raw = np.array(list(cv_clf.scores_.values())[0])
+    if raw.ndim == 3:
+        raw = raw[:, :, 0]
+    cv_err_mean = 1 - raw.mean(axis=0)
+    cv_err_std = raw.std(axis=0)
+    cv_err_se = cv_err_std / np.sqrt(raw.shape[0])
+
+    train_scores = np.zeros_like(raw)
+    for fold_idx, (tr, _) in enumerate(tscv_splitter.split(X_tr, y_tr)):
+        X_fold = X_tr.iloc[tr] if hasattr(X_tr, 'iloc') else X_tr[tr]
+        y_fold = y_tr.iloc[tr] if hasattr(y_tr, 'iloc') else y_tr[tr]
+        for c_idx, c_val in enumerate(cs):
+            clf = LogisticRegression(
+                C=c_val, penalty=penalty, solver=solver,
+                random_state=1, max_iter=500, tol=1e-2
+            )
+            clf.fit(X_fold, y_fold)
+            train_scores[fold_idx, c_idx] = clf.score(X_fold, y_fold)
+
+    tr_err_mean = 1 - train_scores.mean(axis=0)
+    tr_err_std = train_scores.std(axis=0)
+    return {
+        'cs': cs,
+        'tr_err_mean': tr_err_mean,
+        'tr_err_std': tr_err_std,
+        'cv_err_mean': cv_err_mean,
+        'cv_err_std': cv_err_std,
+        'cv_err_se': cv_err_se,
+    }
+
+def _compute_direct_split_errors(X_train, y_train, X_test, y_test, c_grid, penalty, solver):
+    train_errors, test_errors = [], []
+    for c_val in c_grid:
+        clf = LogisticRegression(
+            C=c_val, penalty=penalty, solver=solver,
+            random_state=1, max_iter=500, tol=1e-2
+        )
+        clf.fit(X_train, y_train)
+        train_errors.append(1 - clf.score(X_train, y_train))
+        test_errors.append(1 - clf.score(X_test, y_test))
+    return {
+        'cs': np.array(c_grid),
+        'train_errors': np.array(train_errors),
+        'test_errors': np.array(test_errors),
+    }
+
+def _best_and_1se_error_lines(cv_err_mean, cv_err_se):
+    best_idx = int(np.argmin(cv_err_mean))
+    best_error = float(cv_err_mean[best_idx])
+    # Same classic 1SE rule expressed on an error scale instead of accuracy.
+    one_se_error = float(best_error + cv_err_se[best_idx])
+    return best_error, one_se_error
+
 if __name__ == "__main__":
-    # Set to False to use cached models; True to retrain all models
+    # First run: keep True so the script generates the model and diagnostics caches.
+    # False reuses only the diagnostics .pkl files for the curve plots; the fitted
+    # models in this script are still retrained below.
     RETRAIN_ALL = True
     
     if RETRAIN_ALL:
@@ -115,7 +190,8 @@ if __name__ == "__main__":
         X, y_classification, test_size=0.2, shuffle=False
     )
 
-    tscv = TimeSeriesSplit(n_splits=3)
+    # Previous temporary change used `KFold(n_splits=5, shuffle=False)`.
+    tscv = TimeSeriesSplit(n_splits=5)
 
     # ===================================================================
     # PCA PRE-PROCESSING WITH GRID SEARCH FOR BASELINE
@@ -128,7 +204,7 @@ if __name__ == "__main__":
     X_test_sc   = scaler_pca.transform(X_test)
     
     # Grid search over different n_components
-    n_components_grid = [0.85, 0.90, 0.95, 0.99]
+    n_components_grid = BASELINE_PCA_GRID
     grid_search_results = []
     
     print(f"Testing n_components: {n_components_grid}")
@@ -250,46 +326,45 @@ if __name__ == "__main__":
 
     # ------- Bias-Variance Tradeoff Plot (Ridge + LASSO) -------
     print("\n========== Generating Bias-Variance Tradeoff Plot ==========")
-
-    def _bv_curves(cv_clf, pipeline, X_tr, y_tr, tscv_splitter, penalty, solver):
-        """Extract CV test error from stored scores_ and compute train error per fold."""
-        cs    = cv_clf.Cs_
-        raw   = np.array(list(cv_clf.scores_.values())[0])
-        if raw.ndim == 3:
-            raw = raw[:, :, 0]                          # (n_folds, n_Cs)
-        cv_err_mean = 1 - raw.mean(axis=0)
-        cv_err_std  = raw.std(axis=0)
-
-        scaler = pipeline.named_steps['scaler']
-        train_scores = np.zeros_like(raw)
-        for fold_idx, (tr, _) in enumerate(tscv_splitter.split(X_tr, y_tr)):
-            X_fold = scaler.fit_transform(
-                X_tr.iloc[tr] if hasattr(X_tr, 'iloc') else X_tr[tr])
-            y_fold = y_tr.iloc[tr] if hasattr(y_tr, 'iloc') else y_tr[tr]
-            for c_idx, c_val in enumerate(cs):
-                clf = LogisticRegression(
-                    C=c_val, penalty=penalty, solver=solver,
-                    random_state=1, max_iter=500, tol=1e-2)
-                clf.fit(X_fold, y_fold)
-                train_scores[fold_idx, c_idx] = clf.score(X_fold, y_fold)
-        tr_err_mean = 1 - train_scores.mean(axis=0)
-        tr_err_std  = train_scores.std(axis=0)
-        return cs, tr_err_mean, tr_err_std, cv_err_mean, cv_err_std
+    raw_diag_cache = os.path.join(CACHE_DIR, 'base_raw_diagnostics.pkl')
+    if (not RETRAIN_ALL) and os.path.exists(raw_diag_cache):
+        raw_diagnostics = joblib.load(raw_diag_cache)
+    else:
+        raw_scaler = StandardScaler()
+        X_train_raw_sc = raw_scaler.fit_transform(X_train)
+        X_test_raw_sc = raw_scaler.transform(X_test)
+        raw_diagnostics = {
+            'ridge_bv': _compute_bv_curves(ridge_cv, X_train_raw_sc, y_train, tscv, 'l2', 'saga'),
+            'lasso_bv': _compute_bv_curves(lasso_cv, X_train_raw_sc, y_train, tscv, 'l1', 'saga'),
+            'ridge_direct': _compute_direct_split_errors(X_train_raw_sc, y_train, X_test_raw_sc, y_test, np.logspace(-10, 2, 30), 'l2', 'saga'),
+            'lasso_direct': _compute_direct_split_errors(X_train_raw_sc, y_train, X_test_raw_sc, y_test, np.logspace(-10, 2, 30), 'l1', 'saga'),
+        }
+        joblib.dump(raw_diagnostics, raw_diag_cache)
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
     fig.suptitle('Bias-Variance Tradeoff — Raw OHLCV Features\n(Train vs CV Test Error per Regularization Strength)',
                  fontsize=13, fontweight='bold')
 
-    for ax, (label, cv_clf, pipe, pen, solv, color, c_1se) in zip(axes, [
-        ('Ridge (L2)', ridge_cv, pipeline_ridge, 'l2', 'saga', 'darkorange', ridge_c_1se),
-        ('LASSO (L1)', lasso_cv, pipeline_lasso, 'l1', 'saga', 'seagreen', lasso_c_1se),
+    for ax, (label, diag_key, color, c_1se) in zip(axes, [
+        ('Ridge (L2)', 'ridge_bv', 'darkorange', ridge_c_1se),
+        ('LASSO (L1)', 'lasso_bv', 'seagreen', lasso_c_1se),
     ]):
-        cs, tr_mean, tr_std, cv_mean, cv_std = _bv_curves(
-            cv_clf, pipe, X_train, y_train, tscv, pen, solv)
+        diag = raw_diagnostics[diag_key]
+        cs = diag['cs']
+        tr_mean = diag['tr_err_mean']
+        tr_std = diag['tr_err_std']
+        cv_mean = diag['cv_err_mean']
+        cv_se = diag['cv_err_se']
+        best_error, one_se_error = _best_and_1se_error_lines(cv_mean, cv_se)
         ax.semilogx(cs, tr_mean, marker='o', color='steelblue', linewidth=2, label='Train error')
         ax.fill_between(cs, tr_mean - tr_std, tr_mean + tr_std, alpha=0.15, color='steelblue')
         ax.semilogx(cs, cv_mean, marker='s', color=color,      linewidth=2, label='CV Test error')
-        ax.fill_between(cs, cv_mean - cv_std, cv_mean + cv_std, alpha=0.15, color=color)
+        ax.fill_between(cs, cv_mean - cv_se, cv_mean + cv_se, alpha=0.15, color=color,
+                        label='CV Test error ±1SE')
+        ax.axhline(best_error, color='purple', linestyle=':', linewidth=1.5,
+                   label=f'Best CV error = {best_error:.3f}')
+        ax.axhline(one_se_error, color='gray', linestyle='--', linewidth=1.5,
+                   label=f'1SE threshold = {one_se_error:.3f}')
         ax.axvline(c_1se, color='red', linestyle='--',
                    label=f'1SE C = {c_1se:.4f}')
         ax.set_title(f'{label} — Bias-Variance Tradeoff')
@@ -311,32 +386,27 @@ if __name__ == "__main__":
     # ------- Train vs Test Error Plot (direct, no CV averaging) -------
     print("\n========== Generating Train vs Test Error Plot (Direct Split) ==========")
 
-    C_grid = np.logspace(-10, 2, 30)
-
     fig2, axes2 = plt.subplots(1, 2, figsize=(14, 5))
     fig2.suptitle('Train vs Test Error — Raw OHLCV Features\n(Direct Train/Test Split, No CV)',
                   fontsize=13, fontweight='bold')
 
-    for ax, (label, pen, solv, color) in zip(axes2, [
-        ('Ridge (L2)', 'l2', 'saga', 'darkorange'),
-        ('LASSO (L1)', 'l1', 'saga', 'seagreen'),
+    for ax, (label, diag_key, guide_key, color) in zip(axes2, [
+        ('Ridge (L2)', 'ridge_direct', 'ridge_bv', 'darkorange'),
+        ('LASSO (L1)', 'lasso_direct', 'lasso_bv', 'seagreen'),
     ]):
-        train_errors, test_errors = [], []
-        scaler = StandardScaler()
-        X_tr_sc = scaler.fit_transform(X_train)
-        X_te_sc = scaler.transform(X_test)
-        for c_val in C_grid:
-            clf = LogisticRegression(
-                C=c_val, penalty=pen, solver=solv,
-                random_state=1, max_iter=500, tol=1e-2)
-            clf.fit(X_tr_sc, y_train)
-            train_errors.append(1 - clf.score(X_tr_sc, y_train))
-            test_errors.append(1 - clf.score(X_te_sc, y_test))
-
-        ax.semilogx(C_grid, train_errors, marker='o', color='steelblue',
+        diag = raw_diagnostics[diag_key]
+        guide_diag = raw_diagnostics[guide_key]
+        best_error, one_se_error = _best_and_1se_error_lines(
+            guide_diag['cv_err_mean'], guide_diag['cv_err_se']
+        )
+        ax.semilogx(diag['cs'], diag['train_errors'], marker='o', color='steelblue',
                     linewidth=2, label='Train error')
-        ax.semilogx(C_grid, test_errors, marker='s', color=color,
+        ax.semilogx(diag['cs'], diag['test_errors'], marker='s', color=color,
                     linewidth=2, label='Test error')
+        ax.axhline(best_error, color='purple', linestyle=':', linewidth=1.5,
+                   label=f'Best CV error = {best_error:.3f}')
+        ax.axhline(one_se_error, color='gray', linestyle='--', linewidth=1.5,
+                   label=f'1SE threshold = {one_se_error:.3f}')
         ax.set_title(f'{label} — Train vs Test Error')
         ax.set_xlabel('C  (Inverse Regularization Strength)\n'
                       '← High Regularization, Simpler Model      '
@@ -388,40 +458,43 @@ if __name__ == "__main__":
 
     # ------- Bias-Variance Tradeoff Plot (PCA + Ridge/LASSO) -------
     print("\n========== Generating PCA Bias-Variance Tradeoff Plot ==========")
+    pca_diag_cache = os.path.join(CACHE_DIR, 'base_pca_diagnostics.pkl')
+    if (not RETRAIN_ALL) and os.path.exists(pca_diag_cache):
+        pca_diagnostics = joblib.load(pca_diag_cache)
+    else:
+        pca_diagnostics = {
+            'ridge_bv': _compute_bv_curves(clf_ridge_pca, X_train_pca, y_train, tscv, 'l2', 'saga'),
+            'lasso_bv': _compute_bv_curves(clf_lasso_pca, X_train_pca, y_train, tscv, 'l1', 'saga'),
+            'ridge_direct': _compute_direct_split_errors(X_train_pca, y_train, X_test_pca, y_test, np.logspace(-5, 2, 30), 'l2', 'saga'),
+            'lasso_direct': _compute_direct_split_errors(X_train_pca, y_train, X_test_pca, y_test, np.logspace(-5, 2, 30), 'l1', 'saga'),
+        }
+        joblib.dump(pca_diagnostics, pca_diag_cache)
 
     fig3, axes3 = plt.subplots(1, 2, figsize=(14, 5))
     fig3.suptitle(f'Bias-Variance Tradeoff — PCA Features ({n_components_raw} comps, {best_n_comp*100:.0f}% variance)\n'
                   '(Train vs CV Test Error per Regularization Strength)',
                   fontsize=13, fontweight='bold')
 
-    for ax, (label, cv_clf, pen, solv, color, c_1se) in zip(axes3, [
-        ('Ridge (L2)', clf_ridge_pca, 'l2', 'saga', 'darkorange', ridge_pca_c_1se),
-        ('LASSO (L1)', clf_lasso_pca, 'l1', 'saga', 'seagreen', lasso_pca_c_1se),
+    for ax, (label, diag_key, color, c_1se) in zip(axes3, [
+        ('Ridge (L2)', 'ridge_bv', 'darkorange', ridge_pca_c_1se),
+        ('LASSO (L1)', 'lasso_bv', 'seagreen', lasso_pca_c_1se),
     ]):
-        cs   = cv_clf.Cs_
-        raw  = np.array(list(cv_clf.scores_.values())[0])
-        if raw.ndim == 3:
-            raw = raw[:, :, 0]
-        cv_err_mean = 1 - raw.mean(axis=0)
-        cv_err_std  = raw.std(axis=0)
-
-        train_scores = np.zeros_like(raw)
-        for fold_idx, (tr, _) in enumerate(tscv.split(X_train_pca, y_train)):
-            X_fold = X_train_pca[tr]
-            y_fold = y_train.iloc[tr] if hasattr(y_train, 'iloc') else y_train[tr]
-            for c_idx, c_val in enumerate(cs):
-                clf = LogisticRegression(
-                    C=c_val, penalty=pen, solver=solv,
-                    random_state=1, max_iter=500, tol=1e-2)
-                clf.fit(X_fold, y_fold)
-                train_scores[fold_idx, c_idx] = clf.score(X_fold, y_fold)
-        tr_err_mean = 1 - train_scores.mean(axis=0)
-        tr_err_std  = train_scores.std(axis=0)
-
+        diag = pca_diagnostics[diag_key]
+        cs = diag['cs']
+        tr_err_mean = diag['tr_err_mean']
+        tr_err_std = diag['tr_err_std']
+        cv_err_mean = diag['cv_err_mean']
+        cv_err_se = diag['cv_err_se']
+        best_error, one_se_error = _best_and_1se_error_lines(cv_err_mean, cv_err_se)
         ax.semilogx(cs, tr_err_mean, marker='o', color='steelblue', linewidth=2, label='Train error')
         ax.fill_between(cs, tr_err_mean - tr_err_std, tr_err_mean + tr_err_std, alpha=0.15, color='steelblue')
         ax.semilogx(cs, cv_err_mean, marker='s', color=color, linewidth=2, label='CV Test error')
-        ax.fill_between(cs, cv_err_mean - cv_err_std, cv_err_mean + cv_err_std, alpha=0.15, color=color)
+        ax.fill_between(cs, cv_err_mean - cv_err_se, cv_err_mean + cv_err_se, alpha=0.15, color=color,
+                        label='CV Test error ±1SE')
+        ax.axhline(best_error, color='purple', linestyle=':', linewidth=1.5,
+                   label=f'Best CV error = {best_error:.3f}')
+        ax.axhline(one_se_error, color='gray', linestyle='--', linewidth=1.5,
+                   label=f'1SE threshold = {one_se_error:.3f}')
         ax.axvline(c_1se, color='red', linestyle='--',
                    label=f'1SE C = {c_1se:.4f}')
         ax.set_title(f'{label} — Bias-Variance Tradeoff (PCA)')
@@ -441,30 +514,28 @@ if __name__ == "__main__":
     # ------- Train vs Test Error Plot after PCA (direct split) -------
     print("\n========== Generating PCA Train vs Test Error Plot (Direct Split) ==========")
 
-    C_grid_pca = np.logspace(-5, 2, 30)
-
     fig4, axes4 = plt.subplots(1, 2, figsize=(14, 5))
     fig4.suptitle(f'Train vs Test Error — PCA Features ({n_components_raw} comps, {best_n_comp*100:.0f}% variance)\n'
                   '(Direct Train/Test Split, No CV)',
                   fontsize=13, fontweight='bold')
 
-    for ax, (label, pen, solv, color) in zip(axes4, [
-        ('Ridge (L2)', 'l2', 'saga', 'darkorange'),
-        ('LASSO (L1)', 'l1', 'saga', 'seagreen'),
+    for ax, (label, diag_key, guide_key, color) in zip(axes4, [
+        ('Ridge (L2)', 'ridge_direct', 'ridge_bv', 'darkorange'),
+        ('LASSO (L1)', 'lasso_direct', 'lasso_bv', 'seagreen'),
     ]):
-        train_errors, test_errors = [], []
-        for c_val in C_grid_pca:
-            clf = LogisticRegression(
-                C=c_val, penalty=pen, solver=solv,
-                random_state=1, max_iter=500, tol=1e-2)
-            clf.fit(X_train_pca, y_train)
-            train_errors.append(1 - clf.score(X_train_pca, y_train))
-            test_errors.append(1 - clf.score(X_test_pca, y_test))
-
-        ax.semilogx(C_grid_pca, train_errors, marker='o', color='steelblue',
+        diag = pca_diagnostics[diag_key]
+        guide_diag = pca_diagnostics[guide_key]
+        best_error, one_se_error = _best_and_1se_error_lines(
+            guide_diag['cv_err_mean'], guide_diag['cv_err_se']
+        )
+        ax.semilogx(diag['cs'], diag['train_errors'], marker='o', color='steelblue',
                     linewidth=2, label='Train error')
-        ax.semilogx(C_grid_pca, test_errors, marker='s', color=color,
+        ax.semilogx(diag['cs'], diag['test_errors'], marker='s', color=color,
                     linewidth=2, label='Test error')
+        ax.axhline(best_error, color='purple', linestyle=':', linewidth=1.5,
+                   label=f'Best CV error = {best_error:.3f}')
+        ax.axhline(one_se_error, color='gray', linestyle='--', linewidth=1.5,
+                   label=f'1SE threshold = {one_se_error:.3f}')
         ax.set_title(f'{label} — Train vs Test Error (PCA)')
         ax.set_xlabel('C  (Inverse Regularization Strength)\n'
                       '← High Regularization, Simpler Model      '
@@ -483,39 +554,38 @@ if __name__ == "__main__":
     # MODEL COMPARISON TABLE
     # ===================================================================
     print("\n========== Model Comparison Table ==========")
-    from sklearn.model_selection import cross_validate as _cv
-    from sklearn.metrics import precision_score, recall_score, f1_score
 
-    def _metrics(name, model, X_tr, y_tr, X_te, y_te, tscv_splitter, best_c=None):
-        cv_res = _cv(model, X_tr, y_tr, cv=tscv_splitter,
-                     return_train_score=True, n_jobs=MODEL_N_JOBS, scoring='balanced_accuracy')
+    def _eval_row(name, model, X_tr, y_tr, X_te, y_te, n_splits, best_c=None):
+        shared = get_final_metrics(
+            model, X_tr, y_tr, X_te, y_te, n_splits=n_splits, label=name
+        )
         preds = model.predict(X_te)
-        if hasattr(model, "predict_proba"):
-            y_score = model.predict_proba(X_te)[:, 1]
-        elif hasattr(model, "decision_function"):
-            y_score = model.decision_function(X_te)
-        else:
-            y_score = preds
+        is_degenerate = (
+            best_c is not None
+            and np.isclose(best_c, 1e-6)
+            and np.unique(preds).size == 1
+        )
         return {
-            'Model':              name,
-            'Best C':             f'{best_c:.6f}' if best_c is not None else 'N/A',
-            'Avg Train Acc':      round(cv_res['train_score'].mean(), 4),
-            'Std Train Acc':      round(cv_res['train_score'].std(),  4),
-            'Avg CV Test Acc':    round(cv_res['test_score'].mean(),  4),
-            'Std CV Test Acc':    round(cv_res['test_score'].std(),   4),
-            'Hold-out Test Acc':  round(model.score(X_te, y_te),      4),
-            'Precision':          round(precision_score(y_te, preds, zero_division=0), 4),
-            'Recall':             round(recall_score(y_te, preds,    zero_division=0), 4),
-            'F1':                 round(f1_score(y_te, preds,         zero_division=0), 4),
-            'ROC-AUC':            round(roc_auc_score(y_te, y_score), 4),
+            'Model':           name,
+            'Best C':          f'{best_c:.6f}' if best_c is not None else 'N/A',
+            'Avg Train Acc':   shared['train_avg_accuracy'],
+            'Std Train Acc':   shared['train_std_accuracy'],
+            'Avg CV Test Acc': shared['validation_avg_accuracy'],
+            'CV test SD':      shared['cv_test_sd_error'],
+            'Test Acc':        shared['test_split_accuracy'],
+            'Precision':       shared['test_precision'],
+            'Recall':          shared['test_recall'],
+            'F1':              shared['test_f1'],
+            'ROC-AUC':         shared['test_roc_auc_macro'],
+            'Degenerate':      is_degenerate,
         }
 
     rows = [
-        _metrics(f'Baseline (No Reg) + PCA ({n_components_raw}, {best_n_comp*100:.0f}%)',    baseline_clf,  X_train_pca, y_train, X_test_pca, y_test, tscv, best_c=None),
-        _metrics('Ridge CV (raw)',    pipeline_ridge_1se, X_train, y_train, X_test, y_test, tscv, best_c=ridge_c_1se),
-        _metrics('LASSO CV (raw)',    pipeline_lasso_1se, X_train, y_train, X_test, y_test, tscv, best_c=lasso_c_1se),
-        _metrics(f'Ridge CV (PCA-{n_components_raw})',    clf_ridge_pca_1se,  X_train_pca, y_train, X_test_pca, y_test, tscv, best_c=ridge_pca_c_1se),
-        _metrics(f'LASSO CV (PCA-{n_components_raw})',    clf_lasso_pca_1se,  X_train_pca, y_train, X_test_pca, y_test, tscv, best_c=lasso_pca_c_1se),
+        _eval_row(f'Base+PCA ({n_components_raw}, {best_n_comp*100:.0f}%)', baseline_clf, X_train_pca, y_train, X_test_pca, y_test, tscv.n_splits, best_c=None),
+        _eval_row('Ridge (raw)', pipeline_ridge_1se, X_train, y_train, X_test, y_test, tscv.n_splits, best_c=ridge_c_1se),
+        _eval_row('LASSO (raw)', pipeline_lasso_1se, X_train, y_train, X_test, y_test, tscv.n_splits, best_c=lasso_c_1se),
+        _eval_row(f'Ridge+PCA ({n_components_raw})', clf_ridge_pca_1se, X_train_pca, y_train, X_test_pca, y_test, tscv.n_splits, best_c=ridge_pca_c_1se),
+        _eval_row(f'LASSO+PCA ({n_components_raw})', clf_lasso_pca_1se, X_train_pca, y_train, X_test_pca, y_test, tscv.n_splits, best_c=lasso_pca_c_1se),
     ]
 
     comparison_df = pd.DataFrame(rows).set_index('Model')
@@ -530,8 +600,9 @@ if __name__ == "__main__":
 
     dow_dummies = pd.get_dummies(X.index.dayofweek, prefix='DOW').astype(float)
     dow_dummies.index = X.index
-    # Keep only Mon–Thu (drop Fri to avoid dummy variable trap)
-    dow_dummies = dow_dummies.iloc[:, :-1]
+    # Drop Friday explicitly to avoid the dummy variable trap.
+    if 'DOW_4' in dow_dummies.columns:
+        dow_dummies = dow_dummies.drop(columns=['DOW_4'])
     print(f"Day-of-week columns added: {list(dow_dummies.columns)}")
 
     X_dow = pd.concat([X, dow_dummies], axis=1)
@@ -544,7 +615,7 @@ if __name__ == "__main__":
     print("\n========== Grid Search for Optimal PCA Components (DOW) ===========")
     
     # Grid search over different n_components for DOW features
-    n_components_grid = [0.85, 0.90, 0.95, 0.99]
+    n_components_grid = BASELINE_PCA_GRID
     grid_search_results_dow = []
     
     scaler_pca_dow = StandardScaler()
@@ -703,11 +774,11 @@ if __name__ == "__main__":
 
     # --- DOW rows using same _metrics helper ---
     rows_dow = [
-        _metrics(f'Baseline (No Reg)+DOW+PCA ({n_components_dow}, {best_n_comp_dow*100:.0f}%)',       baseline_dow_clf,  X_train_dow_pca, y_train, X_test_dow_pca, y_test, tscv, best_c=None),
-        _metrics('Ridge CV+DOW',       pipeline_ridge_dow_1se, X_train_dow, y_train, X_test_dow, y_test, tscv, best_c=ridge_dow_c_1se),
-        _metrics('LASSO CV+DOW',       pipeline_lasso_dow_1se, X_train_dow, y_train, X_test_dow, y_test, tscv, best_c=lasso_dow_c_1se),
-        _metrics(f'Ridge CV+PCA ({n_components_dow})+DOW',   clf_ridge_pca_dow_1se,  X_train_dow_pca, y_train, X_test_dow_pca, y_test, tscv, best_c=ridge_pca_dow_c_1se),
-        _metrics(f'LASSO CV+PCA ({n_components_dow})+DOW',   clf_lasso_pca_dow_1se,  X_train_dow_pca, y_train, X_test_dow_pca, y_test, tscv, best_c=lasso_pca_dow_c_1se),
+        _eval_row(f'Base+DOW+PCA ({n_components_dow}, {best_n_comp_dow*100:.0f}%)', baseline_dow_clf, X_train_dow_pca, y_train, X_test_dow_pca, y_test, tscv.n_splits, best_c=None),
+        _eval_row('Ridge+DOW', pipeline_ridge_dow_1se, X_train_dow, y_train, X_test_dow, y_test, tscv.n_splits, best_c=ridge_dow_c_1se),
+        _eval_row('LASSO+DOW', pipeline_lasso_dow_1se, X_train_dow, y_train, X_test_dow, y_test, tscv.n_splits, best_c=lasso_dow_c_1se),
+        _eval_row(f'Ridge+PCA+DOW ({n_components_dow})', clf_ridge_pca_dow_1se, X_train_dow_pca, y_train, X_test_dow_pca, y_test, tscv.n_splits, best_c=ridge_pca_dow_c_1se),
+        _eval_row(f'LASSO+PCA+DOW ({n_components_dow})', clf_lasso_pca_dow_1se, X_train_dow_pca, y_train, X_test_dow_pca, y_test, tscv.n_splits, best_c=lasso_pca_dow_c_1se),
     ]
     dow_df = pd.DataFrame(rows_dow).set_index('Model')
     print("\nDay-of-Week Models:")
@@ -728,24 +799,23 @@ if __name__ == "__main__":
     full_df = combined_df.copy()
     full_df.index.name = 'Model'
     # Keep only the reporting columns used in slides/tables.
-    keep_cols = ['Hold-out Test Acc', 'Precision', 'Recall', 'F1', 'ROC-AUC']
+    keep_cols = ['Test Acc', 'Precision', 'Recall', 'F1', 'ROC-AUC', 'CV test SD']
     full_df = full_df[keep_cols]
 
     print("\n===== Full Comparison Table =====")
     print(full_df.to_string())
 
-    # Save CSV
-    combined_csv = os.path.join(output_dir, '8yrs_1SE_base_logistic_comparison.csv')
-    full_df.to_csv(combined_csv)
-    print(f"\nFull comparison table saved to: {os.path.abspath(combined_csv)}")
-
-    tex_output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'output', 'Used', 'tex')
+    tex_output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'output')
     os.makedirs(tex_output_dir, exist_ok=True)
 
     # Build LaTeX manually with \midrule separating the three groups
     tex_path = os.path.join(tex_output_dir, '8yrs_1SE_base_logistic_comparison.tex')
     col_fmt  = 'l' + 'r' * len(full_df.columns)
     col_header = ' & '.join(['Model'] + list(full_df.columns)) + r' \\'
+    baseline_note = (
+        r'Base = baseline logistic regression without regularization. '
+        r'Test Acc = hold-out accuracy on the final 20\% test split.'
+    )
     lasso_note = (
         r'$^\dagger$ Degenerate classifier: optimal $C = 10^{-6}$ shrinks all '
         r'coefficients to zero; model predicts majority class for every observation '
@@ -763,11 +833,11 @@ if __name__ == "__main__":
                 .replace('{', r'\{')
                 .replace('}', r'\}'))
 
+    degenerate_models = set(combined_df.index[combined_df['Degenerate']])
+
     def _row(name, vals):
-        dagger = r'$^\dagger$' if 'LASSO' in name else ''
-        # First value is Best C (string), rest are numeric
-        best_c = _latex_escape(vals[0])
-        formatted_vals = [best_c] + [f'{v:.4f}' for v in vals[1:]]
+        dagger = r'$^\dagger$' if name in degenerate_models else ''
+        formatted_vals = [f'{v:.3f}' for v in vals]
         model_name = _latex_escape(name)
         return model_name + dagger + ' & ' + ' & '.join(formatted_vals) + r' \\'
 
@@ -782,16 +852,19 @@ if __name__ == "__main__":
         f.write(col_header + '\n')
         f.write(r'\midrule' + '\n')
         # Group 1: raw
-        for name, row in comparison_df.iterrows():
+        for name, row in full_df.loc[comparison_df.index].iterrows():
             f.write(_row(name, row.values) + '\n')
         f.write(r'\midrule' + '\n')
         # Group 2: DOW
-        for name, row in dow_df.iterrows():
+        for name, row in full_df.loc[dow_df.index].iterrows():
             f.write(_row(name, row.values) + '\n')
         f.write(r'\bottomrule' + '\n')
         f.write(r'\end{tabular}' + '\n')
         f.write(r'\par\smallskip' + '\n')
-        f.write(r'\footnotesize ' + lasso_note + '\n')
+        f.write(r'\footnotesize ' + baseline_note + '\n')
+        if degenerate_models:
+            f.write(r'\\' + '\n')
+            f.write(r'\footnotesize ' + lasso_note + '\n')
         f.write(r'\end{table}' + '\n')
 
     print(f"LaTeX table saved to:           {os.path.abspath(tex_path)}")
@@ -859,65 +932,48 @@ def load_baseline_pca_dow_results(cache_dir=None):
     return joblib.load(cache_path)
 
 
-def load_all_cached_models(cache_dir=None):
-    """
-    Load all cached logistic regression models.
-    
-    Returns:
-        dict: Dictionary with model names as keys and cached models as values
-        
-    Example usage:
-        >>> models = load_all_cached_models()
-        >>> print(models.keys())
-        >>> ridge_model = models['ridge_cv']
-        >>> print(f"Best C for Ridge: {ridge_model.named_steps['classifier'].C_[0]}")
-    """
-    if cache_dir is None:
-        cache_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'cache')
-    
-    cache_files = {
-        'baseline_pca': 'base_baseline_pca_cv.pkl',
-        'baseline_pca_dow': 'base_baseline_pca_dow_cv.pkl',
-        'ridge_cv': 'base_ridge_cv.pkl',
-        'lasso_cv': 'base_lasso_cv.pkl',
-        'ridge_pca_cv': 'base_ridge_pca_cv.pkl',
-        'lasso_pca_cv': 'base_lasso_pca_cv.pkl',
-        'ridge_dow_cv': 'base_ridge_dow_cv.pkl',
-        'lasso_dow_cv': 'base_lasso_dow_cv.pkl',
-        'ridge_pca_dow_cv': 'base_ridge_pca_dow_cv.pkl',
-        'lasso_pca_dow_cv': 'base_lasso_pca_dow_cv.pkl',
-    }
-    
-    models = {}
-    for name, filename in cache_files.items():
-        cache_path = os.path.join(cache_dir, filename)
-        if os.path.exists(cache_path):
-            models[name] = joblib.load(cache_path)
-        else:
-            print(f"Warning: {filename} not found")
-    
-    return models
-
-
-if __name__ == "__main__" and False:  # Set to True to run this example
-    # Example: Load and analyze baseline PCA grid search results
-    print("\n" + "="*70)
-    print("EXAMPLE: Reading Cached Results for Analysis")
-    print("="*70)
-    
-    # Load baseline PCA results
-    baseline_results = load_baseline_pca_results()
-    print(f"\nBaseline PCA - Best variance threshold: {baseline_results['best_n_comp']}")
-    print(f"Best CV score: {baseline_results['best_cv_score']:.4f}")
-    print(f"Number of components: {baseline_results['n_components_value']}")
-    
-    print("\nGrid search details:")
-    for result in baseline_results['grid_search_results']:
-        print(f"  {result['n_components']}: {result['mean_cv_score']:.4f} ± {result['std_cv_score']:.4f} "
-              f"({result['n_components_value']} components)")
-    
-    # Load all models
-    all_models = load_all_cached_models()
-    print(f"\nLoaded {len(all_models)} cached models")
-    print(f"Available models: {list(all_models.keys())}")
-    print(f"MODEL_N_JOBS={MODEL_N_JOBS} (set env MODEL_N_JOBS to override)")
+# Commented helper snippets for reading cached model artifacts without retraining.
+# These are not used by the main pipeline; they are here as a reference for manual
+# inspection if someone wants to recover the training path from the saved .pkl files.
+#
+# Example 1: inspect the baseline PCA cache
+# ------------------------------------------------------------------------------
+# cached_data = load_baseline_pca_results()
+# print("Best PCA threshold:", cached_data['best_n_comp'])
+# print("Best CV score:", round(cached_data['best_cv_score'], 4))
+# print("PCA grid search summary:")
+# for row in cached_data['grid_search_results']:
+#     print(
+#         row['n_components'],
+#         round(row['mean_cv_score'], 4),
+#         round(row['std_cv_score'], 4),
+#         row['n_components_value'],
+#     )
+#
+# Example 2: inspect a fitted model cache directly
+# ------------------------------------------------------------------------------
+# ridge_cache = os.path.join(CACHE_DIR, 'base_ridge_cv.pkl')
+# ridge_model = joblib.load(ridge_cache)
+# ridge_cv = ridge_model.named_steps['classifier']
+# print("Ridge best C:", ridge_cv.C_[0])
+# ridge_scores = np.array(list(ridge_cv.scores_.values())[0])
+# print("Ridge CV mean accuracy by C:", ridge_scores.mean(axis=0))
+#
+# Example 3: inspect the cached diagnostics used for the figures
+# ------------------------------------------------------------------------------
+# raw_diag_cache = os.path.join(CACHE_DIR, 'base_raw_diagnostics.pkl')
+# raw_diag = joblib.load(raw_diag_cache)
+# print(raw_diag.keys())  # 'ridge_bv', 'lasso_bv', 'ridge_direct', 'lasso_direct'
+# ridge_diag = raw_diag['ridge_bv']
+# print("Stored C grid:", ridge_diag['cs'])
+# print("CV error mean:", ridge_diag['cv_err_mean'])
+# print("Train error mean:", ridge_diag['tr_err_mean'])
+# print("Direct test error:", raw_diag['ridge_direct']['test_errors'])
+#
+# pca_diag_cache = os.path.join(CACHE_DIR, 'base_pca_diagnostics.pkl')
+# pca_diag = joblib.load(pca_diag_cache)
+# print("PCA diagnostic keys:", pca_diag.keys())
+#
+# Removed unused load_all_cached_models helper and dead example block.
+# The main training, figure generation, and table export paths load only the
+# specific cache files they need above.

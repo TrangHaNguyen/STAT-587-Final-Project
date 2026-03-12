@@ -14,6 +14,7 @@ from H_prep import clean_data, data_clean_param_selection, import_data
 from H_eval import get_final_metrics, RollingWindowBacktest, utility_score
 from H_helpers import log_result, append_params_to_dict, get_cwd
 from H_search_history import append_search_history, append_search_run, get_git_commit, now_iso
+from model_grids import LOGREG_PCA_GRID_OPTIONS
 
 '''No need for hyperparameter tuning for Logistic Regression via GridSearchCV since LogisticRegressionCV performs internal CV to select the best C value. We will just use the default 10 values of C that LogisticRegressionCV tests.'''
 
@@ -67,8 +68,9 @@ def make_one_se_refit(complexity_cols: list[str]):
     def _pick_index(cv_results):
         mean = np.asarray(cv_results["mean_test_score"], dtype=float)
         std = np.asarray(cv_results["std_test_score"], dtype=float)
+        se = std / np.sqrt(5)
         best_idx = int(np.argmax(mean))
-        threshold = float(mean[best_idx] - std[best_idx])
+        threshold = float(mean[best_idx] - se[best_idx])
         candidate_idx = np.where(mean >= threshold)[0]
         if len(candidate_idx) == 0:
             return best_idx
@@ -97,9 +99,10 @@ def select_logregcv_c_1se(cv_obj: LogisticRegressionCV) -> float:
         raise ValueError(f"Unexpected LogisticRegressionCV scores_ shape: {scores.shape}")
     mean_test = scores.mean(axis=0)
     std_test = scores.std(axis=0)
+    se_test = std_test / np.sqrt(scores.shape[0])
     cs = np.array(cv_obj.Cs_, dtype=float)
     best_idx = int(np.argmax(mean_test))
-    threshold = float(mean_test[best_idx] - std_test[best_idx])
+    threshold = float(mean_test[best_idx] - se_test[best_idx])
     candidate_idx = np.where(mean_test >= threshold)[0]
     if len(candidate_idx) == 0:
         return float(cs[best_idx])
@@ -114,7 +117,8 @@ if __name__=="__main__":
     HORIZON=40
     EXPORT=True
     TEST_SIZE=0.2
-    tscv=TimeSeriesSplit(n_splits=5)
+    # Previous temporary change used `KFold(n_splits=5, shuffle=False)`.
+    tscv = TimeSeriesSplit(n_splits=5)
     custom_Cs=choose_grid(
         [0.005, 0.01, 0.1, 1.0],
         [0.05, 0.1, 1.0, 10.0],
@@ -124,8 +128,8 @@ if __name__=="__main__":
     print(f"GRID_VARIANT={GRID_VARIANT} (left/center/right)")
     print(f"GRID_VERSION={GRID_VERSION}")
     grid_label = f"{GRID_VERSION}_{GRID_VARIANT}"
-    history_path = cwd / "output" / "results" / "search_history_logreg.csv"
-    runs_path = cwd / "output" / "results" / "search_runs.csv"
+    history_path = cwd / "output" / "8yrs_search_history_logreg.csv"
+    runs_path = cwd / "output" / "8yrs_search_runs.csv"
     dataset_version = "testing=False,extra_features=True,cluster=False,corr_threshold=0.95,corr_level=0"
     # testing: bool =False, extra_features: bool =True, cluster: bool =False, n_clusters: int =100, corr_threshold: float =0.95, corr_level: int =0
     DATA=import_data(extra_features=True, testing=False, cluster=False, n_clusters=100, corr_threshold=0.95, corr_level=0)
@@ -245,7 +249,7 @@ if __name__=="__main__":
         results=append_params_to_dict(results, optimized_Log_Reg_R_)
         results.update(rwb_obj.results[2])
         results.update(download_params)
-        log_result(results, cwd / 'output' / 'results', "results.csv")
+        log_result(results, cwd / 'output', "8yrs_results.csv")
 
     if (PAUSE_BETWEEN_MODELS):
         input("Press Enter to continue...")
@@ -287,7 +291,7 @@ if __name__=="__main__":
         results=append_params_to_dict(results, optimized_Log_Reg_L_)
         results.update(rwb_obj.results[2])
         results.update(download_params)
-        log_result(results, cwd / 'output' / 'results', "results.csv")
+        log_result(results, cwd / 'output', "8yrs_results.csv")
 
     if (PAUSE_BETWEEN_MODELS):
         input("Press Enter to continue...")
@@ -301,9 +305,7 @@ if __name__=="__main__":
 
     param_grid={
         'pca__n_components': choose_grid(
-            [0.6, 0.7, 0.8, 0.9],
-            [0.7, 0.8, 0.9, 0.95],
-            [0.8, 0.9, 0.95, 0.99]
+            *LOGREG_PCA_GRID_OPTIONS
         ),
         'classifier__C': choose_grid(
             [0.001, 0.01, 0.1, 1.0],
@@ -344,7 +346,7 @@ if __name__=="__main__":
         results=append_params_to_dict(results, optimized_Log_Reg_PCA_ridge_)
         results.update(rwb_obj.results[2])
         results.update(download_params)
-        log_result(results, cwd / 'output' / 'results', "results.csv")
+        log_result(results, cwd / 'output', "8yrs_results.csv")
 
     if (PAUSE_BETWEEN_MODELS):
         input("Press Enter to Finish...")

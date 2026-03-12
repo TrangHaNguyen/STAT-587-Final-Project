@@ -10,8 +10,8 @@ from sklearn.feature_selection import SelectFromModel
 from sklearn.pipeline import Pipeline
 
 from H_reduce import step_wise_reg_wfv
-from H_prep import clean_data
-from H_eval import get_final_metrics, rolling_window_backtest
+from H_prep import clean_data, import_data
+from H_eval import get_final_metrics, RollingWindowBacktest
 from H_helpers import log_result, append_grid_params_to_dict, append_params_to_dict, get_cwd
 
 cwd=get_cwd("STAT-587-Final-Project")
@@ -19,14 +19,26 @@ cwd=get_cwd("STAT-587-Final-Project")
 VERBOSE=0
 
 if __name__=="__main__":
-    X, y_regression=cast(Any, clean_data(lag_period=[1, 2, 3], lookback_period=0, sector=True, corr=True, corr_level=2, corr_threshold=0.95, testing=False)) # You can set cluster=True and sector=True for different variations.
+    DATA = import_data(testing=False, extra_features=True, cluster=False, n_clusters=100, corr_threshold=0.95, corr_level=2)
+    X, y_regression = cast(Any, clean_data(
+        DATA=DATA[0],
+        y_regression=DATA[1],
+        lookback_period=0,
+        lag_period=[1, 2, 3],
+        extra_features=True,
+        raw=False,
+        sector=True,
+        corr_threshold=0.95,
+        corr_level=2,
+    )) # You can set cluster=True and sector=True for different variations.
     X_train, X_test, y_train, y_test=train_test_split(X, y_regression, test_size=0.2, random_state=1, shuffle=False)
     def to_binary_class(y):
         return (y>=0).astype(int)
     y_regression=to_binary_class(y_regression)
     y_train=to_binary_class(y_train)
     y_test=to_binary_class(y_test)
-    tscv=TimeSeriesSplit(n_splits=10) # CHANGEABLE
+    # Previous temporary change used `KFold(n_splits=5, shuffle=False)`.
+    tscv = TimeSeriesSplit(n_splits=10)  # CHANGEABLE
     
     # ------- BASE APPLICATION -------
     print("\n\n------- Base RF Model -------")
@@ -44,14 +56,15 @@ if __name__=="__main__":
 
     optimized_base_=clone(grid_search_base.best_estimator_)
 
-    rolling_window_backtest(optimized_base_, X, y_regression, verbose=1, window_size=220, horizon=21)
+    rwb_obj = RollingWindowBacktest(clone(optimized_base_), X, y_regression, X_train, 220, 21)
+    rwb_obj.rolling_window_backtest(verbose=1)
 
     optimized_base_=clone(grid_search_base.best_estimator_)
     optimized_base_.fit(X_train, y_train)
 
     results=get_final_metrics(optimized_base_, X_train, y_train, X_test, y_test)
     results=append_grid_params_to_dict(results, grid_search_base)
-    log_result(results, cwd / 'output' / 'results', "rf_results.csv")
+    log_result(results, cwd / 'output', "8yrs_rf_results.csv")
 
     # input("Press Enter to continue...")
 
@@ -73,14 +86,15 @@ if __name__=="__main__":
 
     optimized_PCA_=clone(grid_search_PCA.best_estimator_)
 
-    rolling_window_backtest(optimized_PCA_, X, y_regression, verbose=1, window_size=220, horizon=21)
+    rwb_obj = RollingWindowBacktest(clone(optimized_PCA_), X, y_regression, X_train, 220, 21)
+    rwb_obj.rolling_window_backtest(verbose=1)
     
     optimized_PCA_=clone(grid_search_PCA.best_estimator_)
     optimized_PCA_.fit(X_train, y_train)
 
     results=get_final_metrics(optimized_PCA_, X_train, y_train, X_test, y_test)
     results=append_grid_params_to_dict(results, grid_search_PCA)
-    log_result(results, cwd / 'output' / 'results', "rf_results.csv")
+    log_result(results, cwd / 'output', "8yrs_rf_results.csv")
 
     # input("Press Enter to continue...")
 
@@ -103,14 +117,15 @@ if __name__=="__main__":
 
     optimized_LASSO_=clone(grid_search_LASSO.best_estimator_)
 
-    rolling_window_backtest(optimized_LASSO_, X, y_regression, verbose=1, window_size=220, horizon=21)
+    rwb_obj = RollingWindowBacktest(clone(optimized_LASSO_), X, y_regression, X_train, 220, 21)
+    rwb_obj.rolling_window_backtest(verbose=1)
 
     optimized_LASSO_=clone(grid_search_LASSO.best_estimator_)
     optimized_LASSO_.fit(X_train, y_train)
 
     results=get_final_metrics(optimized_LASSO_, X_train, y_train, X_test, y_test)
     results=append_grid_params_to_dict(results, grid_search_LASSO)
-    log_result(results, cwd / 'output' / 'results', "rf_results.csv")
+    log_result(results, cwd / 'output', "8yrs_rf_results.csv")
 
     # input("Press Enter to continue...")
 
@@ -133,14 +148,15 @@ if __name__=="__main__":
 
     optimized_ridge_=clone(grid_search_ridge.best_estimator_)
 
-    rolling_window_backtest(optimized_ridge_, X, y_regression, verbose=1, window_size=220, horizon=21)
+    rwb_obj = RollingWindowBacktest(clone(optimized_ridge_), X, y_regression, X_train, 220, 21)
+    rwb_obj.rolling_window_backtest(verbose=1)
 
     optimized_ridge_=clone(grid_search_ridge.best_estimator_)
     optimized_ridge_.fit(X_train, y_train)
 
     results=get_final_metrics(optimized_ridge_, X_train, y_train, X_test, y_test)
     results=append_grid_params_to_dict(results, grid_search_ridge)
-    log_result(results, cwd / 'output' / 'results', "rf_results.csv")
+    log_result(results, cwd / 'output', "8yrs_rf_results.csv")
 
     # input("Press Enter to continue...")
 
@@ -180,12 +196,13 @@ if __name__=="__main__":
 
     RFClassifier_red_sw_wfv.fit(X_train_final, y_train)
 
-    rolling_window_backtest(RFClassifier_red_sw_wfv, X[X_train_final.columns], y_regression, verbose=1, window_size=220, horizon=21)
+    rwb_obj = RollingWindowBacktest(clone(RFClassifier_red_sw_wfv), X[X_train_final.columns], y_regression, X_train_final, 220, 21)
+    rwb_obj.rolling_window_backtest(verbose=1)
 
     RFClassifier_red_sw_wfv.fit(X_train_final, y_train)
 
     results=get_final_metrics(RFClassifier_red_sw_wfv, X_train_final, y_train, X_test_final, y_test)
     results=append_params_to_dict(results, RFClassifier_red_sw_wfv)
-    log_result(results, cwd / 'output' / 'results', "rf_results.csv")
+    log_result(results, cwd / 'output', "8yrs_rf_results.csv")
 
     # input("Press Enter to Finish...")

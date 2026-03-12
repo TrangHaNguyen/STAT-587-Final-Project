@@ -17,11 +17,18 @@ def get_cwd(base_folder, max_lookback: int =5) -> Path:
 
 def log_result(result_dict: dict, directory: Path, file_name: str) -> None:
     file_exists=os.path.isfile(directory / file_name)
+    directory.mkdir(parents=True, exist_ok=True)
+    formatted_dict = {}
+    for key, value in result_dict.items():
+        if isinstance(value, float):
+            formatted_dict[key] = round(value, 3)
+        else:
+            formatted_dict[key] = value
     with open(directory / file_name, 'a', newline='') as f:
-        writer=csv.DictWriter(f, fieldnames=result_dict.keys())
+        writer=csv.DictWriter(f, fieldnames=formatted_dict.keys())
         if (not file_exists):
             writer.writeheader()
-        writer.writerow(result_dict)
+        writer.writerow(formatted_dict)
         print("Downloaded results to", directory / file_name)
 
 def get_model_params(model: BaseEstimator) -> str:

@@ -191,7 +191,7 @@ def main():
     output_dir = Path.cwd() / "output"
     output_dir.mkdir(exist_ok=True)
 
-    with open(output_dir / "lstm_results.txt", 'w') as f:
+    with open(output_dir / "8yrs_lstm_results.txt", 'w') as f:
         f.write("=" * 70 + "\n")
         f.write("LSTM MODEL RESULTS - TIME SERIES CLASSIFICATION\n")
         f.write("=" * 70 + "\n\n")
@@ -220,7 +220,7 @@ def main():
         f.write("Classification Report:\n")
         f.write(classification_report(y_test, y_pred, target_names=['Down', 'Up']))
 
-    print(f"✓ Saved results to: {output_dir / 'lstm_results.txt'}\n")
+    print(f"✓ Saved results to: {output_dir / '8yrs_lstm_results.txt'}\n")
 
     # Total elapsed time
     total_elapsed = time.perf_counter() - start_time

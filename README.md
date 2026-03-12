@@ -43,6 +43,12 @@ python PyScripts/Data/loading_daily_data.py
 Note: there is slightly differences in the data downloaded for replication on March 10th compared with the original data downloaded by the other contributor in this project.
 They can be found in difference.csv and ticker_largest_difference. Potential explanation: different version of yfinance, different options in downloading(less likely as I tried multiple options)
 
-3. Run codes for different part of the report
-- EDA part: EDA_simple and EDA_descriptive_stats
-4. Run codes for base model of only OHLCV features (and days of week for cyclical adjustment)
+### 3. Run codes for different part of the report
+- EDA part: EDA_simple
+
+### 4. Run codes for base model of only OHLCV features (and days of week for cyclical adjustment)
+- `PyScripts/Models/base.py` saves fitted model caches and diagnostic caches in `PyScripts/cache/`.
+- If you do not want to retrain the models, keep those `.pkl` files and inspect them later using the commented helper examples at the end of [base.py](/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/base.py).
+- The model `.pkl` files store fitted estimators; the diagnostics `.pkl` files store the cached bias-variance and train/test curve values used for the figures.
+
+

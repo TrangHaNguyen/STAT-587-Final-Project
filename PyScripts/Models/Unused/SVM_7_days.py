@@ -241,7 +241,7 @@ def main():
     output_dir = Path.cwd() / "output"
     output_dir.mkdir(exist_ok=True)
 
-    with open(output_dir / "SVM_results_original_data.txt", 'w') as f:
+    with open(output_dir / "8yrs_SVM_results_original_data.txt", 'w') as f:
         f.write("=" * 70 + "\n")
         f.write("SVM WITH 7-DAY LAGGED FEATURES - RESULTS\n")
         f.write("=" * 70 + "\n\n")
@@ -296,7 +296,7 @@ def main():
         f.write("Classification Report:\n")
         f.write(classification_report(y_test, y_pred, target_names=['Down', 'Up']))
 
-    print(f"\n✓ Saved results to: {output_dir / 'SVM_results_original_data.txt'}")
+    print(f"\n✓ Saved results to: {output_dir / '8yrs_SVM_results_original_data.txt'}")
 
     print("\nGenerating GridSearchCV visualization...")
     plt.figure(figsize=(10, 6))
@@ -314,9 +314,9 @@ def main():
                 linewidth=2, label=f"Best Score: {best_cv_score:.4f}")
     plt.legend(fontsize=10)
     plt.tight_layout()
-    plt.savefig(output_dir / "svm7days_gridsearch.png", dpi=300, bbox_inches='tight')
+    plt.savefig(output_dir / "8yrs_svm7days_gridsearch.png", dpi=300, bbox_inches='tight')
     plt.close()
-    print(f"✓ Saved GridSearchCV plot to: {output_dir / 'svm7days_gridsearch.png'}")
+    print(f"✓ Saved GridSearchCV plot to: {output_dir / '8yrs_svm7days_gridsearch.png'}")
 
     plt.figure(figsize=(8, 6))
     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
@@ -327,14 +327,14 @@ def main():
     plt.ylabel('Actual')
     plt.xlabel('Predicted')
     plt.tight_layout()
-    plt.savefig(output_dir / "svm7days_confusion_matrix.png", dpi=300, bbox_inches='tight')
+    plt.savefig(output_dir / "8yrs_svm7days_confusion_matrix.png", dpi=300, bbox_inches='tight')
     plt.close()
-    print(f"✓ Saved confusion matrix to: {output_dir / 'svm7days_confusion_matrix.png'}")
+    print(f"✓ Saved confusion matrix to: {output_dir / '8yrs_svm7days_confusion_matrix.png'}")
 
     cv_results_export = cv_results[['C', 'mean_test_score', 'std_test_score']].copy()
     cv_results_export.columns = ['C', 'Mean_F1_Score', 'Std_F1_Score']
-    cv_results_export.to_csv(output_dir / "svm7days_cv_results.csv", index=False)
-    print(f"✓ Saved CV results to: {output_dir / 'svm7days_cv_results.csv'}")
+    cv_results_export.to_csv(output_dir / "8yrs_svm7days_cv_results.csv", index=False)
+    print(f"✓ Saved CV results to: {output_dir / '8yrs_svm7days_cv_results.csv'}")
 
     print("\n" + "=" * 70)
     print("SVM WITH 7-DAY LAGGED FEATURES - COMPLETE")

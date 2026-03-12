@@ -160,7 +160,7 @@ def main():
     output_dir = Path.cwd() / "output"
     output_dir.mkdir(exist_ok=True)
 
-    with open(output_dir / "rnn_results.txt", 'w') as f:
+    with open(output_dir / "8yrs_rnn_results.txt", 'w') as f:
         f.write("=" * 70 + "\n")
         f.write("RNN MODEL RESULTS - TIME SERIES CLASSIFICATION\n")
         f.write("=" * 70 + "\n\n")
@@ -185,7 +185,7 @@ def main():
         f.write("Classification Report:\n")
         f.write(classification_report(y_test, y_pred, target_names=['Down', 'Up']))
 
-    print(f"\n✓ Saved results to: {output_dir / 'rnn_results.txt'}")
+    print(f"\n✓ Saved results to: {output_dir / '8yrs_rnn_results.txt'}")
 
 
 if __name__ == "__main__":

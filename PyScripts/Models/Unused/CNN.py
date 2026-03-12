@@ -178,7 +178,7 @@ def main():
     output_dir = Path.cwd() / "output"
     output_dir.mkdir(exist_ok=True)
     
-    with open(output_dir / "cnn_result.txt", 'w') as f:
+    with open(output_dir / "8yrs_cnn_result.txt", 'w') as f:
         f.write("="*70 + "\n")
         f.write("NEURAL NETWORK MODEL RESULTS - TIME SERIES CLASSIFICATION\n")
         f.write("="*70 + "\n\n")
@@ -218,7 +218,7 @@ def main():
         f.write("Classification Report:\n")
         f.write(classification_report(y_test, y_pred, target_names=['Down', 'Up']))
     
-    print(f"\n✓ Saved results to: {output_dir / 'cnn_result.txt'}")
+    print(f"\n✓ Saved results to: {output_dir / '8yrs_cnn_result.txt'}")
     
     # Plot training loss history
     print("\nGenerating training history plots...")
@@ -249,9 +249,9 @@ def main():
     axes[1].set_xticks([])
     
     plt.tight_layout()
-    plt.savefig(output_dir / "cnn_training_history.png", dpi=300, bbox_inches='tight')
+    plt.savefig(output_dir / "8yrs_cnn_training_history.png", dpi=300, bbox_inches='tight')
     plt.close()
-    print(f"✓ Saved training history plot to: {output_dir / 'cnn_training_history.png'}")
+    print(f"✓ Saved training history plot to: {output_dir / '8yrs_cnn_training_history.png'}")
     
     # Confusion matrix plot
     plt.figure(figsize=(8, 6))
@@ -262,9 +262,9 @@ def main():
     plt.ylabel('Actual')
     plt.xlabel('Predicted')
     plt.tight_layout()
-    plt.savefig(output_dir / "cnn_confusion_matrix.png", dpi=300, bbox_inches='tight')
+    plt.savefig(output_dir / "8yrs_cnn_confusion_matrix.png", dpi=300, bbox_inches='tight')
     plt.close()
-    print(f"✓ Saved confusion matrix to: {output_dir / 'cnn_confusion_matrix.png'}")
+    print(f"✓ Saved confusion matrix to: {output_dir / '8yrs_cnn_confusion_matrix.png'}")
     
     # Save model coefficients and metadata
     import pickle
@@ -275,9 +275,9 @@ def main():
         'feature_count': X_raw.shape[1]
     }
     
-    with open(output_dir / "cnn_model.pkl", 'wb') as f:
+    with open(output_dir / "8yrs_cnn_model.pkl", 'wb') as f:
         pickle.dump(model_metadata, f)
-    print(f"✓ Saved trained model to: {output_dir / 'cnn_model.pkl'}")
+    print(f"✓ Saved trained model to: {output_dir / '8yrs_cnn_model.pkl'}")
     
     print("\n" + "="*70)
     print("NEURAL NETWORK MODEL TRAINING COMPLETE")

@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import os
 from sklearn.model_selection import cross_validate
 from sklearn.model_selection import TimeSeriesSplit
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import confusion_matrix, roc_auc_score, recall_score, precision_score, f1_score
 from sklearn.base import BaseEstimator
 from sklearn.metrics import matthews_corrcoef
 import datetime
@@ -45,8 +45,61 @@ def display_coef_importances_regression(model, X: pd.DataFrame, n: int =50) -> p
     plt.close()
     return model_coef_df
 
+def _get_score_values(model_obj, X_test):
+    if hasattr(model_obj, "predict_proba"):
+        proba = model_obj.predict_proba(X_test)
+        if np.ndim(proba) == 2 and proba.shape[1] >= 2:
+            return proba[:, 1]
+        return np.ravel(proba)
+    if hasattr(model_obj, "decision_function"):
+        return model_obj.decision_function(X_test)
+    return model_obj.predict(X_test)
+
+def _macro_specificity_from_confusion(conf_mat: np.ndarray) -> float:
+    specificities = []
+    total = conf_mat.sum()
+    for class_idx in range(conf_mat.shape[0]):
+        tp = conf_mat[class_idx, class_idx]
+        fp = conf_mat[:, class_idx].sum() - tp
+        fn = conf_mat[class_idx, :].sum() - tp
+        tn = total - tp - fp - fn
+        specificities.append(safe_div(tn, tn + fp))
+    return float(np.mean(specificities))
+
+def rank_models_by_metrics(results, criteria=None) -> pd.DataFrame:
+    """Rank models by multiple criteria and return average-rank ordering.
+
+    Higher is better for ROC-AUC, Sensitivity, and Specificity.
+    Lower is better for misclassification error.
+    """
+    if criteria is None:
+        criteria = {
+            'test_misclassification_error': True,
+            'test_roc_auc_macro': False,
+            'test_sensitivity_macro': False,
+            'test_specificity_macro': False,
+        }
+
+    if isinstance(results, pd.DataFrame):
+        ranked_df = results.copy()
+    else:
+        ranked_df = pd.DataFrame(results)
+
+    for metric_name, ascending in criteria.items():
+        if metric_name not in ranked_df.columns:
+            raise KeyError(f"Missing metric for ranking: {metric_name}")
+        rank_col = f"rank_{metric_name}"
+        ranked_df[rank_col] = ranked_df[metric_name].rank(
+            method='average', ascending=ascending
+        )
+
+    rank_cols = [f"rank_{metric_name}" for metric_name in criteria]
+    ranked_df['average_rank'] = ranked_df[rank_cols].mean(axis=1)
+    return ranked_df.sort_values('average_rank').reset_index(drop=True)
+
 def get_final_metrics(model_obj, X_train, y_train, X_test, y_test, n_splits: int =5, label: str | None =None) -> dict:
-    tscv=TimeSeriesSplit(n_splits=n_splits)
+    # Previous temporary change used `KFold(n_splits=5, shuffle=False)`.
+    tscv = TimeSeriesSplit(n_splits=n_splits)
     scoring_metrics=['accuracy', 'precision', 'recall']
     cv_results=cross_validate(
         model_obj,
@@ -70,10 +123,18 @@ def get_final_metrics(model_obj, X_train, y_train, X_test, y_test, n_splits: int
     final_score=model_obj.score(X_test, y_test)
 
     preds=model_obj.predict(X_test)
+    y_score=_get_score_values(model_obj, X_test)
 
     conf_mat=confusion_matrix(y_test, preds)
     up_precision=round(safe_div(conf_mat[1][1], conf_mat[1][1] + conf_mat[0][1]), 3)
     down_precision=round(safe_div(conf_mat[0][0], conf_mat[0][0] + conf_mat[1][0]), 3)
+    misclassification_error=1 - final_score
+    sensitivity_macro=recall_score(y_test, preds, average='macro', zero_division=0)
+    specificity_macro=_macro_specificity_from_confusion(conf_mat)
+    roc_auc_macro=roc_auc_score(y_test, y_score)
+    test_precision=precision_score(y_test, preds, zero_division=0)
+    test_recall=recall_score(y_test, preds, zero_division=0)
+    test_f1=f1_score(y_test, preds, zero_division=0)
 
     true_up_rate=round(np.mean(y_test), 3)
     true_down_rate=1 - true_up_rate 
@@ -84,6 +145,10 @@ def get_final_metrics(model_obj, X_train, y_train, X_test, y_test, n_splits: int
     print(f"Avg CV Validation Precision: {mean_test_precision:.4}")
     print(f"Avg CV Validation Recall:    {mean_test_recall:.4}")
     print(f"Final Hold-out (Test) Score (Accuracy): {final_score:.4f}")
+    print(f"Test Misclassification Error:          {misclassification_error:.4f}")
+    print(f"Test ROC-AUC (macro):                 {roc_auc_macro:.4f}")
+    print(f"Test Sensitivity (macro):             {sensitivity_macro:.4f}")
+    print(f"Test Specificity (macro):             {specificity_macro:.4f}")
     print(f"Positive Prediction Rate (Test):        {np.mean(preds):.4f}")
     print(f"True Up Rate (Test):   {true_up_rate:.4f}")
     print(f"Up Precision (Test):   {up_precision:.4f}") # How correct is it when it guesses up
@@ -104,9 +169,17 @@ def get_final_metrics(model_obj, X_train, y_train, X_test, y_test, n_splits: int
         "train_std_accuracy": round(std_train, 3),
         "validation_avg_accuracy": round(mean_cv_test, 3),
         "validation_std_accuracy": round(std_cv_test, 3),
+        "cv_test_sd_error": round(std_cv_test, 3),
         "validation_avg_precision": round(mean_test_precision, 3),
         "validation_avg_recall": round(mean_test_recall, 3),
         "test_split_accuracy": round(final_score, 3),
+        "test_misclassification_error": round(misclassification_error, 3),
+        "test_roc_auc_macro": round(roc_auc_macro, 3),
+        "test_sensitivity_macro": round(sensitivity_macro, 3),
+        "test_specificity_macro": round(specificity_macro, 3),
+        "test_precision": round(test_precision, 3),
+        "test_recall": round(test_recall, 3),
+        "test_f1": round(test_f1, 3),
         "test_split_positive_prediction_rate": round(np.mean(preds), 3),
         "test_split_true_up_rate": true_up_rate,
         "test_true_down": conf_mat[0][0],
@@ -262,7 +335,7 @@ class ModelResults:
     
     def save_results(self, filepath: str):
         """Save results to CSV file"""
-        self.results_df.to_csv(filepath, index=False)
+        self.results_df.to_csv(filepath, index=False, float_format='%.3f')
         print(f"Results saved to {filepath}")
     
     def get_best_model(self, metric: str = 'F1-Score'):

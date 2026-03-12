@@ -40,8 +40,9 @@ def make_one_se_refit(complexity_cols: list[str]):
     def _pick_index(cv_results):
         mean = np.asarray(cv_results["mean_test_score"], dtype=float)
         std = np.asarray(cv_results["std_test_score"], dtype=float)
+        se = std / np.sqrt(5)
         best_idx = int(np.argmax(mean))
-        threshold = float(mean[best_idx] - std[best_idx])
+        threshold = float(mean[best_idx] - se[best_idx])
         candidate_idx = np.where(mean >= threshold)[0]
         if len(candidate_idx) == 0:
             return best_idx
@@ -74,8 +75,8 @@ if __name__ == "__main__":
     print(f"GRID_VARIANT={GRID_VARIANT} (left/center/right)")
     print(f"GRID_VERSION={GRID_VERSION}")
     grid_label = f"{GRID_VERSION}_{GRID_VARIANT}"
-    history_path = cwd / "output" / "results" / "search_history_svm.csv"
-    runs_path = cwd / "output" / "results" / "search_runs.csv"
+    history_path = cwd / "output" / "8yrs_search_history_svm.csv"
+    runs_path = cwd / "output" / "8yrs_search_runs.csv"
     dataset_version = "testing=False,extra_features=True,cluster=False,corr_threshold=0.95,corr_level=0"
     
     parameters_={
@@ -153,7 +154,8 @@ if __name__ == "__main__":
     y_classification=to_binary_class(y_regression)
     X_train, X_test, y_train, y_test=train_test_split(X, y_classification, test_size=TEST_SIZE, random_state=1, shuffle=False)
 
-    tscv=TimeSeriesSplit(n_splits=3)
+    # Previous temporary change used `KFold(n_splits=5, shuffle=False)`.
+    tscv = TimeSeriesSplit(n_splits=5)
     # ------- Linear SVM -------
     print("\n\n------- Linear SVM Model -------")
     SVM_linear=SVC(kernel="linear", cache_size=1000, class_weight='balanced', gamma='scale', random_state=1, tol=5e-2)
@@ -201,7 +203,7 @@ if __name__ == "__main__":
         results=append_params_to_dict(results, grid_search_linear.best_estimator_)
         results.update(rwb_obj.results[2])
         results.update(download_params)
-        log_result(results, cwd / 'output' / 'results', "results.csv")
+        log_result(results, cwd / 'output', "8yrs_results.csv")
 
     if (PAUSE_BETWEEN_MODELS):
         input("Press Enter to continue...")
@@ -258,7 +260,7 @@ if __name__ == "__main__":
         results=append_params_to_dict(results, grid_search_rbf.best_estimator_)
         results.update(rwb_obj.results[2])
         results.update(download_params)
-        log_result(results, cwd / 'output' / 'results', "results.csv")
+        log_result(results, cwd / 'output', "8yrs_results.csv")
 
     if (PAUSE_BETWEEN_MODELS):
         input("Press Enter to continue...")
@@ -320,7 +322,7 @@ if __name__ == "__main__":
         results=append_params_to_dict(results, grid_search_poly.best_estimator_)
         results.update(rwb_obj.results[2])
         results.update(download_params)
-        log_result(results, cwd / 'output' / 'results', "results.csv")
+        log_result(results, cwd / 'output', "8yrs_results.csv")
 
     if (PAUSE_BETWEEN_MODELS):
         input("Press Enter to finish...")

@@ -299,11 +299,11 @@ def main():
     plt.ylabel('Actual')
     plt.xlabel('Predicted')
     plt.tight_layout()
-    plt.savefig(output_dir / 'logistic_regression_24hours_confusion_matrix.png', dpi=150, bbox_inches='tight')
+    plt.savefig(output_dir / '8yrs_logistic_regression_24hours_confusion_matrix.png', dpi=150, bbox_inches='tight')
     plt.close()
 
     # Save results to text file
-    with open(output_dir / "logistic_regression_24hours_results.txt", 'w') as f:
+    with open(output_dir / "8yrs_logistic_regression_24hours_results.txt", 'w') as f:
         f.write("=" * 70 + "\n")
         f.write("LOGISTIC REGRESSION WITH 24-HOUR LAGGED FEATURES\n")
         f.write("=" * 70 + "\n\n")
@@ -340,8 +340,8 @@ def main():
         f.write("Classification Report:\n")
         f.write(classification_report(y_test, y_pred, target_names=['Down', 'Up']))
 
-    print(f"✓ Saved confusion matrix plot: {output_dir / 'logistic_regression_24hours_confusion_matrix.png'}")
-    print(f"✓ Saved results to: {output_dir / 'logistic_regression_24hours_results.txt'}\n")
+    print(f"✓ Saved confusion matrix plot: {output_dir / '8yrs_logistic_regression_24hours_confusion_matrix.png'}")
+    print(f"✓ Saved results to: {output_dir / '8yrs_logistic_regression_24hours_results.txt'}\n")
 
     # ========================================================================
     # L1 PENALTY (LASSO) LOGISTIC REGRESSION WITH 5-FOLD CV
@@ -416,11 +416,11 @@ def main():
     plt.ylabel('Actual')
     plt.xlabel('Predicted')
     plt.tight_layout()
-    plt.savefig(output_dir / 'logistic_regression_24hours_l1_confusion_matrix.png', dpi=150, bbox_inches='tight')
+    plt.savefig(output_dir / '8yrs_logistic_regression_24hours_l1_confusion_matrix.png', dpi=150, bbox_inches='tight')
     plt.close()
 
     # Save L1 results
-    with open(output_dir / "logistic_regression_24hours_l1_results.txt", 'w') as f:
+    with open(output_dir / "8yrs_logistic_regression_24hours_l1_results.txt", 'w') as f:
         f.write("=" * 70 + "\n")
         f.write("LOGISTIC REGRESSION (L1 PENALTY) WITH 24-HOUR LAGGED FEATURES\n")
         f.write("=" * 70 + "\n\n")
@@ -458,8 +458,8 @@ def main():
         f.write("Classification Report:\n")
         f.write(classification_report(y_test, y_pred_l1, target_names=['Down', 'Up']))
 
-    print(f"✓ Saved L1 confusion matrix plot: {output_dir / 'logistic_regression_24hours_l1_confusion_matrix.png'}")
-    print(f"✓ Saved L1 results to: {output_dir / 'logistic_regression_24hours_l1_results.txt'}\n")
+    print(f"✓ Saved L1 confusion matrix plot: {output_dir / '8yrs_logistic_regression_24hours_l1_confusion_matrix.png'}")
+    print(f"✓ Saved L1 results to: {output_dir / '8yrs_logistic_regression_24hours_l1_results.txt'}\n")
 
     # ========================================================================
     # MODEL COMPARISON: L2 vs L1
@@ -492,7 +492,7 @@ def main():
     print(comparison_df.to_string(index=False))
 
     # Save comparison
-    with open(output_dir / "logistic_regression_24hours_comparison.txt", 'w') as f:
+    with open(output_dir / "8yrs_logistic_regression_24hours_comparison.txt", 'w') as f:
         f.write("=" * 70 + "\n")
         f.write("LOGISTIC REGRESSION COMPARISON: L2 vs L1 PENALTIES\n")
         f.write("=" * 70 + "\n\n")
@@ -512,7 +512,7 @@ def main():
         f.write(f"Optimal C (L2): {log_reg.C_[0]:.6f}\n")
         f.write(f"Optimal C (L1): {log_reg_l1.C_[0]:.6f}\n")
 
-    print(f"\n✓ Saved comparison to: {output_dir / 'logistic_regression_24hours_comparison.txt'}\n")
+    print(f"\n✓ Saved comparison to: {output_dir / '8yrs_logistic_regression_24hours_comparison.txt'}\n")
 
     # ========================================================================
     # ELASTIC NET LOGISTIC REGRESSION WITH 5-FOLD CV
@@ -586,11 +586,11 @@ def main():
     plt.ylabel('Actual')
     plt.xlabel('Predicted')
     plt.tight_layout()
-    plt.savefig(output_dir / 'logistic_regression_24hours_elasticnet_confusion_matrix.png', dpi=150, bbox_inches='tight')
+    plt.savefig(output_dir / '8yrs_logistic_regression_24hours_elasticnet_confusion_matrix.png', dpi=150, bbox_inches='tight')
     plt.close()
 
     # Save Elastic Net results
-    with open(output_dir / "logistic_regression_24hours_elasticnet_results.txt", 'w') as f:
+    with open(output_dir / "8yrs_logistic_regression_24hours_elasticnet_results.txt", 'w') as f:
         f.write("=" * 70 + "\n")
         f.write("LOGISTIC REGRESSION (ELASTIC NET PENALTY) WITH 24-HOUR LAGGED FEATURES\n")
         f.write("=" * 70 + "\n\n")
@@ -628,8 +628,8 @@ def main():
         f.write("Classification Report:\n")
         f.write(classification_report(y_test, y_pred_en, target_names=['Down', 'Up']))
 
-    print(f"✓ Saved Elastic Net confusion matrix plot: {output_dir / 'logistic_regression_24hours_elasticnet_confusion_matrix.png'}")
-    print(f"✓ Saved Elastic Net results to: {output_dir / 'logistic_regression_24hours_elasticnet_results.txt'}\n")
+    print(f"✓ Saved Elastic Net confusion matrix plot: {output_dir / '8yrs_logistic_regression_24hours_elasticnet_confusion_matrix.png'}")
+    print(f"✓ Saved Elastic Net results to: {output_dir / '8yrs_logistic_regression_24hours_elasticnet_results.txt'}\n")
 
     # Total elapsed time
     total_elapsed = time.perf_counter() - start_time

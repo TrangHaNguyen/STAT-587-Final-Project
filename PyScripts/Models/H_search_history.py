@@ -45,7 +45,7 @@ def append_search_history(
     out["best_params"] = _safe_value(best_params if best_params is not None else {})
     out["notes"] = notes
 
-    out.to_csv(history_path, mode="a", header=not history_path.exists(), index=False)
+    out.to_csv(history_path, mode="a", header=not history_path.exists(), index=False, float_format='%.3f')
 
 
 def append_search_run(
@@ -70,7 +70,7 @@ def append_search_run(
         "code_commit": code_commit,
         "notes": notes
     }])
-    row.to_csv(runs_path, mode="a", header=not runs_path.exists(), index=False)
+    row.to_csv(runs_path, mode="a", header=not runs_path.exists(), index=False, float_format='%.3f')
 
 
 def get_git_commit(project_root: Path) -> str:

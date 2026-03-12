@@ -169,10 +169,10 @@ def main():
     print(classification_report(y_test, y_pred, target_names=["Down", "Up"]))
     print(cm)
 
-    output_dir = cwd / "output" / "NotUsed"
+    output_dir = cwd / "output"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    output_path = output_dir / f"lstm_update_{mode_tag}_result.txt"
+    output_path = output_dir / f"8yrs_lstm_update_{mode_tag}_result.txt"
     with open(output_path, "w") as f:
         f.write("=" * 70 + "\n")
         f.write(f"LSTM UPDATE RESULTS - {mode_label}\n")

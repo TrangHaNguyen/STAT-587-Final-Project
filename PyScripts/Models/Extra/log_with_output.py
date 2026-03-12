@@ -7,8 +7,8 @@ from sklearn.model_selection import train_test_split, TimeSeriesSplit, GridSearc
 from sklearn.pipeline import Pipeline
 import numpy as np
 
-from H_prep import clean_data
-from H_eval import rolling_window_backtest, get_final_metrics
+from H_prep import clean_data, import_data
+from H_eval import RollingWindowBacktest, get_final_metrics
 from H_helpers import log_result, append_params_to_dict, append_grid_params_to_dict, get_cwd
 
 '''No need for hyperparameter tuning for Logistic Regression via GridSearchCV since LogisticRegressionCV performs internal CV to select the best C value. We will just use the default 10 values of C that LogisticRegressionCV tests.'''
@@ -20,7 +20,18 @@ HORIZON=21
 cwd=get_cwd("STAT-587-Final-Project")
 
 if __name__=="__main__":
-    X, y_regression=cast(Any, clean_data(lag_period=[1, 2, 3], lookback_period=0, sector=True, corr=True, corr_level=2, testing=True))
+    DATA = import_data(testing=False, extra_features=True, cluster=False, n_clusters=100, corr_threshold=0.95, corr_level=2)
+    X, y_regression = cast(Any, clean_data(
+        DATA=DATA[0],
+        y_regression=DATA[1],
+        lookback_period=0,
+        lag_period=[1, 2, 3],
+        extra_features=True,
+        raw=False,
+        sector=True,
+        corr_threshold=0.95,
+        corr_level=2,
+    ))
     X_train, X_test, y_train, y_test=train_test_split(X, y_regression, test_size=0.2, random_state=1, shuffle=False)
     def to_binary_class(y):
         return (y>=0).astype(int)
@@ -28,7 +39,8 @@ if __name__=="__main__":
     y_classification=to_binary_class(y_regression)
     y_train=to_binary_class(y_train)
     y_test=to_binary_class(y_test)
-    tscv=TimeSeriesSplit(n_splits=10)
+    # Previous temporary change used `KFold(n_splits=5, shuffle=False)`.
+    tscv = TimeSeriesSplit(n_splits=10)
     custom_Cs=[0.05, 0.1, 1.0, 10.0]
 
     # ------- LASSO(Internal) APPLICATION -------
@@ -45,14 +57,15 @@ if __name__=="__main__":
 
     optimized_Log_Reg_R_=clone(Opt_Log_Reg_model_pipeline_R)
 
-    rolling_window_backtest(optimized_Log_Reg_R_, X, y_classification, verbose=1, window_size=WINDOW_SIZE, horizon=HORIZON)
+    rwb_obj = RollingWindowBacktest(clone(optimized_Log_Reg_R_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
+    rwb_obj.rolling_window_backtest(verbose=1)
 
     optimized_Log_Reg_R_=clone(Opt_Log_Reg_model_pipeline_R)
     optimized_Log_Reg_R_.fit(X_train, y_train)
 
     results=get_final_metrics(optimized_Log_Reg_R_, X_train, y_train, X_test, y_test, n_splits=10)
     results=append_params_to_dict(results, clone(optimized_Log_Reg_R_))
-    log_result(results, cwd / 'output' / 'results', "log_results.csv")
+    log_result(results, cwd / 'output', "8yrs_log_results.csv")
 
     # input("Press Enter to continue...")
 
@@ -70,14 +83,15 @@ if __name__=="__main__":
 
     optimized_Log_Reg_L_=clone(Opt_Log_Reg_model_pipeline_L)
 
-    rolling_window_backtest(optimized_Log_Reg_L_, X, y_classification, verbose=1, window_size=WINDOW_SIZE, horizon=HORIZON)
+    rwb_obj = RollingWindowBacktest(clone(optimized_Log_Reg_L_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
+    rwb_obj.rolling_window_backtest(verbose=1)
 
     optimized_Log_Reg_L_=clone(Opt_Log_Reg_model_pipeline_L)
     optimized_Log_Reg_L_.fit(X_train, y_train)
 
     results=get_final_metrics(optimized_Log_Reg_L_, X_train, y_train, X_test, y_test, n_splits=10)
     results=append_params_to_dict(results, clone(optimized_Log_Reg_L_))
-    log_result(results, cwd / 'output' / 'results', "log_results.csv")
+    log_result(results, cwd / 'output', "8yrs_log_results.csv")
 
     # input("Press Enter to continue...")
 
@@ -100,14 +114,15 @@ if __name__=="__main__":
 
     optimized_Log_Reg_PCA_ridge_=clone(grid_search_PCA_ridge.best_estimator_)
     
-    rolling_window_backtest(optimized_Log_Reg_PCA_ridge_, X, y_classification, verbose=1, window_size=WINDOW_SIZE, horizon=HORIZON)
+    rwb_obj = RollingWindowBacktest(clone(optimized_Log_Reg_PCA_ridge_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
+    rwb_obj.rolling_window_backtest(verbose=1)
 
     optimized_Log_Reg_PCA_ridge_=clone(grid_search_PCA_ridge.best_estimator_)
     optimized_Log_Reg_PCA_ridge_.fit(X_train, y_train)
 
     results=get_final_metrics(optimized_Log_Reg_PCA_ridge_, X_train, y_train, X_test, y_test, n_splits=10)
     results=append_grid_params_to_dict(results, grid_search_PCA_ridge)
-    log_result(results, cwd / 'output' / 'results', "log_results.csv")
+    log_result(results, cwd / 'output', "8yrs_log_results.csv")
 
     # input("Press Enter to Finish...")
 
@@ -233,7 +248,7 @@ if __name__=="__main__":
     plt.tight_layout()
     output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'output')
     os.makedirs(output_dir, exist_ok=True)
-    output_path = os.path.join(output_dir, 'log_cv_regularization.png')
+    output_path = os.path.join(output_dir, '8yrs_log_cv_regularization.png')
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
     print(f"\nFigure saved to: {os.path.abspath(output_path)}")
     plt.close()
@@ -275,7 +290,7 @@ if __name__=="__main__":
         ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    output_path2 = os.path.join(output_dir, 'log_gridsearch_train_test.png')
+    output_path2 = os.path.join(output_dir, '8yrs_log_gridsearch_train_test.png')
     plt.savefig(output_path2, dpi=150, bbox_inches='tight')
     print(f"Figure saved to: {os.path.abspath(output_path2)}")
     plt.close()
@@ -312,7 +327,7 @@ if __name__=="__main__":
     ax3.legend()
     ax3.grid(True, alpha=0.3)
     plt.tight_layout()
-    output_path3 = os.path.join(output_dir, 'log_gridsearch_aggregated.png')
+    output_path3 = os.path.join(output_dir, '8yrs_log_gridsearch_aggregated.png')
     plt.savefig(output_path3, dpi=150, bbox_inches='tight')
     print(f"Figure saved to: {os.path.abspath(output_path3)}")
     plt.close()

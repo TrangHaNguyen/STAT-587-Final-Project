@@ -396,10 +396,10 @@ def main():
     plt.ylabel('Actual')
     plt.xlabel('Predicted')
     plt.tight_layout()
-    plt.savefig(output_dir / 'logistic_regression_featureenginearing_24hours_confusion_matrix.png', dpi=150, bbox_inches='tight')
+    plt.savefig(output_dir / '8yrs_logistic_regression_featureenginearing_24hours_confusion_matrix.png', dpi=150, bbox_inches='tight')
     plt.close()
 
-    with open(output_dir / "logistic_regression_featureenginearing_24hours_results.txt", 'w') as f:
+    with open(output_dir / "8yrs_logistic_regression_featureenginearing_24hours_results.txt", 'w') as f:
         f.write("=" * 80 + "\n")
         f.write("LOGISTIC REGRESSION FEATUREENGINEARING 24H - L2\n")
         f.write("=" * 80 + "\n\n")
@@ -461,10 +461,10 @@ def main():
     plt.ylabel('Actual')
     plt.xlabel('Predicted')
     plt.tight_layout()
-    plt.savefig(output_dir / 'logistic_regression_featureenginearing_24hours_l1_confusion_matrix.png', dpi=150, bbox_inches='tight')
+    plt.savefig(output_dir / '8yrs_logistic_regression_featureenginearing_24hours_l1_confusion_matrix.png', dpi=150, bbox_inches='tight')
     plt.close()
 
-    with open(output_dir / "logistic_regression_featureenginearing_24hours_l1_results.txt", 'w') as f:
+    with open(output_dir / "8yrs_logistic_regression_featureenginearing_24hours_l1_results.txt", 'w') as f:
         f.write("=" * 80 + "\n")
         f.write("LOGISTIC REGRESSION FEATUREENGINEARING 24H - L1\n")
         f.write("=" * 80 + "\n\n")
@@ -505,7 +505,7 @@ def main():
     print("=" * 80)
     print(comparison_df.to_string(index=False))
 
-    with open(output_dir / "logistic_regression_featureenginearing_24hours_comparison.txt", 'w') as f:
+    with open(output_dir / "8yrs_logistic_regression_featureenginearing_24hours_comparison.txt", 'w') as f:
         f.write("=" * 80 + "\n")
         f.write("LOGISTIC REGRESSION FEATUREENGINEARING 24H COMPARISON: L2 vs L1\n")
         f.write("=" * 80 + "\n\n")

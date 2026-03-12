@@ -13,8 +13,8 @@ import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 MODELS_DIR = PROJECT_ROOT / "PyScripts" / "Models"
-RESULTS_DIR = PROJECT_ROOT / "output" / "results"
-PLOTS_DIR = PROJECT_ROOT / "output" / "Used" / "png"
+RESULTS_DIR = PROJECT_ROOT / "output"
+PLOTS_DIR = PROJECT_ROOT / "output"
 STATE_FILE = RESULTS_DIR / "all_pipeline_state.json"
 LOG_FILE = RESULTS_DIR / "all_pipeline.log"
 
@@ -134,9 +134,9 @@ def parse_list(raw: str) -> list[str]:
 
 def history_path_for_model(model: str) -> Path:
     mapping = {
-        "svm": RESULTS_DIR / "search_history_svm.csv",
-        "logreg": RESULTS_DIR / "search_history_logreg.csv",
-        "rf": RESULTS_DIR / "search_history_rf.csv",
+        "svm": RESULTS_DIR / "8yrs_search_history_svm.csv",
+        "logreg": RESULTS_DIR / "8yrs_search_history_logreg.csv",
+        "rf": RESULTS_DIR / "8yrs_search_history_rf.csv",
     }
     return mapping[model]
 
@@ -255,7 +255,7 @@ def main() -> None:
                 if not ok:
                     append_log(f"SKIP plot:{name}:{gv} ({reason})")
                     continue
-                out_path = PLOTS_DIR / f"over_under_fit_{name}_{gv}.png"
+                out_path = PLOTS_DIR / f"8yrs_over_under_fit_{name}_{gv}.png"
                 cmd = [
                     sys.executable,
                     str(MODELS_DIR / "over_under_fit.py"),

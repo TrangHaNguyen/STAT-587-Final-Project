@@ -79,16 +79,9 @@ def clear_base_caches():
 def to_binary_class(y):
     return (y >= 0).astype(int)
 
-def _select_pca_n_components_1se(grid_results):
-    best = max(grid_results, key=lambda r: r['mean_cv_score'])
-    # Classic 1SE rule on accuracy: accept any candidate within one standard
-    # error of the best mean CV score, then prefer the simpler representation.
-    best_se = best['std_cv_score'] / np.sqrt(len(best['cv_scores']))
-    threshold = best['mean_cv_score'] - best_se
-    candidates = [r for r in grid_results if r['mean_cv_score'] >= threshold]
-    # Simpler PCA model means fewer retained components.
-    chosen = min(candidates, key=lambda r: r['n_components_value'])
-    return chosen, best, threshold
+def _select_pca_n_components_best_cv(grid_results):
+    """Choose PCA n_components by best mean CV score."""
+    return max(grid_results, key=lambda r: r['mean_cv_score'])
 
 def _select_c_1se_from_logregcv(cv_clf):
     scores = np.array(list(cv_clf.scores_.values())[0])
@@ -174,7 +167,7 @@ def _highlight_selected_value(
     x_vals,
     curve,
     selected_idx,
-    label_prefix="Value at 1SE CV balanced error"
+    label_prefix="Value at best CV balanced error"
 ):
     ax.scatter(
         [x_vals[selected_idx]],
@@ -270,17 +263,13 @@ if __name__ == "__main__":
         
         print(f"  n_components={n_comp} ({X_pca_temp.shape[1]} components): CV Balanced Accuracy = {mean_score:.4f} ± {std_score:.4f}")
         
-    chosen_pca, best_pca, pca_threshold = _select_pca_n_components_1se(grid_search_results)
-    best_n_comp = chosen_pca['n_components']
-    best_n_comp_value = chosen_pca['n_components_value']
-    best_score = chosen_pca['mean_cv_score']
+    best_pca = _select_pca_n_components_best_cv(grid_search_results)
+    best_n_comp = best_pca['n_components']
+    best_n_comp_value = best_pca['n_components_value']
+    best_score = best_pca['mean_cv_score']
     print(
-        f"\nBest-by-mean n_components: {best_pca['n_components']} ({best_pca['n_components_value']} components), "
-        f"CV={best_pca['mean_cv_score']:.4f}±{best_pca['std_cv_score']:.4f}"
-    )
-    print(
-        f"1SE-selected n_components: {best_n_comp} ({best_n_comp_value} components), "
-        f"threshold={pca_threshold:.4f}, CV={best_score:.4f}"
+        f"\nBest CV n_components: {best_n_comp} ({best_n_comp_value} components), "
+        f"CV={best_score:.4f}±{best_pca['std_cv_score']:.4f}"
     )
     
     # Fit final PCA with best n_components
@@ -408,7 +397,7 @@ if __name__ == "__main__":
         train_bal_std = diag['train_bal_err_std']
         cv_bal_mean = diag['cv_bal_err_mean']
         cv_bal_std = diag['cv_bal_err_std']
-        selected_idx = _select_index_for_value(cs, c_1se)
+        best_idx = int(np.argmin(cv_bal_mean))
         ax.semilogx(cs, train_bal_mean, marker='o', color='steelblue', linewidth=1.8, label='CV Train balanced error')
         ax.semilogx(cs, cv_bal_mean, marker='s', color='darkorange', linewidth=1.8, label='CV Test balanced error')
         ax.fill_between(
@@ -428,8 +417,8 @@ if __name__ == "__main__":
             label='CV Test balanced error ±1 SD'
         )
         _highlight_selected_value(
-            ax, cs, cv_bal_mean, selected_idx,
-            label_prefix='Value at 1SE CV balanced error'
+            ax, cs, cv_bal_mean, best_idx,
+            label_prefix='Value at best CV balanced error'
         )
         ax.axvline(c_1se, color='red', linestyle='--', linewidth=1.5,
                    label=f'1SE-selected C = {c_1se:.4f}')
@@ -462,7 +451,9 @@ if __name__ == "__main__":
         ('LASSO (L1)', 'lasso_direct', 'lasso_bv', 'seagreen'),
     ]):
         diag = raw_diagnostics[diag_key]
-        selected_c = ridge_c_1se if 'ridge' in diag_key else lasso_c_1se
+        guide_diag = raw_diagnostics[guide_key]
+        best_idx = int(np.argmin(guide_diag['cv_bal_err_mean']))
+        selected_c = float(guide_diag['cs'][best_idx])
         _, best_test_error = _compute_single_direct_split_error(
             X_train_raw_sc, y_train, X_test_raw_sc, y_test,
             selected_c, 0 if 'ridge' in diag_key else 1, 'saga'
@@ -474,10 +465,11 @@ if __name__ == "__main__":
         ax.scatter(
             [selected_c], [best_test_error],
             color='gold', edgecolor='black', s=90, zorder=6,
-            label='Value at 1SE CV balanced error'
+            label='Value at best CV balanced error'
         )
-        ax.axvline(selected_c, color='red', linestyle='--', linewidth=1.5,
-                   label=f'1SE-selected C = {selected_c:.4f}')
+        one_se_c = ridge_c_1se if 'ridge' in diag_key else lasso_c_1se
+        ax.axvline(one_se_c, color='red', linestyle='--', linewidth=1.5,
+                   label=f'1SE-selected C = {one_se_c:.4f}')
         ax.set_title(f'{label} — Train vs Test Error (Plain Error)')
         ax.set_xlabel('C  (Inverse Regularization Strength)\n'
                       '← High Regularization, Simpler Model      '
@@ -568,7 +560,7 @@ if __name__ == "__main__":
         train_bal_std = diag['train_bal_err_std']
         cv_bal_mean = diag['cv_bal_err_mean']
         cv_bal_std = diag['cv_bal_err_std']
-        selected_idx = _select_index_for_value(cs, c_1se)
+        best_idx = int(np.argmin(cv_bal_mean))
         ax.semilogx(cs, train_bal_mean, marker='o', color='steelblue', linewidth=1.8, label='CV Train balanced error')
         ax.semilogx(cs, cv_bal_mean, marker='s', color='darkorange', linewidth=1.8, label='CV Test balanced error')
         ax.fill_between(
@@ -588,8 +580,8 @@ if __name__ == "__main__":
             label='CV Test balanced error ±1 SD'
         )
         _highlight_selected_value(
-            ax, cs, cv_bal_mean, selected_idx,
-            label_prefix='Value at 1SE CV balanced error'
+            ax, cs, cv_bal_mean, best_idx,
+            label_prefix='Value at best CV balanced error'
         )
         ax.axvline(c_1se, color='red', linestyle='--', linewidth=1.5,
                    label=f'1SE-selected C = {c_1se:.4f}')
@@ -621,7 +613,9 @@ if __name__ == "__main__":
         ('LASSO (L1)', 'lasso_direct', 'lasso_bv', 'seagreen'),
     ]):
         diag = pca_diagnostics[diag_key]
-        selected_c = ridge_pca_c_1se if 'ridge' in diag_key else lasso_pca_c_1se
+        guide_diag = pca_diagnostics[guide_key]
+        best_idx = int(np.argmin(guide_diag['cv_bal_err_mean']))
+        selected_c = float(guide_diag['cs'][best_idx])
         _, best_test_error = _compute_single_direct_split_error(
             X_train_pca, y_train, X_test_pca, y_test,
             selected_c, 0 if 'ridge' in diag_key else 1, 'saga'
@@ -633,10 +627,11 @@ if __name__ == "__main__":
         ax.scatter(
             [selected_c], [best_test_error],
             color='gold', edgecolor='black', s=90, zorder=6,
-            label='Value at 1SE CV balanced error'
+            label='Value at best CV balanced error'
         )
-        ax.axvline(selected_c, color='red', linestyle='--', linewidth=1.5,
-                   label=f'1SE-selected C = {selected_c:.4f}')
+        one_se_c = ridge_pca_c_1se if 'ridge' in diag_key else lasso_pca_c_1se
+        ax.axvline(one_se_c, color='red', linestyle='--', linewidth=1.5,
+                   label=f'1SE-selected C = {one_se_c:.4f}')
         ax.set_title(f'{label} — Train vs Test Error (PCA, Plain Error)')
         ax.set_xlabel('C  (Inverse Regularization Strength)\n'
                       '← High Regularization, Simpler Model      '
@@ -750,17 +745,13 @@ if __name__ == "__main__":
         
         print(f"  n_components={n_comp} ({X_pca_temp.shape[1]} components): CV Balanced Accuracy = {mean_score:.4f} ± {std_score:.4f}")
         
-    chosen_pca_dow, best_pca_dow, pca_threshold_dow = _select_pca_n_components_1se(grid_search_results_dow)
-    best_n_comp_dow = chosen_pca_dow['n_components']
-    best_n_comp_value_dow = chosen_pca_dow['n_components_value']
-    best_score_dow = chosen_pca_dow['mean_cv_score']
+    best_pca_dow = _select_pca_n_components_best_cv(grid_search_results_dow)
+    best_n_comp_dow = best_pca_dow['n_components']
+    best_n_comp_value_dow = best_pca_dow['n_components_value']
+    best_score_dow = best_pca_dow['mean_cv_score']
     print(
-        f"\nBest-by-mean n_components (DOW): {best_pca_dow['n_components']} ({best_pca_dow['n_components_value']} components), "
-        f"CV={best_pca_dow['mean_cv_score']:.4f}±{best_pca_dow['std_cv_score']:.4f}"
-    )
-    print(
-        f"1SE-selected n_components (DOW): {best_n_comp_dow} ({best_n_comp_value_dow} components), "
-        f"threshold={pca_threshold_dow:.4f}, CV={best_score_dow:.4f}"
+        f"\nBest CV n_components (DOW): {best_n_comp_dow} ({best_n_comp_value_dow} components), "
+        f"CV={best_score_dow:.4f}±{best_pca_dow['std_cv_score']:.4f}"
     )
     
     # Fit final PCA with best n_components

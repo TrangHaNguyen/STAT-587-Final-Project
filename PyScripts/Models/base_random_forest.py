@@ -45,7 +45,7 @@ def _as_sortable_numeric(value):
     except Exception:
         return float("inf")
 
-def make_one_se_refit(complexity_cols: list[str]):
+def make_one_se_refit(complexity_cols: list[str], fixed_cols: list[str] | None = None):
     """Return a GridSearchCV refit callable implementing the 1-SE rule."""
     def _pick_index(cv_results):
         mean = np.asarray(cv_results["mean_test_score"], dtype=float)
@@ -56,6 +56,13 @@ def make_one_se_refit(complexity_cols: list[str]):
         candidate_idx = np.where(mean >= threshold)[0]
         if len(candidate_idx) == 0:
             return best_idx
+        if fixed_cols:
+            for col in fixed_cols:
+                param_key = f"param_{col}"
+                best_val = cv_results[param_key][best_idx]
+                candidate_idx = np.array([i for i in candidate_idx if cv_results[param_key][i] == best_val], dtype=int)
+                if len(candidate_idx) == 0:
+                    return best_idx
 
         def key_fn(i: int):
             complexity = []
@@ -134,7 +141,7 @@ def _highlight_selected_value(
     x_vals,
     curve,
     selected_idx,
-    label_prefix="Value at 1SE CV balanced error"
+    label_prefix="Value at best CV balanced error"
 ):
     ax.scatter(
         [x_vals[selected_idx]],
@@ -270,7 +277,7 @@ if __name__ == "__main__":
         grid_search_pca = GridSearchCV(
             pipeline_rf_pca, param_grid_pca, cv=tscv,
             n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy',
-            refit=make_one_se_refit(['reducer__n_components', 'classifier__max_depth', 'classifier__n_estimators'])
+            refit=make_one_se_refit(['classifier__max_depth', 'classifier__n_estimators'], fixed_cols=['reducer__n_components'])
         )
         grid_search_pca.fit(X_train, y_train)
         if USE_GRID_CACHE:
@@ -396,7 +403,7 @@ if __name__ == "__main__":
 
     ridge_curves = _compute_cv_metric_curves(_ridge_curve_models, X_train, y_train, tscv)
     ridge_c_grid = np.array(ridge_c_grid, dtype=float)
-    selected_ridge_idx = _select_index_for_value(ridge_c_grid, ridge_best_c)
+    best_ridge_idx = int(np.argmin(ridge_curves['cv_bal_err_mean']))
 
     fig_ridge, ax_ridge = plt.subplots(figsize=(10, 5))
     fig_ridge.suptitle(
@@ -429,8 +436,8 @@ if __name__ == "__main__":
         label='CV Test balanced error ±1 SD'
     )
     _highlight_selected_value(
-        ax_ridge, ridge_c_grid, ridge_curves['cv_bal_err_mean'], selected_ridge_idx,
-        label_prefix='Value at 1SE CV balanced error'
+        ax_ridge, ridge_c_grid, ridge_curves['cv_bal_err_mean'], best_ridge_idx,
+        label_prefix='Value at best CV balanced error'
     )
     ax_ridge.axvline(
         float(ridge_best_c), color='red', linestyle='--', linewidth=1.5,
@@ -501,10 +508,10 @@ if __name__ == "__main__":
         color='navajowhite',
         label='CV Test balanced error ±1 SD'
     )
-    selected_depth_idx = _select_index_for_value(depth_grid, best_depth)
+    best_depth_idx = int(np.argmin(depth_curves['cv_bal_err_mean']))
     _highlight_selected_value(
-        ax1, depth_grid, depth_curves['cv_bal_err_mean'], selected_depth_idx,
-        label_prefix='Value at 1SE CV balanced error'
+        ax1, depth_grid, depth_curves['cv_bal_err_mean'], best_depth_idx,
+        label_prefix='Value at best CV balanced error'
     )
     ax1.axvline(best_depth, color='red', linestyle='--', linewidth=1.5,
                 label=f'1SE-selected max_depth = {best_depth}')
@@ -557,11 +564,11 @@ if __name__ == "__main__":
              linewidth=2, label='Train error')
     ax2.plot(depth_grid, test_errors, marker='s', color='darkorange',
              linewidth=2, label='Test error')
-    selected_depth_idx = _select_index_for_value(depth_grid, best_depth)
+    best_depth_idx = int(np.argmin(depth_curves['cv_bal_err_mean']))
     ax2.scatter(
-        [depth_grid[selected_depth_idx]], [test_errors[selected_depth_idx]],
+        [depth_grid[best_depth_idx]], [test_errors[best_depth_idx]],
         color='gold', edgecolor='black', s=90, zorder=6,
-        label='Value at 1SE CV balanced error'
+        label='Value at best CV balanced error'
     )
     ax2.axvline(best_depth, color='red', linestyle='--', linewidth=1.5,
                 label=f'1SE-selected max_depth = {best_depth}')
@@ -710,7 +717,7 @@ if __name__ == "__main__":
                       ('reducer', PCA()),
                       ('classifier', RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))]),
             param_grid_pca_dow, cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy',
-            refit=make_one_se_refit(['reducer__n_components', 'classifier__max_depth', 'classifier__n_estimators'])
+            refit=make_one_se_refit(['classifier__max_depth', 'classifier__n_estimators'], fixed_cols=['reducer__n_components'])
         )
         grid_search_pca_dow.fit(X_train_dow, y_train_dow)
         if USE_GRID_CACHE:
@@ -865,7 +872,7 @@ if __name__ == "__main__":
              'classifier__max_depth': [2, 3, 5],
              'classifier__n_estimators': [250, 500]},
             cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy',
-            refit=make_one_se_refit(['reducer__n_components', 'classifier__max_depth', 'classifier__n_estimators'])
+            refit=make_one_se_refit(['classifier__max_depth', 'classifier__n_estimators'], fixed_cols=['reducer__n_components'])
         )
         grid_search_pca_lag.fit(X_train_lag, y_train_lag)
         if USE_GRID_CACHE:

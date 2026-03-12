@@ -63,7 +63,7 @@ def _as_sortable_numeric(value):
         return float("inf")
 
 
-def make_one_se_refit(complexity_cols: list[str]):
+def make_one_se_refit(complexity_cols: list[str], fixed_cols: list[str] | None = None):
     """Return a GridSearchCV refit callable implementing the 1-SE rule."""
     def _pick_index(cv_results):
         mean = np.asarray(cv_results["mean_test_score"], dtype=float)
@@ -74,6 +74,13 @@ def make_one_se_refit(complexity_cols: list[str]):
         candidate_idx = np.where(mean >= threshold)[0]
         if len(candidate_idx) == 0:
             return best_idx
+        if fixed_cols:
+            for col in fixed_cols:
+                param_key = f"param_{col}"
+                best_val = cv_results[param_key][best_idx]
+                candidate_idx = np.array([i for i in candidate_idx if cv_results[param_key][i] == best_val], dtype=int)
+                if len(candidate_idx) == 0:
+                    return best_idx
 
         def key_fn(i: int):
             complexity = []
@@ -322,7 +329,7 @@ if __name__=="__main__":
     grid_search_PCA_ridge=GridSearchCV(
         Log_Reg_model_pipeline_PCA_L, param_grid, cv=tscv, return_train_score=True, verbose=VERBOSE,
         scoring='balanced_accuracy',
-        refit=make_one_se_refit(['pca__n_components', 'classifier__C'])
+        refit=make_one_se_refit(['classifier__C'], fixed_cols=['pca__n_components'])
     )
 
     grid_search_PCA_ridge.fit(X_train, y_train)

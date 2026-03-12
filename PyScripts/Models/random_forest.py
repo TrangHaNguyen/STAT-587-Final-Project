@@ -45,7 +45,7 @@ def _as_sortable_numeric(value):
         return float("inf")
 
 
-def make_one_se_refit(complexity_cols: list[str]):
+def make_one_se_refit(complexity_cols: list[str], fixed_cols: list[str] | None = None):
     """Return a GridSearchCV refit callable implementing the 1-SE rule."""
     def _pick_index(cv_results):
         import numpy as np
@@ -57,6 +57,13 @@ def make_one_se_refit(complexity_cols: list[str]):
         candidate_idx = np.where(mean >= threshold)[0]
         if len(candidate_idx) == 0:
             return best_idx
+        if fixed_cols:
+            for col in fixed_cols:
+                param_key = f"param_{col}"
+                best_val = cv_results[param_key][best_idx]
+                candidate_idx = np.array([i for i in candidate_idx if cv_results[param_key][i] == best_val], dtype=int)
+                if len(candidate_idx) == 0:
+                    return best_idx
 
         def key_fn(i: int):
             complexity = []
@@ -251,7 +258,7 @@ if __name__=="__main__":
     grid_search_PCA=GridSearchCV(
         RF_pipeline_PCA, param_grid, cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=VERBOSE,
         scoring='balanced_accuracy',
-        refit=make_one_se_refit(['reducer__n_components', 'classifier__max_depth', 'classifier__n_estimators'])
+        refit=make_one_se_refit(['classifier__max_depth', 'classifier__n_estimators'], fixed_cols=['reducer__n_components'])
     )
     grid_search_PCA.fit(X_train, y_train)
     append_search_history(

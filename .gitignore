@@ -31,3 +31,5 @@ output/*.parquet
 output/*.pkl
 output/*.csv
 /PyScripts/Ignore/
+PyScripts/Data/hourly_data.parquet
+PyScripts/Data/raw_data_8_years.parquet

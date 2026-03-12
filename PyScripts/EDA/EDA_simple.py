@@ -81,10 +81,10 @@ def write_descriptive_stats_latex(table: pd.DataFrame, output_path: Path, select
 
     for year, row in table.iterrows():
         lines.append(
-            f"{year} & {int(row['Count'])} & {row['S&P 500 Prop. Up']:.4f} "
-            f"& {row[(selected_sectors[0], 'mean')]:.4f} & {row[(selected_sectors[0], 'std')]:.4f} "
-            f"& {row[(selected_sectors[1], 'mean')]:.4f} & {row[(selected_sectors[1], 'std')]:.4f} "
-            f"& {row[(selected_sectors[2], 'mean')]:.4f} & {row[(selected_sectors[2], 'std')]:.4f} \\\\"
+            f"{year} & {int(row['Count'])} & {row['S&P 500 Prop. Up']:.3f} "
+            f"& {row[(selected_sectors[0], 'mean')]:.3f} & {row[(selected_sectors[0], 'std')]:.3f} "
+            f"& {row[(selected_sectors[1], 'mean')]:.3f} & {row[(selected_sectors[1], 'std')]:.3f} "
+            f"& {row[(selected_sectors[2], 'mean')]:.3f} & {row[(selected_sectors[2], 'std')]:.3f} \\\\"
         )
 
     lines.extend(
@@ -176,11 +176,14 @@ for sector, sector_stocks in sector_to_stocks.items():
 sector_returns = pd.DataFrame(sector_dict)
 sector_returns = ensure_datetime_index(sector_returns)
 sector_corr = sector_returns.corr()
+print(f"Sector mean-return correlation range: {sector_corr.min().min():.4f} to {sector_corr.max().max():.4f}")
 
 # Create clustermap for sector correlation with hierarchical clustering
 g = sns.clustermap(sector_corr,
                    cmap='RdYlGn',
                    center=0,
+                   vmin=-1,
+                   vmax=1,
                    figsize=(10, 10),
                    cbar_kws={'label': 'Correlation'},
                    method='ward',
@@ -228,6 +231,7 @@ def plot_sector_with_marketcap(sector_name, stocks_in_sector, returns_df, output
     # Calculate correlation
     sector_returns = returns_df[sorted_stocks]
     corr_matrix = sector_returns.corr()
+    print(f"  {sector_name} correlation range: {corr_matrix.min().min():.4f} to {corr_matrix.max().max():.4f}")
     
     # Create clustermap with hierarchical clustering
     figsize = (min(16, max(10, len(sorted_stocks)*0.15)), 
@@ -237,6 +241,8 @@ def plot_sector_with_marketcap(sector_name, stocks_in_sector, returns_df, output
     g = sns.clustermap(corr_matrix, 
                        cmap='coolwarm', 
                        center=0,
+                       vmin=-1,
+                       vmax=1,
                        figsize=figsize,
                        cbar_kws={'label': 'Correlation'},
                        method='ward',  # Hierarchical clustering method

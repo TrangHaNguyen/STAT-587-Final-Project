@@ -119,33 +119,33 @@ The following heatmaps are created .
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.45\linewidth]{../output/2yrs_sector_correlation.png}
-    \includegraphics[width=0.45\linewidth]{../output/2yrs_sector_sp500_correlation.png}
-    \caption{Correlation across sectors and that of each sector with the S\&P 500 daily return. Highlighted are 3 sectors with highest absolute correlation coefficient with the S\&P 500. Dark colours indicate stronger correlation while light colours indicate weaker correlation. The correlation is calculated based on the engineered feature `Close PC'.}
+    \includegraphics[width=0.45\linewidth]{../output/8yrs_sector_correlation.png}
+    \includegraphics[width=0.45\linewidth]{../output/8yrs_sector_sp500_correlation_mcap_weighted.png}
+    \caption{Correlation across sectors and that of each sector with the S\&P 500 daily return. Highlighted are the three sectors with the highest absolute market-cap-weighted correlation with the S\&P 500: Healthcare ($|r|=0.1244$), Financial Services ($|r|=0.1198$), and Consumer Defensive ($|r|=0.1112$). Dark colours indicate stronger correlation while light colours indicate weaker correlation. The correlation is calculated based on the engineered feature `Close PC'.}
     \label{fig:sector-correlation}
 \end{figure}
 \FloatBarrier
 
-Figure \ref{fig:sector-correlation} shows the correlation of mean daily returns across all sectors \footnote{GICS: Global Industry Classification Standard - a standardized sector taxonomy developed jointly by MSCI and S\&P Dow Jones Indices. It groups companies into 11 sectors. See more at https://www.msci.com/gics}. The map was constructed using the engineered feature `Close PC'. Certain sectors, such as Technology, Healthcare, and Consumer Defensive, exhibit stronger positive correlations with each other while sectors like Utilities and Real Estate show weaker correlations with other sectors. In addition, the sectors' correlation with the S\&P 500 Index indicates that Technology, Healthcare, and Consumer Defensive sectors also have the strongest absolute correlations with the overall market while Utilities and Real Estate show weaker correlations.
+Figure \ref{fig:sector-correlation} shows the correlation of mean daily returns across all sectors \footnote{GICS: Global Industry Classification Standard - a standardized sector taxonomy developed jointly by MSCI and S\&P Dow Jones Indices. It groups companies into 11 sectors. See more at https://www.msci.com/gics}. The map was constructed using the engineered feature `Close PC'. Certain sectors, such as Healthcare, Financial Services, and Consumer Defensive, exhibit stronger positive correlations with each other while sectors like Utilities and Real Estate show weaker correlations with other sectors. In addition, the sectors' market-cap-weighted correlation with the S\&P 500 Index indicates that Healthcare, Financial Services, and Consumer Defensive have the strongest absolute correlations with the overall market while Utilities and Real Estate show weaker correlations.
 
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.32\linewidth]{../output/2yrs_sector_Technology_clustered.png}
-    \includegraphics[width=0.32\linewidth]{../output/2yrs_sector_Healthcare_clustered.png} 
-    \includegraphics[width=0.32\linewidth]{../output/2yrs_sector_Consumer_Defensive_clustered.png}
-    \caption{Intra-sector correlation matrices for the top three sectors by absolute correlation with S\&P 500 returns. From left to right: Technology ($|r| = 0.116$), Healthcare ($|r| = 0.106$), and Consumer Defensive ($|r| = 0.097$) sectors. Hierarchical clustering reveals sub-groups of stocks with similar return dynamics. Warm colours indicate strong positive co-movement while cool colours indicate divergence.}
+    \includegraphics[width=0.32\linewidth]{../output/8yrs_sector_Financial_Services_clustered.png}
+    \includegraphics[width=0.32\linewidth]{../output/8yrs_sector_Healthcare_clustered.png} 
+    \includegraphics[width=0.32\linewidth]{../output/8yrs_sector_Consumer_Defensive_clustered.png}
+    \caption{Intra-sector correlation matrices for the top three sectors by absolute market-cap-weighted correlation with S\&P 500 returns. From left to right: Financial Services ($|r|=0.1198$), Healthcare ($|r|=0.1244$), and Consumer Defensive ($|r|=0.1112$). Hierarchical clustering reveals sub-groups of stocks with similar return dynamics. Warm colours indicate strong positive co-movement while cool colours indicate divergence.}
     \label{fig:top-sectors}
 \end{figure}
 \FloatBarrier
 
-Figure \ref{fig:top-sectors} show the intra-sector correlation matrices for the Technology, Healthcare, and Consumer Defensive sectors, respectively. The tickers in those plots are sorted by hierarchical clustering, which reveals sub-groups of stocks that tend to move together, such as large-cap tech giants, semiconductor companies, and software firms. This suggests that certain segments within these sectors may be driving their overall correlation with the broader market and that there might be a high degree of redundancy in the data. This motivate the use of dimensionality reduction techniques or regularization further.
+Figure \ref{fig:top-sectors} shows the intra-sector correlation matrices for the Financial Services, Healthcare, and Consumer Defensive sectors, respectively. The tickers in those plots are sorted by hierarchical clustering, which reveals sub-groups of stocks that tend to move together within each sector. This suggests that certain segments within these sectors may be driving their overall correlation with the broader market and that there might be a high degree of redundancy in the data. This motivates the use of dimensionality reduction techniques or regularization further.
 
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.45\linewidth]{../output/2yrs_sector_volatility_over_time.png}
-    \includegraphics[width=0.45\linewidth]{../output/2yrs_smoothed_sector_volatility.png}
+    \includegraphics[width=0.45\linewidth]{../output/8yrs_sector_volatility_over_time.png}
+    \includegraphics[width=0.45\linewidth]{../output/8yrs_smoothed_sector_volatility.png}
     \caption{Sector return dispersion. Left panel: sector return dispersion over time. Right panel: smoothed sector return dispersion over time.}
     \vspace{0.3em}
     {\footnotesize
@@ -161,7 +161,7 @@ Figure \ref{fig:sector-vol} shows the rolling 21-day average cross-sectional sta
 
 
 For a numerical summary, Table \ref{tab:descriptive_stats} reports yearly means and standard deviations of returns for the three key sectors, along with the yearly S\&P 500 up-day proportion.
-\input{../output/descriptive_stats.tex}
+\input{../output/8yrs_descriptive_stats.tex}
 
 Average daily returns are generally positive except for 2022. The volatility in return rises sharply in 2020 and again in 2022, with Technology consistently exhibiting the highest dispersion and Consumer Defensive the lowest. The S\&P 500 up-day proportion is above 0.50 in most years but drops below 0.50 in 2022, meaning that the data is not very balanced in terms of responses.
 
@@ -238,7 +238,7 @@ Table~\ref{tab:base_logistic_comparison} presents the performance comparison of 
 
 
 
-\input{../output/base_rf_comparison.tex}
+\input{../output/8yrs_base_rf_comparison.tex}
 \FloatBarrier
 
 Table~\ref{tab:base_rf_comparison} presents the performance comparison of different random forest models with predictors of raw features and of selected PCA components. The depth of the tree and number of estimators are selected based on grid search cross validation. The random forest using raw features outperforms the PCA-based logistic regression, and applying PCA before the random forest improves performance even further (accuracy in the test set increased to 54 \%). LASSO and Ridge application in feature selections for random forest does not improve performance compared to PCA. However, the standard deviation of both train and test cross validation accuracy is higher for the random forest compared to logistic regression, which suggests that the random forest may be more sensitive to the data set used to train. 
@@ -255,7 +255,7 @@ Table~\ref{tab:model_comparison} reveals that sequential models (RNN and LSTM) a
 
 \subsection{Hourly Models}
 
-\input{../output/logistic_regression_24hours_three_model_comparison.tex}
+\input{../output/8yrs_logistic_regression_24hours_three_model_comparison.tex}
 \FloatBarrier
 
 To further investigate the temporal dependencies of the market, we also experimented with similar models for the hourly data. Table \ref{tab:logreg_l2_elasticnet_24h} presents the performance comparison of logistic regression models with L2 regularization, Elastic Net regularization, and feature-engineered L2 regularization using 24-hour lag features. The results indicate that the performance of the hourly models is better than the daily models, with the best performing model  with an accuracy of 0.5478 and ROC-AUC value around 60 \%. This suggests that a clearer short window of dependencies rather than by days/ weeks.
@@ -400,28 +400,28 @@ For each sector, correlation with the S\&P 500 series is computed using Pearson 
 \subsection{Additional figures and tables}
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=0.95\textwidth]{../output/base_logistic_bias_variance.png}
+  \includegraphics[width=0.95\textwidth]{../output/8yrs_base_logistic_bias_variance.png}
   \caption{Bias-variance tradeoff for logistic regression with regularization using raw OHLCV features.}
   \label{fig:base-bv-raw}
 \end{figure}
 
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=0.95\textwidth]{../output/base_logistic_train_test.png}
+  \includegraphics[width=0.95\textwidth]{../output/8yrs_base_logistic_train_test.png}
   \caption{Train vs. test error across regularization strengths (direct train/test split) using raw OHLCV features.}
   \label{fig:base-train-test-raw}
 \end{figure}
 
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=0.95\textwidth]{../output/base_logistic_pca_bias_variance.png}
+  \includegraphics[width=0.95\textwidth]{../output/8yrs_base_logistic_pca_bias_variance.png}
   \caption{Bias-variance tradeoff using PCA features (90\% explained variance) with regularized logistic regression.}
   \label{fig:base-bv-pca}
 \end{figure}
 
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=0.95\textwidth]{../output/base_logistic_pca_train_test.png}
+  \includegraphics[width=0.95\textwidth]{../output/8yrs_base_logistic_pca_train_test.png}
   \caption{Train vs. test error across regularization strengths (direct split) using PCA features (90\% explained variance).}
   \label{fig:base-train-test-pca}
 \end{figure}
@@ -431,21 +431,21 @@ For each sector, correlation with the S\&P 500 series is computed using Pearson 
 
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=0.95\textwidth]{../output/base_rf_bias_variance.png}
+  \includegraphics[width=0.95\textwidth]{../output/8yrs_base_rf_bias_variance.png}
   \caption{Bias-variance tradeoff for random forest classifier across different feature sets.}
   \label{fig:base-rf-bv}
 \end{figure}
 
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=0.95\textwidth]{../output/base_rf_train_test.png}
+  \includegraphics[width=0.95\textwidth]{../output/8yrs_base_rf_train_test.png}
   \caption{Train vs. test error comparison for random forest models with different feature engineering approaches.}
   \label{fig:base-rf-train-test}
 \end{figure}
 
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=0.95\textwidth]{../output/base_rf_best_tree.png}
+  \includegraphics[width=0.95\textwidth]{../output/8yrs_base_rf_best_tree.png}
   \caption{Visualization of one decision tree from the best performing random forest model.}
   \label{fig:base-rf-tree}
 \end{figure}

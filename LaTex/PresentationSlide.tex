@@ -233,9 +233,9 @@
 \begin{frame}{Exploratory Data Analysis}
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.45\linewidth]{../output/Used/png/8yrs_sector_correlation.png}
-    \includegraphics[width=0.45\linewidth]{../output/Used/png/8yrs_sector_sp500_correlation.png}
-    \caption{Correlation across sectors and that of each sector with the S\&P 500 daily return. Highlighted are the top three sectors by absolute correlation with S\&P 500: Financial Services ($r=-0.1249$), Technology ($r=-0.1170$), and Consumer Defensive ($r=-0.1155$).}
+    \includegraphics[width=0.45\linewidth]{../output/8yrs_sector_correlation.png}
+    \includegraphics[width=0.45\linewidth]{../output/8yrs_sector_sp500_correlation_mcap_weighted.png}
+    \caption{Correlation across sectors and that of each sector with the S\&P 500 daily return. Highlighted are the top three sectors by absolute market-cap-weighted correlation with the S\&P 500: Healthcare ($|r|=0.1244$), Financial Services ($|r|=0.1198$), and Consumer Defensive ($|r|=0.1112$).}
     \label{fig:sector-correlation}
 \end{figure}
 \end{frame}
@@ -243,10 +243,10 @@
 \begin{frame}{Exploratory Data Analysis}
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.32\linewidth]{../output/Used/png/8yrs_sector_Financial_Services_clustered.png}
-    \includegraphics[width=0.32\linewidth]{../output/Used/png/8yrs_sector_Technology_clustered.png}
-    \includegraphics[width=0.32\linewidth]{../output/Used/png/8yrs_sector_Consumer_Defensive_clustered.png}
-    \caption{Intra-sector correlation matrices for the top three sectors by absolute correlation with S\&P 500 returns. From left to right: Financial Services ($r=-0.1249$), Technology ($r=-0.1170$), and Consumer Defensive ($r=-0.1155$). Hierarchical clustering groups stocks with similar return dynamics. Warm colours indicate strong positive co-movement while cool colours indicate divergence.}
+    \includegraphics[width=0.32\linewidth]{../output/8yrs_sector_Financial_Services_clustered.png}
+    \includegraphics[width=0.32\linewidth]{../output/8yrs_sector_Healthcare_clustered.png}
+    \includegraphics[width=0.32\linewidth]{../output/8yrs_sector_Consumer_Defensive_clustered.png}
+    \caption{Intra-sector correlation matrices for the top three sectors by absolute market-cap-weighted correlation with S\&P 500 returns. From left to right: Financial Services ($|r|=0.1198$), Healthcare ($|r|=0.1244$), and Consumer Defensive ($|r|=0.1112$). Hierarchical clustering groups stocks with similar return dynamics. Warm colours indicate strong positive co-movement while cool colours indicate divergence.}
     \label{fig:top-sectors}
 \end{figure}
 \end{frame}
@@ -254,8 +254,8 @@
 \begin{frame}{Exploratory Data Analysis}
   \begin{figure}[h]
     \centering
-    \includegraphics[width=0.45\linewidth]{../output/Used/png/8yrs_sector_volatility_over_time.png}
-    \includegraphics[width=0.45\linewidth]{../output/Used/png/8yrs_smoothed_sector_volatility.png}
+    \includegraphics[width=0.45\linewidth]{../output/8yrs_sector_volatility_over_time.png}
+    \includegraphics[width=0.45\linewidth]{../output/8yrs_smoothed_sector_volatility.png}
     \caption{Sector volatility. Left panel: 21-day-window average volatility. Right panel: its smoothed version by moving average over 40 days.}
     \label{fig:sector-vol}
 \end{figure}
@@ -263,7 +263,7 @@
 
 \begin{frame}[t,shrink=25]{Exploratory Data Analysis: Descriptive Statistics}
   \scriptsize
-  \input{../output/Used/tex/descriptive_stats.tex}
+  \input{../output/8yrs_descriptive_stats.tex}
 \end{frame}
 
 \begin{frame}{Exploratory Data Analysis: Descriptive Stats Summary}
@@ -454,7 +454,7 @@
 \scriptsize
 \setlength{\tabcolsep}{2pt}
 \renewcommand{\arraystretch}{0.9}
-\input{../output/Used/tex/8yrs_1SE_base_logistic_comparison.tex}
+\input{../output/8yrs_1SE_base_logistic_comparison.tex}
 \endgroup
 \FloatBarrier
 \end{frame}
@@ -483,7 +483,7 @@
 \subsubsection{Random Forest Models}
 \begin{frame}[t,shrink=25]{Results}
 \textbf{Random Forest Models}\\
-\input{../output/Used/tex/8yrs_1SE_base_rf_comparison.tex}
+\input{../output/8yrs_1SE_base_rf_comparison.tex}
 \FloatBarrier
 \end{frame}
 
@@ -529,7 +529,7 @@
 
 \subsection{Extended Feature Models}
 \begin{frame}[t,shrink=25]{Results}
-\input{../output/Used/tex/8yrs_3methods_comparison.tex}
+\input{../output/8yrs_3methods_comparison.tex}
 %The table compares Random Forest, SVM, and Logistic Regression models over an 8-year period, reporting accuracy, standard deviation, precision, recall, and F1 for the positive class ("Up").
 \end{frame}
 
@@ -587,7 +587,7 @@
 
 \subsection{Experiment with hourly data}
 \begin{frame}[t,shrink=25]{Experiment with hourly data}
-\input{../output/Used/tex/logistic_regression_24hours_three_model_comparison.tex}
+\input{../output/8yrs_logistic_regression_24hours_three_model_comparison.tex}
 \FloatBarrier
 \end{frame}
 

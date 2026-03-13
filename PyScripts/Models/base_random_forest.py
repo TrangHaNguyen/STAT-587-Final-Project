@@ -3,6 +3,7 @@ import os
 import joblib
 import pandas as pd
 import numpy as np
+import pyarrow.parquet as pq
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -35,6 +36,13 @@ MODEL_N_JOBS = int(os.getenv("MODEL_N_JOBS", "-1"))
 RF_FIT_N_JOBS = 1
 # GridSearchCV objects with callable refit (1SE rule) are not pickle-safe.
 USE_GRID_CACHE = False
+BACKTEST_WINDOW_SIZE = 100
+BACKTEST_HORIZON = 30
+USE_SAMPLE_PARQUET = os.getenv("USE_SAMPLE_PARQUET", "0") == "1"
+SAMPLE_PARQUET_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    '..', 'Data', 'sample.parquet'
+)
 
 def to_binary_class(y):
     return (y >= 0).astype(int)
@@ -131,7 +139,7 @@ def write_latex_table(df: pd.DataFrame, path: str, caption: str, label: str, not
 def build_export_table(df: pd.DataFrame) -> pd.DataFrame:
     """Keep only compact metrics for reporting/export."""
     out = df.copy()
-    keep_cols = ["Hold-out Test Plain Acc", "Precision", "Recall", "F1", "ROC-AUC"]
+    keep_cols = ["Test Acc", "Precision", "Recall", "F1", "ROC-AUC"]
     return out[keep_cols]
 
 RECALL_NOTE = "Recall = Sensitivity for the positive (Up) class."
@@ -205,11 +213,217 @@ def _compute_cv_metric_curves(model_factory, X_train, y_train, cv):
         'cv_bal_err_se': cv_bal_errors.std(axis=0) / np.sqrt(cv.get_n_splits()),
     }
 
+BASE_RF_PARAM_GRID = {
+    'classifier__max_depth': [2, 3, 5, 8, 15],
+    'classifier__n_estimators': [50, 100, 200, 500],
+}
+
+PCA_RF_PARAM_GRID = {
+    'reducer__n_components': BASE_RF_PCA_GRID,
+    'classifier__max_depth': [2, 3, 5],
+    'classifier__n_estimators': [250, 500],
+}
+
+SEL_RF_PARAM_GRID = {
+    'feature_selector__estimator__C': [0.001, 0.01, 0.1],
+    'classifier__max_depth': [2, 3, 5],
+    'classifier__n_estimators': [500],
+}
+
+def _base_rf_pipeline():
+    return Pipeline([
+        ('scaler', StandardScaler()),
+        ('classifier', RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))
+    ])
+
+def _pca_rf_pipeline():
+    return Pipeline([
+        ('scaler', StandardScaler()),
+        ('reducer', PCA()),
+        ('classifier', RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))
+    ])
+
+def _lasso_rf_pipeline():
+    return Pipeline([
+        ('scaler', StandardScaler()),
+        ('feature_selector', SelectFromModel(
+            LogisticRegression(
+                l1_ratio=1, solver='saga', random_state=1,
+                class_weight='balanced',
+                max_iter=500, tol=5e-2
+            ),
+            threshold='mean'
+        )),
+        ('classifier', RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))
+    ])
+
+def _ridge_rf_pipeline():
+    return Pipeline([
+        ('scaler', StandardScaler()),
+        ('feature_selector', SelectFromModel(
+            LogisticRegression(
+                l1_ratio=0, solver='saga', random_state=1,
+                class_weight='balanced',
+                max_iter=500, tol=5e-2
+            ),
+            threshold='mean'
+        )),
+        ('classifier', RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))
+    ])
+
+def _run_cached_grid_search(cache_name, pipeline, param_grid, X_train, y_train, tscv, refit, heading):
+    print(f"\n========== {heading} ==========")
+    cache_path = os.path.join(CACHE_DIR, cache_name)
+    if USE_GRID_CACHE and os.path.exists(cache_path):
+        print(f"Loading {heading} from cache...")
+        return joblib.load(cache_path)
+
+    grid_search = GridSearchCV(
+        pipeline, param_grid, cv=tscv,
+        n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1,
+        scoring='balanced_accuracy', refit=refit
+    )
+    grid_search.fit(X_train, y_train)
+    if USE_GRID_CACHE:
+        joblib.dump(grid_search, cache_path)
+    return grid_search
+
+def _run_model_report_and_backtest(search_obj, X_full, y_full, X_train, y_train, X_test, y_test, label, n_splits):
+    print("\n--- Model Report ---")
+    get_final_metrics(search_obj.best_estimator_, X_train, y_train, X_test, y_test, n_splits=n_splits, label=label)
+    print("\n--- Rolling Window Backtest ---")
+    rwb_obj = RollingWindowBacktest(
+        search_obj.best_estimator_,
+        X_full,
+        y_full,
+        X_train,
+        window_size=BACKTEST_WINDOW_SIZE,
+        horizon=BACKTEST_HORIZON,
+    )
+    rwb_obj.rolling_window_backtest(verbose=1)
+
+def _run_rf_suite(X_full, y_full, X_train, y_train, X_test, y_test, tscv, dataset_suffix="", variant_label=""):
+    heading_suffix = f" {variant_label}" if variant_label else ""
+    specs = [
+        {
+            'name': 'Base RF',
+            'heading': 'RF GridSearch (20 combinations)' if not variant_label else f'Base RF{heading_suffix} GridSearch',
+            'cache_name': f'base_rf{dataset_suffix}_gridsearch.pkl',
+            'pipeline': _base_rf_pipeline(),
+            'param_grid': BASE_RF_PARAM_GRID,
+            'refit': make_one_se_refit(['classifier__max_depth', 'classifier__n_estimators']),
+        },
+        {
+            'name': 'PCA RF',
+            'heading': 'PCA + RF GridSearch' if not variant_label else f'PCA RF{heading_suffix} GridSearch',
+            'cache_name': f'base_rf_pca{dataset_suffix}_gridsearch.pkl',
+            'pipeline': _pca_rf_pipeline(),
+            'param_grid': PCA_RF_PARAM_GRID,
+            'refit': make_one_se_refit(['classifier__max_depth', 'classifier__n_estimators'], fixed_cols=['reducer__n_components']),
+        },
+        {
+            'name': 'LASSO-sel RF',
+            'heading': 'LASSO Feature Selection + RF GridSearch' if not variant_label else f'LASSO-sel RF{heading_suffix} GridSearch',
+            'cache_name': f'base_rf_lasso{dataset_suffix}_gridsearch.pkl',
+            'pipeline': _lasso_rf_pipeline(),
+            'param_grid': SEL_RF_PARAM_GRID,
+            'refit': make_one_se_refit(['feature_selector__estimator__C', 'classifier__max_depth', 'classifier__n_estimators']),
+        },
+        {
+            'name': 'Ridge-sel RF',
+            'heading': 'Ridge Feature Selection + RF GridSearch' if not variant_label else f'Ridge-sel RF{heading_suffix} GridSearch',
+            'cache_name': f'base_rf_ridge{dataset_suffix}_gridsearch.pkl',
+            'pipeline': _ridge_rf_pipeline(),
+            'param_grid': SEL_RF_PARAM_GRID,
+            'refit': make_one_se_refit(['feature_selector__estimator__C', 'classifier__max_depth', 'classifier__n_estimators']),
+        },
+    ]
+
+    searches = {}
+    for spec in specs:
+        search_obj = _run_cached_grid_search(
+            spec['cache_name'],
+            spec['pipeline'],
+            spec['param_grid'],
+            X_train,
+            y_train,
+            tscv,
+            spec['refit'],
+            spec['heading']
+        )
+        best_prefix = "Best params" if spec['name'] == 'Base RF' and not variant_label else f"Best params ({spec['name']}{heading_suffix})"
+        print(f"{best_prefix}: {search_obj.best_params_}")
+        report_label = f"{spec['name']}{heading_suffix}"
+        _run_model_report_and_backtest(search_obj, X_full, y_full, X_train, y_train, X_test, y_test, report_label, tscv.n_splits)
+        searches[spec['name']] = search_obj
+    return searches
+
+def _rf_metrics_row(name, grid_obj, X_tr, y_tr, X_te, y_te, n_splits):
+    shared = get_final_metrics(
+        grid_obj.best_estimator_, X_tr, y_tr, X_te, y_te, n_splits=n_splits, label=name
+    )
+    return {
+        'Model':             name,
+        'Avg CV Train Plain Acc':      shared['train_avg_accuracy'],
+        'CV Train Plain Acc SD':       shared['train_std_accuracy'],
+        'Avg CV Validation Plain Acc': shared['validation_avg_accuracy'],
+        'CV Acc SD':                   shared['cv_test_sd_error'],
+        'Test Acc':                    shared['test_split_accuracy'],
+        'Precision':         shared['test_precision'],
+        'Recall':            shared['test_recall'],
+        'F1':                shared['test_f1'],
+        'ROC-AUC':           shared['test_roc_auc_macro'],
+    }
+
+def _build_comparison_df(searches, X_train, y_train, X_test, y_test, n_splits, suffix=""):
+    rows = [
+        _rf_metrics_row(f'Base RF{suffix}', searches['Base RF'], X_train, y_train, X_test, y_test, n_splits),
+        _rf_metrics_row(f'PCA RF{suffix}', searches['PCA RF'], X_train, y_train, X_test, y_test, n_splits),
+        _rf_metrics_row(f'LASSO-sel RF{suffix}', searches['LASSO-sel RF'], X_train, y_train, X_test, y_test, n_splits),
+        _rf_metrics_row(f'Ridge-sel RF{suffix}', searches['Ridge-sel RF'], X_train, y_train, X_test, y_test, n_splits),
+    ]
+    return pd.DataFrame(rows).set_index('Model')
+
 if __name__ == "__main__":
     # ------- Load raw data (no extra clean_data feature engineering) -------
     TESTING = False
     print(f"MODEL_N_JOBS={MODEL_N_JOBS} (set env MODEL_N_JOBS to override)")
-    DATA = import_data(testing=TESTING, extra_features=False, cluster=False, n_clusters=100, corr_threshold=0.95, corr_level=0)
+    if USE_SAMPLE_PARQUET:
+        print(f"USE_SAMPLE_PARQUET=1 -> loading sample parquet from {os.path.abspath(SAMPLE_PARQUET_PATH)}")
+        sample_table = pq.read_table(SAMPLE_PARQUET_PATH)
+        DATA = sample_table.to_pandas(), None
+    else:
+        DATA = import_data(testing=TESTING, extra_features=False, cluster=False, n_clusters=100, corr_threshold=0.95, corr_level=0)
+    if USE_SAMPLE_PARQUET:
+        idx = pd.IndexSlice
+        raw_data = DATA[0]
+        print("Finished Downloading Data -------")
+        print("Initial shape:", raw_data.shape[0], "rows,", raw_data.shape[1], "columns.")
+        print("------- Cleaning data")
+        for type in ['Stocks']:
+            temp_data = raw_data.loc[:, idx[:, type, :]].dropna(how="all", axis=0)
+            missing_one = (temp_data.isna().sum() == 1)
+            cols = missing_one[missing_one == 1].index
+            temp_data[cols] = temp_data[cols].ffill()
+            temp_data = temp_data.dropna(how="any", axis=1)
+            raw_data = raw_data.drop(columns=type, level=1).join(temp_data)
+        stocks = raw_data.loc[:, idx[:, 'Stocks', :]]
+        to_drop = stocks.index[stocks.isna().all(axis=1)]
+        raw_data = raw_data.drop(index=to_drop)
+        print("Finished Cleaning Data -------")
+        print("Current shape:", raw_data.shape[0], "rows,", raw_data.shape[1], "columns.")
+        raw_data = pd.concat([
+            raw_data,
+            raw_data.loc[:, idx[['Close', 'Open', 'High', 'Low'], 'Stocks', :]]
+            .copy()
+            .pct_change()
+            .rename(columns={metric: f"{metric} PC" for metric in ['Close', 'Open', 'High', 'Low']}, level=0)
+        ], axis=1)
+        y_regression = (
+            (raw_data.loc[:, idx['Close', 'Index', '^SPX']] - raw_data.loc[:, idx['Open', 'Index', '^SPX']])
+            / raw_data.loc[:, idx['Open', 'Index', '^SPX']]
+        ).rename("Target Regression").shift(-1)
+        DATA = raw_data, y_regression
     X, y_regression = clean_data(*DATA, raw=True, extra_features=False)
     X.columns = [f"{metric}_{ticker}" for metric, _, ticker in X.columns]
     print(f"Feature matrix shape: {X.shape[0]} rows, {X.shape[1]} columns.")
@@ -224,146 +438,17 @@ if __name__ == "__main__":
     # Previous temporary change used `KFold(n_splits=5, shuffle=False)`.
     tscv = TimeSeriesSplit(n_splits=5)
 
-    # ------- GridSearchCV: 5 depths x 4 n_estimators = 20 combinations -------
-    print("\n========== Random Forest GridSearch (20 combinations) ==========")
-    _rf_cache = os.path.join(CACHE_DIR, 'base_rf_gridsearch.pkl')
-    param_grid = {
-        'classifier__max_depth':    [2, 3, 5, 8, 15],
-        'classifier__n_estimators': [50, 100, 200, 500],
-    }
-    pipeline_rf = Pipeline([
-        ('scaler',     StandardScaler()),
-        ('classifier', RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))
-    ])
-    if USE_GRID_CACHE and os.path.exists(_rf_cache):
-        print("Loading RF GridSearch from cache...")
-        grid_search_rf = joblib.load(_rf_cache)
-    else:
-        grid_search_rf = GridSearchCV(
-            pipeline_rf, param_grid, cv=tscv,
-            n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy',
-            refit=make_one_se_refit(['classifier__max_depth', 'classifier__n_estimators'])
-        )
-        grid_search_rf.fit(X_train, y_train)
-        if USE_GRID_CACHE:
-            joblib.dump(grid_search_rf, _rf_cache)
+    raw_searches = _run_rf_suite(X, y_classification, X_train, y_train, X_test, y_test, tscv)
+    grid_search_rf = raw_searches['Base RF']
+    grid_search_pca = raw_searches['PCA RF']
+    grid_search_lasso = raw_searches['LASSO-sel RF']
+    grid_search_ridge = raw_searches['Ridge-sel RF']
+
+    param_grid = BASE_RF_PARAM_GRID
+    param_grid_ridge = SEL_RF_PARAM_GRID
 
     best_depth  = grid_search_rf.best_params_['classifier__max_depth']
     best_n_est  = grid_search_rf.best_params_['classifier__n_estimators']
-    print(f"Best params: max_depth={best_depth}, n_estimators={best_n_est}")
-    print("\n--- Model Report ---")
-    get_final_metrics(grid_search_rf.best_estimator_, X_train, y_train, X_test, y_test, n_splits=5, label="Base RF")
-    print("\n--- Rolling Window Backtest ---")
-    rwb_obj = RollingWindowBacktest(grid_search_rf.best_estimator_, X, y_classification, X_train, window_size=200, horizon=40)
-    rwb_obj.rolling_window_backtest(verbose=1)
-
-    # ------- PCA RF — GridSearch over n_components, max_depth, n_estimators -------
-    print("\n========== PCA + Random Forest GridSearch ==========")
-    _rf_pca_cache = os.path.join(CACHE_DIR, 'base_rf_pca_gridsearch.pkl')
-    param_grid_pca = {
-        'reducer__n_components':    BASE_RF_PCA_GRID,
-        'classifier__max_depth':    [2, 3, 5],
-        'classifier__n_estimators': [250, 500],
-    }
-    pipeline_rf_pca = Pipeline([
-        ('scaler',     StandardScaler()),
-        ('reducer',    PCA()),
-        ('classifier', RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))
-    ])
-    if USE_GRID_CACHE and os.path.exists(_rf_pca_cache):
-        print("Loading PCA RF GridSearch from cache...")
-        grid_search_pca = joblib.load(_rf_pca_cache)
-    else:
-        grid_search_pca = GridSearchCV(
-            pipeline_rf_pca, param_grid_pca, cv=tscv,
-            n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy',
-            refit=make_one_se_refit(['classifier__max_depth', 'classifier__n_estimators'], fixed_cols=['reducer__n_components'])
-        )
-        grid_search_pca.fit(X_train, y_train)
-        if USE_GRID_CACHE:
-            joblib.dump(grid_search_pca, _rf_pca_cache)
-    print(f"Best params (PCA RF): {grid_search_pca.best_params_}")
-    print("\n--- Model Report ---")
-    get_final_metrics(grid_search_pca.best_estimator_, X_train, y_train, X_test, y_test, n_splits=5, label="PCA RF")
-    print("\n--- Rolling Window Backtest ---")
-    rwb_obj = RollingWindowBacktest(grid_search_pca.best_estimator_, X, y_classification, X_train, window_size=200, horizon=40)
-    rwb_obj.rolling_window_backtest(verbose=1)
-
-    # ------- LASSO feature selection + RF -------
-    print("\n========== LASSO Feature Selection + Random Forest GridSearch ==========")
-    _rf_lasso_cache = os.path.join(CACHE_DIR, 'base_rf_lasso_gridsearch.pkl')
-    param_grid_lasso = {
-        'feature_selector__estimator__C': [0.001, 0.01, 0.1],
-        'classifier__max_depth':          [2, 3, 5],
-        'classifier__n_estimators':       [500],
-    }
-    pipeline_rf_lasso = Pipeline([
-        ('scaler',           StandardScaler()),
-        ('feature_selector', SelectFromModel(
-            # Use sklearn's current single-stage regularization API:
-            # l1_ratio=1 for lasso feature selection. This avoids the
-            # deprecated penalty=... path and the inconsistent-parameter warning
-            # that occurs when penalty='l1' is combined with default l1_ratio=0.
-            LogisticRegression(l1_ratio=1, solver='saga', random_state=1,
-                               class_weight='balanced',
-                               max_iter=500, tol=5e-2), threshold='mean')),
-        ('classifier',       RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))
-    ])
-    if USE_GRID_CACHE and os.path.exists(_rf_lasso_cache):
-        print("Loading LASSO RF GridSearch from cache...")
-        grid_search_lasso = joblib.load(_rf_lasso_cache)
-    else:
-        grid_search_lasso = GridSearchCV(
-            pipeline_rf_lasso, param_grid_lasso, cv=tscv,
-            n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy',
-            refit=make_one_se_refit(['feature_selector__estimator__C', 'classifier__max_depth', 'classifier__n_estimators'])
-        )
-        grid_search_lasso.fit(X_train, y_train)
-        if USE_GRID_CACHE:
-            joblib.dump(grid_search_lasso, _rf_lasso_cache)
-    print(f"Best params (LASSO RF): {grid_search_lasso.best_params_}")
-    print("\n--- Model Report ---")
-    get_final_metrics(grid_search_lasso.best_estimator_, X_train, y_train, X_test, y_test, n_splits=5, label="LASSO-sel RF")
-    print("\n--- Rolling Window Backtest ---")
-    rwb_obj = RollingWindowBacktest(grid_search_lasso.best_estimator_, X, y_classification, X_train, window_size=200, horizon=40)
-    rwb_obj.rolling_window_backtest(verbose=1)
-
-    # ------- Ridge feature selection + RF -------
-    print("\n========== Ridge Feature Selection + Random Forest GridSearch ==========")
-    _rf_ridge_cache = os.path.join(CACHE_DIR, 'base_rf_ridge_gridsearch.pkl')
-    param_grid_ridge = {
-        'feature_selector__estimator__C': [0.001, 0.01, 0.1],
-        'classifier__max_depth':          [2, 3, 5],
-        'classifier__n_estimators':       [500],
-    }
-    pipeline_rf_ridge = Pipeline([
-        ('scaler',           StandardScaler()),
-        ('feature_selector', SelectFromModel(
-            # Same adjustment for ridge-style feature selection: l1_ratio=0
-            # replaces penalty='l2' under sklearn's new API.
-            LogisticRegression(l1_ratio=0, solver='saga', random_state=1,
-                               class_weight='balanced',
-                               max_iter=500, tol=5e-2), threshold='mean')),
-        ('classifier',       RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))
-    ])
-    if USE_GRID_CACHE and os.path.exists(_rf_ridge_cache):
-        print("Loading Ridge RF GridSearch from cache...")
-        grid_search_ridge = joblib.load(_rf_ridge_cache)
-    else:
-        grid_search_ridge = GridSearchCV(
-            pipeline_rf_ridge, param_grid_ridge, cv=tscv,
-            n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy',
-            refit=make_one_se_refit(['feature_selector__estimator__C', 'classifier__max_depth', 'classifier__n_estimators'])
-        )
-        grid_search_ridge.fit(X_train, y_train)
-        if USE_GRID_CACHE:
-            joblib.dump(grid_search_ridge, _rf_ridge_cache)
-    print(f"Best params (Ridge RF): {grid_search_ridge.best_params_}")
-    print("\n--- Model Report ---")
-    get_final_metrics(grid_search_ridge.best_estimator_, X_train, y_train, X_test, y_test, n_splits=5, label="Ridge-sel RF")
-    print("\n--- Rolling Window Backtest ---")
-    rwb_obj = RollingWindowBacktest(grid_search_ridge.best_estimator_, X, y_classification, X_train, window_size=200, horizon=40)
-    rwb_obj.rolling_window_backtest(verbose=1)
 
     # ===================================================================
     # PLOT: Ridge-sel RF Bias-Variance vs Ridge C
@@ -484,7 +569,7 @@ if __name__ == "__main__":
 
     fig1, ax1 = plt.subplots(figsize=(10, 5))
     fig1.suptitle(
-        'Bias-Variance Tradeoff — Random Forest, Raw OHLCV Features\n'
+        'Bias-Variance Tradeoff — RF, Raw OHLCV Features\n'
         f'(Train vs CV Balanced Error, n_estimators={best_n_est})',
         fontsize=13, fontweight='bold'
     )
@@ -515,7 +600,7 @@ if __name__ == "__main__":
     )
     ax1.axvline(best_depth, color='red', linestyle='--', linewidth=1.5,
                 label=f'1SE-selected max_depth = {best_depth}')
-    ax1.set_title('Random Forest — Bias-Variance Tradeoff (Balanced Error)')
+    ax1.set_title('RF — Bias-Variance Tradeoff (Balanced Error)')
     ax1.set_xlabel('max_depth\n'
                    '← Low Depth, High Regularization, Simpler Model      '
                    'High Depth, Low Regularization, More Complex →')
@@ -556,7 +641,7 @@ if __name__ == "__main__":
 
     fig2, ax2 = plt.subplots(figsize=(10, 5))
     fig2.suptitle(
-        'Train vs Test Plain Error — Random Forest, Raw OHLCV Features\n'
+        'Over/Underfitting Analysis — RF, Raw OHLCV Features\n'
         f'(Direct Train/Test Split, No CV, n_estimators={best_n_est})',
         fontsize=13, fontweight='bold'
     )
@@ -572,7 +657,7 @@ if __name__ == "__main__":
     )
     ax2.axvline(best_depth, color='red', linestyle='--', linewidth=1.5,
                 label=f'1SE-selected max_depth = {best_depth}')
-    ax2.set_title('Random Forest — Train vs Test Error (Plain Error)')
+    ax2.set_title('RF — Train vs Test Error (Plain Error)')
     ax2.set_xlabel('max_depth\n'
                    '← Low Depth, High Regularization, Simpler Model      '
                    'High Depth, Low Regularization, More Complex →')
@@ -612,7 +697,7 @@ if __name__ == "__main__":
         impurity=True, proportion=False,
     )
     ax3.set_title(
-        f'Random Forest — Representative Tree #{best_tree_idx}\n'
+        f'RF — Representative Tree #{best_tree_idx}\n'
         f'(max_depth={best_depth}, n_estimators={best_n_est}, '
         f'{leaf_counts[best_tree_idx]} leaves)',
         fontsize=13, fontweight='bold'
@@ -628,31 +713,7 @@ if __name__ == "__main__":
     # ===================================================================
     print("\n========== Model Comparison Table ==========")
 
-    def _rf_metrics(name, grid_obj, X_tr, y_tr, X_te, y_te, n_splits):
-        shared = get_final_metrics(
-            grid_obj.best_estimator_, X_tr, y_tr, X_te, y_te, n_splits=n_splits, label=name
-        )
-        return {
-            'Model':             name,
-            'Avg CV Train Plain Acc':      shared['train_avg_accuracy'],
-            'CV Train Plain Acc SD':       shared['train_std_accuracy'],
-            'Avg CV Validation Plain Acc': shared['validation_avg_accuracy'],
-            'CV Validation Plain Acc SD':  shared['cv_test_sd_error'],
-            'Hold-out Test Plain Acc':     shared['test_split_accuracy'],
-            'Precision':         shared['test_precision'],
-            'Recall':            shared['test_recall'],
-            'F1':                shared['test_f1'],
-            'ROC-AUC':           shared['test_roc_auc_macro'],
-        }
-
-    rows = [
-        _rf_metrics('Base RF', grid_search_rf, X_train, y_train, X_test, y_test, tscv.n_splits),
-        _rf_metrics('PCA RF', grid_search_pca, X_train, y_train, X_test, y_test, tscv.n_splits),
-        _rf_metrics('LASSO-sel RF', grid_search_lasso, X_train, y_train, X_test, y_test, tscv.n_splits),
-        _rf_metrics('Ridge-sel RF', grid_search_ridge, X_train, y_train, X_test, y_test, tscv.n_splits),
-    ]
-
-    comparison_df = pd.DataFrame(rows).set_index('Model')
+    comparison_df = _build_comparison_df(raw_searches, X_train, y_train, X_test, y_test, tscv.n_splits)
     print(comparison_df.to_string())
 
     csv_path = os.path.join(output_dir, '8yrs_base_rf_comparison.csv')
@@ -677,124 +738,12 @@ if __name__ == "__main__":
     )
     print(f"Feature matrix with DOW: {X_dow.shape[1]} columns")
 
-    # --- Base RF + DOW ---
-    print("\n========== Base RF + DOW GridSearch ==========")
-    _rf_dow_cache = os.path.join(CACHE_DIR, 'base_rf_dow_gridsearch.pkl')
-    param_grid_base = {
-        'classifier__max_depth':    [2, 3, 5, 8, 15],
-        'classifier__n_estimators': [50, 100, 200, 500],
-    }
-    if USE_GRID_CACHE and os.path.exists(_rf_dow_cache):
-        print("Loading Base RF+DOW from cache...")
-        grid_search_rf_dow = joblib.load(_rf_dow_cache)
-    else:
-        grid_search_rf_dow = GridSearchCV(
-            Pipeline([('scaler', StandardScaler()),
-                      ('classifier', RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))]),
-            param_grid_base, cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy',
-            refit=make_one_se_refit(['classifier__max_depth', 'classifier__n_estimators'])
-        )
-        grid_search_rf_dow.fit(X_train_dow, y_train_dow)
-        if USE_GRID_CACHE:
-            joblib.dump(grid_search_rf_dow, _rf_dow_cache)
-    print(f"Best params (Base RF+DOW): {grid_search_rf_dow.best_params_}")
-    get_final_metrics(grid_search_rf_dow.best_estimator_, X_train_dow, y_train_dow, X_test_dow, y_test_dow, n_splits=5, label="Base RF+DOW")
-
-    # --- PCA RF + DOW ---
-    print("\n========== PCA RF + DOW GridSearch ==========")
-    _rf_pca_dow_cache = os.path.join(CACHE_DIR, 'base_rf_pca_dow_gridsearch.pkl')
-    param_grid_pca_dow = {
-        'reducer__n_components':    BASE_RF_PCA_GRID,
-        'classifier__max_depth':    [2, 3, 5],
-        'classifier__n_estimators': [250, 500],
-    }
-    if USE_GRID_CACHE and os.path.exists(_rf_pca_dow_cache):
-        print("Loading PCA RF+DOW from cache...")
-        grid_search_pca_dow = joblib.load(_rf_pca_dow_cache)
-    else:
-        grid_search_pca_dow = GridSearchCV(
-            Pipeline([('scaler', StandardScaler()),
-                      ('reducer', PCA()),
-                      ('classifier', RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))]),
-            param_grid_pca_dow, cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy',
-            refit=make_one_se_refit(['classifier__max_depth', 'classifier__n_estimators'], fixed_cols=['reducer__n_components'])
-        )
-        grid_search_pca_dow.fit(X_train_dow, y_train_dow)
-        if USE_GRID_CACHE:
-            joblib.dump(grid_search_pca_dow, _rf_pca_dow_cache)
-    print(f"Best params (PCA RF+DOW): {grid_search_pca_dow.best_params_}")
-    get_final_metrics(grid_search_pca_dow.best_estimator_, X_train_dow, y_train_dow, X_test_dow, y_test_dow, n_splits=5, label="PCA RF+DOW")
-
-    # --- LASSO-sel RF + DOW ---
-    print("\n========== LASSO-sel RF + DOW GridSearch ==========")
-    _rf_lasso_dow_cache = os.path.join(CACHE_DIR, 'base_rf_lasso_dow_gridsearch.pkl')
-    param_grid_lasso_dow = {
-        'feature_selector__estimator__C': [0.001, 0.01, 0.1],
-        'classifier__max_depth':          [2, 3, 5],
-        'classifier__n_estimators':       [500],
-    }
-    if USE_GRID_CACHE and os.path.exists(_rf_lasso_dow_cache):
-        print("Loading LASSO-sel RF+DOW from cache...")
-        grid_search_lasso_dow = joblib.load(_rf_lasso_dow_cache)
-    else:
-        grid_search_lasso_dow = GridSearchCV(
-            Pipeline([('scaler', StandardScaler()),
-                      ('feature_selector', SelectFromModel(
-                          # LASSO feature selection stays on l1_ratio=1 to avoid
-                          # the deprecated penalty=... warning path in sklearn.
-                          LogisticRegression(l1_ratio=1, solver='saga', random_state=1,
-                                             class_weight='balanced',
-                                             max_iter=500, tol=5e-2), threshold='mean')),
-                      ('classifier', RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))]),
-            param_grid_lasso_dow, cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy',
-            refit=make_one_se_refit(['feature_selector__estimator__C', 'classifier__max_depth', 'classifier__n_estimators'])
-        )
-        grid_search_lasso_dow.fit(X_train_dow, y_train_dow)
-        if USE_GRID_CACHE:
-            joblib.dump(grid_search_lasso_dow, _rf_lasso_dow_cache)
-    print(f"Best params (LASSO-sel RF+DOW): {grid_search_lasso_dow.best_params_}")
-    get_final_metrics(grid_search_lasso_dow.best_estimator_, X_train_dow, y_train_dow, X_test_dow, y_test_dow, n_splits=5, label="LASSO-sel RF+DOW")
-
-    # --- Ridge-sel RF + DOW ---
-    print("\n========== Ridge-sel RF + DOW GridSearch ==========")
-    _rf_ridge_dow_cache = os.path.join(CACHE_DIR, 'base_rf_ridge_dow_gridsearch.pkl')
-    param_grid_ridge_dow = {
-        'feature_selector__estimator__C': [0.001, 0.01, 0.1],
-        'classifier__max_depth':          [2, 3, 5],
-        'classifier__n_estimators':       [500],
-    }
-    if USE_GRID_CACHE and os.path.exists(_rf_ridge_dow_cache):
-        print("Loading Ridge-sel RF+DOW from cache...")
-        grid_search_ridge_dow = joblib.load(_rf_ridge_dow_cache)
-    else:
-        grid_search_ridge_dow = GridSearchCV(
-            Pipeline([('scaler', StandardScaler()),
-                      ('feature_selector', SelectFromModel(
-                          # Ridge feature selection stays on l1_ratio=0 for the
-                          # same reason as above.
-                          LogisticRegression(l1_ratio=0, solver='saga', random_state=1,
-                                             class_weight='balanced',
-                                             max_iter=500, tol=5e-2), threshold='mean')),
-                      ('classifier', RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))]),
-            param_grid_ridge_dow, cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy',
-            refit=make_one_se_refit(['feature_selector__estimator__C', 'classifier__max_depth', 'classifier__n_estimators'])
-        )
-        grid_search_ridge_dow.fit(X_train_dow, y_train_dow)
-        if USE_GRID_CACHE:
-            joblib.dump(grid_search_ridge_dow, _rf_ridge_dow_cache)
-    print(f"Best params (Ridge-sel RF+DOW): {grid_search_ridge_dow.best_params_}")
-    get_final_metrics(grid_search_ridge_dow.best_estimator_, X_train_dow, y_train_dow, X_test_dow, y_test_dow, n_splits=5, label="Ridge-sel RF+DOW")
+    dow_searches = _run_rf_suite(X_dow, y_classification, X_train_dow, y_train_dow, X_test_dow, y_test_dow, tscv, dataset_suffix="_dow", variant_label="+ DOW")
 
     # ===================================================================
     # COMBINED COMPARISON TABLE (raw OHLCV vs raw OHLCV + DOW)
     # ===================================================================
-    rows_dow = [
-        _rf_metrics('Base RF+DOW', grid_search_rf_dow, X_train_dow, y_train_dow, X_test_dow, y_test_dow, tscv.n_splits),
-        _rf_metrics('PCA RF+DOW', grid_search_pca_dow, X_train_dow, y_train_dow, X_test_dow, y_test_dow, tscv.n_splits),
-        _rf_metrics('LASSO-sel RF+DOW', grid_search_lasso_dow, X_train_dow, y_train_dow, X_test_dow, y_test_dow, tscv.n_splits),
-        _rf_metrics('Ridge-sel RF+DOW', grid_search_ridge_dow, X_train_dow, y_train_dow, X_test_dow, y_test_dow, tscv.n_splits),
-    ]
-    dow_df = pd.DataFrame(rows_dow).set_index('Model')
+    dow_df = _build_comparison_df(dow_searches, X_train_dow, y_train_dow, X_test_dow, y_test_dow, tscv.n_splits, suffix="+DOW")
 
     combined_df = pd.concat([comparison_df, dow_df])
     print("\n===== Combined Comparison Table =====")
@@ -811,7 +760,7 @@ if __name__ == "__main__":
         tex_path,
         'Random Forest Model Comparison: Raw OHLCV vs Raw OHLCV + Day-of-Week',
         'tab:base_rf_comparison',
-        note=f'Hold-out Test Plain Acc = plain hold-out accuracy on the final 20% test split. All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. {RECALL_NOTE}'
+        note=f'Test Acc = plain hold-out accuracy on the final 20% test split. All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. {RECALL_NOTE}'
     )
     print(f"LaTeX table saved to:               {os.path.abspath(tex_path)}")
 
@@ -836,112 +785,12 @@ if __name__ == "__main__":
     )
     print(f"Feature matrix with lags: {X_lag.shape[1]} columns, {X_lag.shape[0]} rows")
 
-    # --- Base RF + Lags ---
-    print("\n========== Base RF + Lags GridSearch ==========")
-    _rf_lag_cache = os.path.join(CACHE_DIR, 'base_rf_lag_gridsearch.pkl')
-    if USE_GRID_CACHE and os.path.exists(_rf_lag_cache):
-        print("Loading Base RF+Lags from cache...")
-        grid_search_rf_lag = joblib.load(_rf_lag_cache)
-    else:
-        grid_search_rf_lag = GridSearchCV(
-            Pipeline([('scaler', StandardScaler()),
-                      ('classifier', RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))]),
-            {'classifier__max_depth': [2, 3, 5, 8, 15],
-             'classifier__n_estimators': [50, 100, 200, 500]},
-            cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy',
-            refit=make_one_se_refit(['classifier__max_depth', 'classifier__n_estimators'])
-        )
-        grid_search_rf_lag.fit(X_train_lag, y_train_lag)
-        if USE_GRID_CACHE:
-            joblib.dump(grid_search_rf_lag, _rf_lag_cache)
-    print(f"Best params (Base RF+Lags): {grid_search_rf_lag.best_params_}")
-    get_final_metrics(grid_search_rf_lag.best_estimator_, X_train_lag, y_train_lag, X_test_lag, y_test_lag, n_splits=5, label="Base RF+Lags")
-
-    # --- PCA RF + Lags ---
-    print("\n========== PCA RF + Lags GridSearch ==========")
-    _rf_pca_lag_cache = os.path.join(CACHE_DIR, 'base_rf_pca_lag_gridsearch.pkl')
-    if USE_GRID_CACHE and os.path.exists(_rf_pca_lag_cache):
-        print("Loading PCA RF+Lags from cache...")
-        grid_search_pca_lag = joblib.load(_rf_pca_lag_cache)
-    else:
-        grid_search_pca_lag = GridSearchCV(
-            Pipeline([('scaler', StandardScaler()),
-                      ('reducer', PCA()),
-                      ('classifier', RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))]),
-            {'reducer__n_components': BASE_RF_PCA_GRID,
-             'classifier__max_depth': [2, 3, 5],
-             'classifier__n_estimators': [250, 500]},
-            cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy',
-            refit=make_one_se_refit(['classifier__max_depth', 'classifier__n_estimators'], fixed_cols=['reducer__n_components'])
-        )
-        grid_search_pca_lag.fit(X_train_lag, y_train_lag)
-        if USE_GRID_CACHE:
-            joblib.dump(grid_search_pca_lag, _rf_pca_lag_cache)
-    print(f"Best params (PCA RF+Lags): {grid_search_pca_lag.best_params_}")
-    get_final_metrics(grid_search_pca_lag.best_estimator_, X_train_lag, y_train_lag, X_test_lag, y_test_lag, n_splits=5, label="PCA RF+Lags")
-
-    # --- LASSO-sel RF + Lags ---
-    print("\n========== LASSO-sel RF + Lags GridSearch ==========")
-    _rf_lasso_lag_cache = os.path.join(CACHE_DIR, 'base_rf_lasso_lag_gridsearch.pkl')
-    if USE_GRID_CACHE and os.path.exists(_rf_lasso_lag_cache):
-        print("Loading LASSO-sel RF+Lags from cache...")
-        grid_search_lasso_lag = joblib.load(_rf_lasso_lag_cache)
-    else:
-        grid_search_lasso_lag = GridSearchCV(
-            Pipeline([('scaler', StandardScaler()),
-                      ('feature_selector', SelectFromModel(
-                          LogisticRegression(l1_ratio=1, solver='saga', random_state=1,
-                                             class_weight='balanced',
-                                             max_iter=500, tol=5e-2), threshold='mean')),
-                      ('classifier', RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))]),
-            {'feature_selector__estimator__C': [0.001, 0.01, 0.1],
-             'classifier__max_depth': [2, 3, 5],
-             'classifier__n_estimators': [500]},
-            cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy',
-            refit=make_one_se_refit(['feature_selector__estimator__C', 'classifier__max_depth', 'classifier__n_estimators'])
-        )
-        grid_search_lasso_lag.fit(X_train_lag, y_train_lag)
-        if USE_GRID_CACHE:
-            joblib.dump(grid_search_lasso_lag, _rf_lasso_lag_cache)
-    print(f"Best params (LASSO-sel RF+Lags): {grid_search_lasso_lag.best_params_}")
-    get_final_metrics(grid_search_lasso_lag.best_estimator_, X_train_lag, y_train_lag, X_test_lag, y_test_lag, n_splits=5, label="LASSO-sel RF+Lags")
-
-    # --- Ridge-sel RF + Lags ---
-    print("\n========== Ridge-sel RF + Lags GridSearch ==========")
-    _rf_ridge_lag_cache = os.path.join(CACHE_DIR, 'base_rf_ridge_lag_gridsearch.pkl')
-    if USE_GRID_CACHE and os.path.exists(_rf_ridge_lag_cache):
-        print("Loading Ridge-sel RF+Lags from cache...")
-        grid_search_ridge_lag = joblib.load(_rf_ridge_lag_cache)
-    else:
-        grid_search_ridge_lag = GridSearchCV(
-            Pipeline([('scaler', StandardScaler()),
-                      ('feature_selector', SelectFromModel(
-                          LogisticRegression(l1_ratio=0, solver='saga', random_state=1,
-                                             class_weight='balanced',
-                                             max_iter=500, tol=5e-2), threshold='mean')),
-                      ('classifier', RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))]),
-            {'feature_selector__estimator__C': [0.001, 0.01, 0.1],
-             'classifier__max_depth': [2, 3, 5],
-             'classifier__n_estimators': [500]},
-            cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1, scoring='balanced_accuracy',
-            refit=make_one_se_refit(['feature_selector__estimator__C', 'classifier__max_depth', 'classifier__n_estimators'])
-        )
-        grid_search_ridge_lag.fit(X_train_lag, y_train_lag)
-        if USE_GRID_CACHE:
-            joblib.dump(grid_search_ridge_lag, _rf_ridge_lag_cache)
-    print(f"Best params (Ridge-sel RF+Lags): {grid_search_ridge_lag.best_params_}")
-    get_final_metrics(grid_search_ridge_lag.best_estimator_, X_train_lag, y_train_lag, X_test_lag, y_test_lag, n_splits=5, label="Ridge-sel RF+Lags")
+    lag_searches = _run_rf_suite(X_lag, y_lag, X_train_lag, y_train_lag, X_test_lag, y_test_lag, tscv, dataset_suffix="_lag", variant_label="+ Lags")
 
     # ===================================================================
     # FULL COMPARISON TABLE (raw + DOW + Lags)
     # ===================================================================
-    rows_lag = [
-        _rf_metrics('Base RF+Lags', grid_search_rf_lag, X_train_lag, y_train_lag, X_test_lag, y_test_lag, tscv.n_splits),
-        _rf_metrics('PCA RF+Lags', grid_search_pca_lag, X_train_lag, y_train_lag, X_test_lag, y_test_lag, tscv.n_splits),
-        _rf_metrics('LASSO-sel RF+Lags', grid_search_lasso_lag, X_train_lag, y_train_lag, X_test_lag, y_test_lag, tscv.n_splits),
-        _rf_metrics('Ridge-sel RF+Lags', grid_search_ridge_lag, X_train_lag, y_train_lag, X_test_lag, y_test_lag, tscv.n_splits),
-    ]
-    lag_df = pd.DataFrame(rows_lag).set_index('Model')
+    lag_df = _build_comparison_df(lag_searches, X_train_lag, y_train_lag, X_test_lag, y_test_lag, tscv.n_splits, suffix="+Lags")
 
     full_df = pd.concat([comparison_df, dow_df, lag_df])
     print("\n===== Full Comparison Table =====")
@@ -958,6 +807,6 @@ if __name__ == "__main__":
         tex_path,
         'Random Forest Model Comparison: Raw OHLCV vs +Day-of-Week vs +Lag1--7',
         'tab:base_rf_comparison',
-        note=f'Hold-out Test Plain Acc = plain hold-out accuracy on the final 20% test split. All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. {RECALL_NOTE}'
+        note=f'Test Acc = plain hold-out accuracy on the final 20% test split. All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. {RECALL_NOTE}'
     )
     print(f"LaTeX table saved to:           {os.path.abspath(tex_path)}")

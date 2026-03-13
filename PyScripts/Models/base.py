@@ -384,7 +384,7 @@ if __name__ == "__main__":
         joblib.dump(raw_diagnostics, raw_diag_cache)
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-    fig.suptitle('Bias-Variance Tradeoff — Raw OHLCV Features\n(Train/CV Balanced Error per Regularization Strength)',
+    fig.suptitle('Bias-Variance Tradeoff - LR — Raw OHLCV Features\n(Train/CV Balanced Error per Regularization Strength)',
                  fontsize=13, fontweight='bold')
 
     for ax, (label, diag_key, c_1se) in zip(axes, [
@@ -422,7 +422,7 @@ if __name__ == "__main__":
         )
         ax.axvline(c_1se, color='red', linestyle='--', linewidth=1.5,
                    label=f'1SE-selected C = {c_1se:.4f}')
-        ax.set_title(f'{label} — Bias-Variance Tradeoff (Balanced Error)')
+        ax.set_title(f'{label} - LR — Bias-Variance Tradeoff (Balanced Error)')
         ax.set_xlabel('C  (Inverse Regularization Strength)\n'
                       '← High Regularization, Simpler Model      '
                       'Low Regularization, More Complex →')
@@ -443,7 +443,7 @@ if __name__ == "__main__":
     print("\n========== Generating Train vs Test Error Plot (Direct Split) ==========")
 
     fig2, axes2 = plt.subplots(1, 2, figsize=(14, 5))
-    fig2.suptitle('Train vs Test Plain Error — Raw OHLCV Features\n(Direct Train/Test Split, No CV)',
+    fig2.suptitle('Over/Underfitting Analysis - LR — Raw OHLCV Features\n(Direct Train/Test Split, No CV)',
                   fontsize=13, fontweight='bold')
 
     for ax, (label, diag_key, guide_key, color) in zip(axes2, [
@@ -470,7 +470,7 @@ if __name__ == "__main__":
         one_se_c = ridge_c_1se if 'ridge' in diag_key else lasso_c_1se
         ax.axvline(one_se_c, color='red', linestyle='--', linewidth=1.5,
                    label=f'1SE-selected C = {one_se_c:.4f}')
-        ax.set_title(f'{label} — Train vs Test Error (Plain Error)')
+        ax.set_title(f'{label} - LR — Train vs Test Error (Plain Error)')
         ax.set_xlabel('C  (Inverse Regularization Strength)\n'
                       '← High Regularization, Simpler Model      '
                       'Low Regularization, More Complex →')
@@ -546,7 +546,7 @@ if __name__ == "__main__":
         joblib.dump(pca_diagnostics, pca_diag_cache)
 
     fig3, axes3 = plt.subplots(1, 2, figsize=(14, 5))
-    fig3.suptitle(f'Bias-Variance Tradeoff — PCA Features ({n_components_raw} comps, {best_n_comp*100:.0f}% variance)\n'
+    fig3.suptitle(f'Bias-Variance Tradeoff - LR — PCA Features ({n_components_raw} comps, {best_n_comp*100:.0f}% variance)\n'
                   '(Train/CV Balanced Error per Regularization Strength)',
                   fontsize=13, fontweight='bold')
 
@@ -585,7 +585,7 @@ if __name__ == "__main__":
         )
         ax.axvline(c_1se, color='red', linestyle='--', linewidth=1.5,
                    label=f'1SE-selected C = {c_1se:.4f}')
-        ax.set_title(f'{label} — Bias-Variance Tradeoff (PCA, Balanced Error)')
+        ax.set_title(f'{label} - LR — Bias-Variance Tradeoff (PCA, Balanced Error)')
         ax.set_xlabel('C  (Inverse Regularization Strength)\n'
                       '← High Regularization, Simpler Model      '
                       'Low Regularization, More Complex →')
@@ -604,7 +604,7 @@ if __name__ == "__main__":
     print("\n========== Generating PCA Train vs Test Error Plot (Direct Split) ==========")
 
     fig4, axes4 = plt.subplots(1, 2, figsize=(14, 5))
-    fig4.suptitle(f'Train vs Test Plain Error — PCA Features ({n_components_raw} comps, {best_n_comp*100:.0f}% variance)\n'
+    fig4.suptitle(f'Over/Underfitting Analysis - LR — PCA Features ({n_components_raw} comps, {best_n_comp*100:.0f}% variance)\n'
                   '(Direct Train/Test Split, No CV)',
                   fontsize=13, fontweight='bold')
 
@@ -632,7 +632,7 @@ if __name__ == "__main__":
         one_se_c = ridge_pca_c_1se if 'ridge' in diag_key else lasso_pca_c_1se
         ax.axvline(one_se_c, color='red', linestyle='--', linewidth=1.5,
                    label=f'1SE-selected C = {one_se_c:.4f}')
-        ax.set_title(f'{label} — Train vs Test Error (PCA, Plain Error)')
+        ax.set_title(f'{label} - LR — Train vs Test Error (PCA, Plain Error)')
         ax.set_xlabel('C  (Inverse Regularization Strength)\n'
                       '← High Regularization, Simpler Model      '
                       'Low Regularization, More Complex →')
@@ -667,8 +667,8 @@ if __name__ == "__main__":
             'Avg CV Train Plain Acc':   shared['train_avg_accuracy'],
             'CV Train Plain Acc SD':    shared['train_std_accuracy'],
             'Avg CV Validation Plain Acc': shared['validation_avg_accuracy'],
-            'CV Validation Plain Acc SD':  shared['cv_test_sd_error'],
-            'Hold-out Test Plain Acc':     shared['test_split_accuracy'],
+            'CV Acc SD':                   shared['cv_test_sd_error'],
+            'Test Acc':                    shared['test_split_accuracy'],
             'Precision':       shared['test_precision'],
             'Sensitivity':     shared['test_sensitivity'],
             'Specificity':     shared['test_specificity'],
@@ -902,7 +902,7 @@ if __name__ == "__main__":
     full_df = combined_df.copy()
     full_df.index.name = 'Model'
     # Keep only the reporting columns used in slides/tables.
-    keep_cols = ['Hold-out Test Plain Acc', 'Precision', 'Sensitivity', 'Specificity', 'F1', 'ROC-AUC', 'CV Validation Plain Acc SD']
+    keep_cols = ['Test Acc', 'Precision', 'Sensitivity', 'Specificity', 'F1', 'ROC-AUC', 'CV Acc SD']
     full_df = full_df[keep_cols]
 
     print("\n===== Full Comparison Table =====")
@@ -917,7 +917,7 @@ if __name__ == "__main__":
     col_header = ' & '.join(['Model'] + list(full_df.columns)) + r' \\'
     baseline_note = (
         r'Base = baseline logistic regression without regularization. '
-        r'Hold-out Test Plain Acc = plain hold-out accuracy on the final 20\% test split. '
+        r'Test Acc = plain hold-out accuracy on the final 20\% test split. '
         r'All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. '
         r'Recall = Sensitivity for the positive (Up) class.'
     )

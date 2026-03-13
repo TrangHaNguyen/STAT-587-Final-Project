@@ -157,7 +157,7 @@ def get_final_metrics(model_obj, X_train, y_train, X_test, y_test, n_splits: int
     print(f"Avg CV Validation Precision: {mean_test_precision:.4}")
     print(f"Avg CV Validation Sensitivity: {mean_test_sensitivity:.4}")
     print(f"Avg CV Validation Specificity: {mean_test_specificity:.4}")
-    print(f"Final Hold-out Test Plain Accuracy:    {final_score:.4f}")
+    print(f"Final Test Accuracy:    {final_score:.4f}")
     print(f"Test Plain Misclassification Error:    {misclassification_error:.4f}")
     print(f"Test ROC-AUC (macro):                 {roc_auc_macro:.4f}")
     print(f"Test Sensitivity:                     {test_sensitivity:.4f}")

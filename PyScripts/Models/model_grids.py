@@ -24,6 +24,48 @@ def choose_grid_variant(variant: str, left_values, center_values, right_values):
 # in the baseline comparison workflow. Kept fixed by design.
 BASELINE_PCA_GRID = [0.65, 0.7,0.75, 0.8, 0.85, 0.90, 0.95, 0.99]
 
+
+# Used by: `base_random_forest.py`
+# Purpose: fixed PCA variance-retention grid for baseline RF PCA runs,
+# used to choose `reducer__n_components`.
+BASE_RF_PCA_GRID = [0.85]
+
+# Used by: `base_random_forest.py`
+# Purpose: baseline RF hyperparameter grid for tuning tree depth and
+# forest size in the non-PCA RF model.
+BASE_RF_PARAM_GRID = {
+    'classifier__max_depth': [2, 3, 4, 5, 8, 15],
+    'classifier__n_estimators': [20, 50, 100],
+}
+
+
+
+# Used by: `base_random_forest.py`
+# Purpose: baseline RF-with-PCA hyperparameter grid for jointly tuning
+# `reducer__n_components`, `classifier__max_depth`, and `classifier__n_estimators`.
+PCA_RF_PARAM_GRID = {
+    'reducer__n_components': BASE_RF_PCA_GRID,
+    'classifier__max_depth': [2, 3, 4, 5, 8, 15],
+    'classifier__n_estimators': [20, 50, 100],
+}
+
+
+
+
+# Used by: `base_random_forest.py`
+# Purpose: baseline selector+RF grid for tuning the selector penalty
+# strength (`feature_selector__estimator__C`) together with RF depth.
+SEL_RF_PARAM_GRID = {
+    'feature_selector__estimator__C': [0.0001,0.001, 0.01, 0.1, 1],
+    'classifier__max_depth': [2, 3, 4, 5, 8, 15],
+    'classifier__n_estimators': [50, 100, 250, 500],
+}
+
+
+
+
+
+
 # Ordered as (left, center, right) to match choose_grid(...) usage.
 # Used by: `logistic_regression.py`
 # Purpose: candidate PCA variance-retention levels used to tune
@@ -34,45 +76,6 @@ LOGREG_PCA_GRID_OPTIONS = (
     [0.9, 0.925, 0.95, 0.99],
 )
 
-# Used by: `random_forest.py`
-# Purpose: candidate PCA variance-retention levels used to tune
-# `reducer__n_components` in random-forest PCA models.
-RF_PCA_GRID_OPTIONS = (
-    [0.7, 0.8],
-    [0.85, 0.9],
-    [0.95, 0.99],
-)
-
-# Used by: `base_random_forest.py`
-# Purpose: fixed PCA variance-retention grid for baseline RF PCA runs,
-# used to choose `reducer__n_components`.
-BASE_RF_PCA_GRID = [0.8, 0.9, 0.95]
-
-# Used by: `base_random_forest.py`
-# Purpose: baseline RF hyperparameter grid for tuning tree depth and
-# forest size in the non-PCA RF model.
-BASE_RF_PARAM_GRID = {
-    'classifier__max_depth': [2, 3, 5, 8, 15],
-    'classifier__n_estimators': [50, 100, 200, 500],
-}
-
-# Used by: `base_random_forest.py`
-# Purpose: baseline RF-with-PCA hyperparameter grid for jointly tuning
-# `reducer__n_components`, `classifier__max_depth`, and `classifier__n_estimators`.
-PCA_RF_PARAM_GRID = {
-    'reducer__n_components': BASE_RF_PCA_GRID,
-    'classifier__max_depth': [2, 3, 5],
-    'classifier__n_estimators': [250, 500],
-}
-
-# Used by: `base_random_forest.py`
-# Purpose: baseline selector+RF grid for tuning the selector penalty
-# strength (`feature_selector__estimator__C`) together with RF depth.
-SEL_RF_PARAM_GRID = {
-    'feature_selector__estimator__C': [0.001, 0.01, 0.1],
-    'classifier__max_depth': [2, 3, 5],
-    'classifier__n_estimators': [500],
-}
 
 # Used by: `logistic_regression.py`
 # Purpose: candidate `C` values passed into `LogisticRegressionCV`
@@ -134,6 +137,17 @@ RF_BASE_PARAM_GRID_OPTIONS = {
         [500, 750],
     ),
 }
+
+
+
+# Used by: `random_forest.py`
+# Purpose: candidate PCA variance-retention levels used to tune
+# `reducer__n_components` in random-forest PCA models.
+RF_PCA_GRID_OPTIONS = (
+    [0.7, 0.8],
+    [0.85, 0.9],
+    [0.95, 0.99],
+)
 
 # Used by: `random_forest.py`
 # Purpose: RF-with-PCA search ranges for tuning tree depth and forest size

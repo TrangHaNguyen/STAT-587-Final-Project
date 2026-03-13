@@ -162,6 +162,10 @@ def _compute_direct_split_errors(X_train, y_train, X_test, y_test, c_grid, l1_ra
         'test_errors': np.array(test_errors),
     }
 
+def _augment_c_grid_with_selected_values(c_grid, *selected_values):
+    combined = np.asarray(list(c_grid) + [float(v) for v in selected_values], dtype=float)
+    return np.unique(combined)
+
 def _highlight_selected_value(
     ax,
     x_vals,
@@ -534,12 +538,12 @@ if __name__ == "__main__":
             'lasso_bv': _compute_bv_curves(clf_lasso_pca, X_train_pca, y_train, tscv, 1, 'saga'),
             'ridge_direct': _compute_direct_split_errors(
                 X_train_pca, y_train, X_test_pca, y_test,
-                clf_ridge_pca.Cs_,
+                _augment_c_grid_with_selected_values(clf_ridge_pca.Cs_, ridge_pca_c_1se),
                 0, 'saga'
             ),
             'lasso_direct': _compute_direct_split_errors(
                 X_train_pca, y_train, X_test_pca, y_test,
-                clf_lasso_pca.Cs_,
+                _augment_c_grid_with_selected_values(clf_lasso_pca.Cs_, lasso_pca_c_1se),
                 1, 'saga'
             ),
         }

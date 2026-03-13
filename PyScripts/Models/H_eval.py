@@ -244,10 +244,11 @@ class RollingWindowBacktest:
         n=len(self.X)
         n_train=len(self.X_train)
 
-        total_iterations = (n - self.horizon - self.window_size) // self.horizon + 1
+        start_idx=max(self.window_size, n_train)
+        total_iterations = max(0, ((n - self.horizon) - start_idx) // self.horizon + 1)
         if (verbose != 0): print(f"Rolling Window Backtest over {total_iterations} iterations.")
         current_step=0
-        for i in range(self.window_size, n - self.horizon, self.horizon):
+        for i in range(start_idx, n - self.horizon + 1, self.horizon):
             current_step += 1
             X_train_roll=self.X.iloc[i-self.window_size : i]
             y_train_roll=self.y.iloc[i-self.window_size : i]
@@ -258,8 +259,8 @@ class RollingWindowBacktest:
             self.model.fit(X_train_roll, y_train_roll)
             preds=self.model.predict(X_test_roll)
             
-            acc, avg =classification_accuracy(y_test_roll, preds)
-            if (i > n_train):
+            acc, avg =classification_accuracy(preds, y_test_roll)
+            if (i >= n_train):
                 test_accuracy.append(acc)
                 test_avg_direction.append(avg)
             else:
@@ -267,13 +268,19 @@ class RollingWindowBacktest:
                 train_avg_direction.append(avg)
             if (verbose>0 and ((current_step%10) == 0)): print(f"{current_step * 100 / total_iterations:.2f}% complete. Current iteration: {current_step}, True iteration: {i + 1 - self.window_size}")
             
-        train_avg_accuracy=np.mean(train_accuracy)
-        train_std_accuracy=np.std(train_accuracy)
-        test_avg_accuracy=np.mean(test_accuracy)
-        test_std_accuracy=np.std(test_accuracy)
+        train_avg_accuracy=np.mean(train_accuracy) if train_accuracy else np.nan
+        train_std_accuracy=np.std(train_accuracy) if train_accuracy else np.nan
+        test_avg_accuracy=np.mean(test_accuracy) if test_accuracy else np.nan
+        test_std_accuracy=np.std(test_accuracy) if test_accuracy else np.nan
         if (verbose > 0):
-            print(f"Average Rolling Plain Accuracy (train) (rwb): {train_avg_accuracy:.4f} (±{train_std_accuracy:.4f})")
-            print(f"Average Rolling Plain Accuracy (test)  (rwb): {test_avg_accuracy:.4f} (±{test_std_accuracy:.4f})")
+            if train_accuracy:
+                print(f"Average Rolling Plain Accuracy (train) (rwb): {train_avg_accuracy:.4f} (±{train_std_accuracy:.4f})")
+            else:
+                print("Average Rolling Plain Accuracy (train) (rwb): n/a")
+            if test_accuracy:
+                print(f"Average Rolling Plain Accuracy (test)  (rwb): {test_avg_accuracy:.4f} (±{test_std_accuracy:.4f})")
+            else:
+                print("Average Rolling Plain Accuracy (test)  (rwb): n/a")
         self.results=[train_accuracy + test_accuracy, train_avg_direction + test_avg_direction, {
             "mwfv_train_avg_accuracy": round(train_avg_accuracy, 3), # Modified Walk Forward Validation is mwfv
             "mwfv_train_std_accuracy": round(train_std_accuracy, 3),
@@ -285,7 +292,8 @@ class RollingWindowBacktest:
         plt.figure(figsize=(12, 6))
         n_train=len(self.X_train)
         n_total=len(self.X)
-        start_of_each_test=list(range(self.window_size, n_total - self.horizon, self.horizon))
+        start_idx=max(self.window_size, n_train)
+        start_of_each_test=list(range(start_idx, n_total - self.horizon + 1, self.horizon))
         
         plt.plot(start_of_each_test, self.results[0], marker='o', linestyle='-', label='Segment Accuracy')
         plt.plot(start_of_each_test, self.results[1], color='gray',marker='o', linestyle='-', alpha=0.4, label='Prediction Direction')

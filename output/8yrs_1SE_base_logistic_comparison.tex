@@ -4,7 +4,7 @@
 \label{tab:base_logistic_comparison}
 \begin{tabular}{lrrrrrrr}
 \toprule
-Model & Test Acc & Precision & Sensitivity & Specificity & F1 & ROC-AUC & CV Acc SD \\
+Model & Test Acc & Precision & Recall & Specificity & F1 & ROC-AUC & CV Acc SD \\
 \midrule
 Base+PCA (328, 90\%) & 0.517 & 0.530 & 0.935 & 0.027 & 0.677 & 0.470 & 0.032 \\
 Ridge (raw) & 0.535 & 0.539 & 0.963 & 0.032 & 0.691 & 0.468 & 0.034 \\
@@ -20,7 +20,7 @@ LASSO+PCA+DOW (28) & 0.460 & 0.500 & 0.226 & 0.735 & 0.311 & 0.483 & 0.045 \\
 \bottomrule
 \end{tabular}
 \par\smallskip
-\footnotesize Base = baseline logistic regression without regularization. Hold-out Test Plain Acc = plain hold-out accuracy on the final 20\% test split. All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. Recall = Sensitivity for the positive (Up) class.
+\footnotesize Base = baseline logistic regression without regularization. Test Acc = plain hold-out accuracy on the final 20\% test split. All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. Recall = positive-class sensitivity.
 \\
-\footnotesize $^\dagger$ Degenerate classifier: optimal $C = 10^{-6}$ shrinks all coefficients to zero; model predicts majority class for every observation (Sensitivity = 1.0, Precision $\approx$ base rate).
+\footnotesize $^\dagger$ Degenerate classifier: optimal $C = 10^{-6}$ shrinks all coefficients to zero; model predicts majority class for every observation (Recall = 1.0, Precision $\approx$ base rate).
 \end{table}

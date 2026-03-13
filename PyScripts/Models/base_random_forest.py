@@ -139,7 +139,7 @@ def write_latex_table(df: pd.DataFrame, path: str, caption: str, label: str, not
 def build_export_table(df: pd.DataFrame) -> pd.DataFrame:
     """Keep only compact metrics for reporting/export."""
     out = df.copy()
-    keep_cols = ["Test Acc", "Precision", "Recall", "F1", "ROC-AUC"]
+    keep_cols = ["Test Acc", "Precision", "Recall", "Specificity", "F1", "ROC-AUC", "CV Acc SD"]
     return out[keep_cols]
 
 RECALL_NOTE = "Recall = positive-class sensitivity."
@@ -350,10 +350,11 @@ def _rf_metrics_row(name, grid_obj, X_tr, y_tr, X_te, y_te, n_splits):
         'Avg CV Train Plain Acc':      shared['train_avg_accuracy'],
         'CV Train Plain Acc SD':       shared['train_std_accuracy'],
         'Avg CV Validation Plain Acc': shared['validation_avg_accuracy'],
-        'CV Acc SD':                   shared['cv_test_sd_error'],
+        'CV Acc SD':                   shared['validation_std_accuracy'],
         'Test Acc':                    shared['test_split_accuracy'],
         'Precision':         shared['test_precision'],
-        'Recall':            shared['test_sensitivity'],
+        'Recall':            shared['test_recall'],
+        'Specificity':       shared['test_specificity'],
         'F1':                shared['test_f1'],
         'ROC-AUC':           shared['test_roc_auc_macro'],
     }

@@ -1,0 +1,26 @@
+\begin{table}[htbp]
+\centering
+\caption{Logistic Regression Model Comparison: Raw OHLCV vs Raw OHLCV + Day-of-Week}
+\label{tab:base_logistic_comparison}
+\begin{tabular}{lrrrrrrr}
+\toprule
+Model & Test Acc & Precision & Sensitivity & Specificity & F1 & ROC-AUC & CV Acc SD \\
+\midrule
+Base+PCA (328, 90\%) & 0.517 & 0.530 & 0.935 & 0.027 & 0.677 & 0.470 & 0.032 \\
+Ridge (raw) & 0.535 & 0.539 & 0.963 & 0.032 & 0.691 & 0.468 & 0.034 \\
+LASSO (raw)$^\dagger$ & 0.540 & 0.540 & 1.000 & 0.000 & 0.701 & 0.500 & 0.027 \\
+Ridge+PCA (328) & 0.520 & 0.531 & 0.935 & 0.032 & 0.678 & 0.474 & 0.043 \\
+LASSO+PCA (328) & 0.522 & 0.532 & 0.945 & 0.027 & 0.681 & 0.471 & 0.033 \\
+\midrule
+Base+DOW+PCA (28, 70\%) & 0.455 & 0.484 & 0.143 & 0.822 & 0.221 & 0.488 & 0.036 \\
+Ridge+DOW & 0.532 & 0.537 & 0.959 & 0.032 & 0.689 & 0.468 & 0.033 \\
+LASSO+DOW & 0.530 & 0.536 & 0.968 & 0.016 & 0.690 & 0.467 & 0.035 \\
+Ridge+PCA+DOW (28) & 0.460 & 0.500 & 0.138 & 0.838 & 0.217 & 0.488 & 0.041 \\
+LASSO+PCA+DOW (28) & 0.460 & 0.500 & 0.226 & 0.735 & 0.311 & 0.483 & 0.045 \\
+\bottomrule
+\end{tabular}
+\par\smallskip
+\footnotesize Base = baseline logistic regression without regularization. Hold-out Test Plain Acc = plain hold-out accuracy on the final 20\% test split. All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. Recall = Sensitivity for the positive (Up) class.
+\\
+\footnotesize $^\dagger$ Degenerate classifier: optimal $C = 10^{-6}$ shrinks all coefficients to zero; model predicts majority class for every observation (Sensitivity = 1.0, Precision $\approx$ base rate).
+\end{table}

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import os
-import joblib
 import pandas as pd
 import numpy as np
 import pyarrow.parquet as pq
@@ -10,8 +9,6 @@ import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
-from sklearn.linear_model import LogisticRegression
-from sklearn.feature_selection import SelectFromModel
 from sklearn.model_selection import (train_test_split, TimeSeriesSplit,
                                      GridSearchCV, cross_validate)
 from sklearn.pipeline import Pipeline
@@ -31,16 +28,12 @@ from H_eval import (
     rank_models_by_metrics,
     save_best_model_plots_from_gridsearch,
 )
-from model_grids import BASE_RF_PARAM_GRID, PCA_RF_PARAM_GRID, SEL_RF_PARAM_GRID
+from model_grids import BASE_RF_PARAM_GRID, PCA_RF_PARAM_GRID
 
-CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'cache')
-os.makedirs(CACHE_DIR, exist_ok=True)
 MODEL_N_JOBS = int(os.getenv("MODEL_N_JOBS", "-1"))
 # Keep the outer GridSearchCV/cross-validation parallel, but make each
 # RandomForest fit single-threaded to avoid nested parallel oversubscription.
 RF_FIT_N_JOBS = 1
-# GridSearchCV objects with callable refit (1SE rule) are not pickle-safe.
-USE_GRID_CACHE = False
 BACKTEST_WINDOW_SIZE = 100
 BACKTEST_HORIZON = 30
 USE_SAMPLE_PARQUET = os.getenv("USE_SAMPLE_PARQUET", "0") == "1"
@@ -51,6 +44,12 @@ SAMPLE_PARQUET_PATH = os.path.join(
 
 def to_binary_class(y):
     return (y >= 0).astype(int)
+
+
+def _keep_raw_stock_ohlcv(X: pd.DataFrame) -> pd.DataFrame:
+    idx = pd.IndexSlice
+    metrics = ['Open', 'Close', 'High', 'Low', 'Volume']
+    return X.loc[:, idx[metrics, 'Stocks', :]].copy()
 
 def _as_sortable_numeric(value):
     try:
@@ -161,6 +160,19 @@ def build_export_table(df: pd.DataFrame) -> pd.DataFrame:
     keep_cols = ["Test Acc", "Precision", "Recall", "Specificity", "F1", "ROC-AUC", "CV Acc SD"]
     return out[keep_cols]
 
+
+def build_latex_export_table(df: pd.DataFrame) -> pd.DataFrame:
+    """Apply export-only row labels without changing internal model keys."""
+    out = build_export_table(df).copy()
+    out = out.rename(
+        index={
+            'Base RF': 'Raw RF',
+            'Base RF+DOW': 'Raw RF+DOW',
+            'Base RF+Lags': 'Raw RF+Lags',
+        }
+    )
+    return out
+
 RECALL_NOTE = "Recall = positive-class sensitivity."
 
 def _highlight_selected_value(
@@ -245,57 +257,22 @@ def _pca_rf_pipeline():
         ('classifier', RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))
     ])
 
-def _lasso_rf_pipeline():
-    return Pipeline([
-        ('scaler', StandardScaler()),
-        ('feature_selector', SelectFromModel(
-            LogisticRegression(
-                l1_ratio=1, solver='saga', random_state=1,
-                class_weight='balanced',
-                max_iter=500, tol=5e-2
-            ),
-            threshold='mean'
-        )),
-        ('classifier', RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))
-    ])
-
-def _ridge_rf_pipeline():
-    return Pipeline([
-        ('scaler', StandardScaler()),
-        ('feature_selector', SelectFromModel(
-            LogisticRegression(
-                l1_ratio=0, solver='saga', random_state=1,
-                class_weight='balanced',
-                max_iter=500, tol=5e-2
-            ),
-            threshold='mean'
-        )),
-        ('classifier', RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))
-    ])
-
-def _run_cached_grid_search(cache_name, pipeline, param_grid, X_train, y_train, tscv, refit, heading):
+def _run_grid_search(pipeline, param_grid, X_train, y_train, tscv, refit, heading):
     print(f"\n========== {heading} ==========")
-    cache_path = os.path.join(CACHE_DIR, cache_name)
-    if USE_GRID_CACHE and os.path.exists(cache_path):
-        print(f"Loading {heading} from cache...")
-        return joblib.load(cache_path)
-
     grid_search = GridSearchCV(
         pipeline, param_grid, cv=tscv,
         n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1,
         scoring='balanced_accuracy', refit=refit
     )
     grid_search.fit(X_train, y_train)
-    if USE_GRID_CACHE:
-        joblib.dump(grid_search, cache_path)
     return grid_search
 
 def _run_model_report_and_backtest(search_obj, X_full, y_full, X_train, y_train, X_test, y_test, label, n_splits):
     print("\n--- Model Report ---")
-    get_final_metrics(search_obj.best_estimator_, X_train, y_train, X_test, y_test, n_splits=n_splits, label=label)
+    shared = get_final_metrics(search_obj.best_estimator_, X_train, y_train, X_test, y_test, n_splits=n_splits, label=label)
     print("\n--- Rolling Window Backtest ---")
     rwb_obj = RollingWindowBacktest(
-        search_obj.best_estimator_,
+        clone(search_obj.best_estimator_),
         X_full,
         y_full,
         X_train,
@@ -303,6 +280,7 @@ def _run_model_report_and_backtest(search_obj, X_full, y_full, X_train, y_train,
         horizon=BACKTEST_HORIZON,
     )
     rwb_obj.rolling_window_backtest(verbose=1)
+    return shared
 
 def _run_rf_suite(X_full, y_full, X_train, y_train, X_test, y_test, tscv, dataset_suffix="", variant_label=""):
     heading_suffix = f" {variant_label}" if variant_label else ""
@@ -310,7 +288,6 @@ def _run_rf_suite(X_full, y_full, X_train, y_train, X_test, y_test, tscv, datase
         {
             'name': 'Base RF',
             'heading': 'RF GridSearch (20 combinations)' if not variant_label else f'Base RF{heading_suffix} GridSearch',
-            'cache_name': f'base_rf{dataset_suffix}_gridsearch.pkl',
             'pipeline': _base_rf_pipeline(),
             'param_grid': BASE_RF_PARAM_GRID,
             'refit': make_one_se_refit(['classifier__max_depth', 'classifier__n_estimators', 'classifier__max_features']),
@@ -318,33 +295,16 @@ def _run_rf_suite(X_full, y_full, X_train, y_train, X_test, y_test, tscv, datase
         {
             'name': 'PCA RF',
             'heading': 'PCA + RF GridSearch' if not variant_label else f'PCA RF{heading_suffix} GridSearch',
-            'cache_name': f'base_rf_pca{dataset_suffix}_gridsearch.pkl',
             'pipeline': _pca_rf_pipeline(),
             'param_grid': PCA_RF_PARAM_GRID,
             'refit': make_one_se_refit(['classifier__max_depth', 'classifier__n_estimators', 'classifier__max_features'], fixed_cols=['reducer__n_components']),
         },
-        {
-            'name': 'LASSO-sel RF',
-            'heading': 'LASSO Feature Selection + RF GridSearch' if not variant_label else f'LASSO-sel RF{heading_suffix} GridSearch',
-            'cache_name': f'base_rf_lasso{dataset_suffix}_gridsearch.pkl',
-            'pipeline': _lasso_rf_pipeline(),
-            'param_grid': SEL_RF_PARAM_GRID,
-            'refit': make_one_se_refit(['feature_selector__estimator__C', 'classifier__max_depth', 'classifier__n_estimators', 'classifier__max_features']),
-        },
-        {
-            'name': 'Ridge-sel RF',
-            'heading': 'Ridge Feature Selection + RF GridSearch' if not variant_label else f'Ridge-sel RF{heading_suffix} GridSearch',
-            'cache_name': f'base_rf_ridge{dataset_suffix}_gridsearch.pkl',
-            'pipeline': _ridge_rf_pipeline(),
-            'param_grid': SEL_RF_PARAM_GRID,
-            'refit': make_one_se_refit(['feature_selector__estimator__C', 'classifier__max_depth', 'classifier__n_estimators', 'classifier__max_features']),
-        },
     ]
 
     searches = {}
+    metric_rows = {}
     for spec in specs:
-        search_obj = _run_cached_grid_search(
-            spec['cache_name'],
+        search_obj = _run_grid_search(
             spec['pipeline'],
             spec['param_grid'],
             X_train,
@@ -356,14 +316,13 @@ def _run_rf_suite(X_full, y_full, X_train, y_train, X_test, y_test, tscv, datase
         best_prefix = "Best params" if spec['name'] == 'Base RF' and not variant_label else f"Best params ({spec['name']}{heading_suffix})"
         print(f"{best_prefix}: {search_obj.best_params_}")
         report_label = f"{spec['name']}{heading_suffix}"
-        _run_model_report_and_backtest(search_obj, X_full, y_full, X_train, y_train, X_test, y_test, report_label, tscv.n_splits)
+        metric_rows[spec['name']] = _run_model_report_and_backtest(
+            search_obj, X_full, y_full, X_train, y_train, X_test, y_test, report_label, tscv.n_splits
+        )
         searches[spec['name']] = search_obj
-    return searches
+    return searches, metric_rows
 
-def _rf_metrics_payload(name, grid_obj, X_tr, y_tr, X_te, y_te, n_splits):
-    shared = get_final_metrics(
-        grid_obj.best_estimator_, X_tr, y_tr, X_te, y_te, n_splits=n_splits, label=name
-    )
+def _rf_metrics_payload(name, shared):
     display_row = {
         'Model':             name,
         'Avg CV Train Plain Acc':      shared['train_avg_accuracy'],
@@ -380,18 +339,13 @@ def _rf_metrics_payload(name, grid_obj, X_tr, y_tr, X_te, y_te, n_splits):
     ranking_row = {'Model': name, **shared}
     return display_row, ranking_row
 
-def _build_comparison_df(searches, X_train, y_train, X_test, y_test, n_splits, suffix=""):
+def _build_comparison_df(metric_rows, suffix=""):
     display_rows = []
     ranking_rows = []
-    for model_name in ['Base RF', 'PCA RF', 'LASSO-sel RF', 'Ridge-sel RF']:
+    for model_name in ['Base RF', 'PCA RF']:
         display_row, ranking_row = _rf_metrics_payload(
             f'{model_name}{suffix}',
-            searches[model_name],
-            X_train,
-            y_train,
-            X_test,
-            y_test,
-            n_splits,
+            metric_rows[model_name],
         )
         display_rows.append(display_row)
         ranking_rows.append(ranking_row)
@@ -439,6 +393,7 @@ if __name__ == "__main__":
         ).rename("Target Regression").shift(-1)
         DATA = raw_data, y_regression
     X, y_regression = clean_data(*DATA, raw=True, extra_features=False)
+    X = _keep_raw_stock_ohlcv(X)
     X.columns = [f"{metric}_{ticker}" for metric, _, ticker in X.columns]
     print(f"Feature matrix shape: {X.shape[0]} rows, {X.shape[1]} columns.")
 
@@ -452,117 +407,15 @@ if __name__ == "__main__":
     # Previous temporary change used `KFold(n_splits=5, shuffle=False)`.
     tscv = TimeSeriesSplit(n_splits=5)
 
-    raw_searches = _run_rf_suite(X, y_classification, X_train, y_train, X_test, y_test, tscv)
+    raw_searches, raw_metric_rows = _run_rf_suite(X, y_classification, X_train, y_train, X_test, y_test, tscv)
     grid_search_rf = raw_searches['Base RF']
     grid_search_pca = raw_searches['PCA RF']
-    grid_search_lasso = raw_searches['LASSO-sel RF']
-    grid_search_ridge = raw_searches['Ridge-sel RF']
 
     param_grid = BASE_RF_PARAM_GRID
-    param_grid_ridge = SEL_RF_PARAM_GRID
 
     best_depth  = grid_search_rf.best_params_['classifier__max_depth']
     best_n_est  = grid_search_rf.best_params_['classifier__n_estimators']
     best_max_features = grid_search_rf.best_params_['classifier__max_features']
-
-    # ===================================================================
-    # PLOT: Ridge-sel RF Bias-Variance vs Ridge C
-    # Train/CV test prediction error + 1SE test band; red line at selected C
-    # ===================================================================
-    print("\n========== Generating Ridge-sel RF Bias-Variance Plot (vs C) ==========")
-
-    ridge_c_grid = param_grid_ridge['feature_selector__estimator__C']
-    ridge_best_c = grid_search_ridge.best_params_['feature_selector__estimator__C']
-    ridge_best_depth = grid_search_ridge.best_params_['classifier__max_depth']
-    ridge_best_nest = grid_search_ridge.best_params_['classifier__n_estimators']
-    ridge_best_max_features = grid_search_ridge.best_params_['classifier__max_features']
-
-    def _ridge_curve_models():
-        models = []
-        for c_val in ridge_c_grid:
-            models.append(Pipeline([
-                ('scaler', StandardScaler()),
-                ('feature_selector', SelectFromModel(
-                    # Keep the diagnostic curve model on the same single-stage
-                    # ridge parameterization used in the main RF feature selector.
-                    LogisticRegression(
-                        C=c_val, l1_ratio=0, solver='saga', random_state=1,
-                        class_weight='balanced',
-                        max_iter=500, tol=5e-2
-                    ),
-                    threshold='mean'
-                )),
-                ('classifier', RandomForestClassifier(
-                    random_state=1,
-                    n_jobs=RF_FIT_N_JOBS,
-                    class_weight='balanced',
-                    max_depth=ridge_best_depth,
-                    n_estimators=ridge_best_nest,
-                    max_features=ridge_best_max_features
-                ))
-            ]))
-        return models
-
-    ridge_curves = _compute_cv_metric_curves(_ridge_curve_models, X_train, y_train, tscv)
-    ridge_c_grid = np.array(ridge_c_grid, dtype=float)
-    best_ridge_idx = int(np.argmin(ridge_curves['cv_bal_err_mean']))
-
-    fig_ridge, ax_ridge = plt.subplots(figsize=(10, 5))
-    fig_ridge.suptitle(
-        'Bias-Variance Tradeoff — Ridge-selected RF (Raw OHLCV)\n'
-        f'(Train/CV Balanced Error vs Ridge C, depth={ridge_best_depth}, n_estimators={ridge_best_nest}, max_features={ridge_best_max_features})',
-        fontsize=13, fontweight='bold'
-    )
-    ax_ridge.semilogx(
-        ridge_c_grid, ridge_curves['train_bal_err_mean'], marker='o', color='lightsteelblue',
-        linewidth=1.8, label='CV Train balanced error'
-    )
-    ax_ridge.semilogx(
-        ridge_c_grid, ridge_curves['cv_bal_err_mean'], marker='s', color='navajowhite',
-        linewidth=1.8, label='CV Test balanced error'
-    )
-    ax_ridge.fill_between(
-        ridge_c_grid,
-        np.clip(ridge_curves['train_bal_err_mean'] - ridge_curves['train_bal_err_std'], 0.0, 1.0),
-        np.clip(ridge_curves['train_bal_err_mean'] + ridge_curves['train_bal_err_std'], 0.0, 1.0),
-        alpha=0.15,
-        color='lightsteelblue',
-        label='CV Train balanced error ±1 SD'
-    )
-    ax_ridge.fill_between(
-        ridge_c_grid,
-        np.clip(ridge_curves['cv_bal_err_mean'] - ridge_curves['cv_bal_err_std'], 0.0, 1.0),
-        np.clip(ridge_curves['cv_bal_err_mean'] + ridge_curves['cv_bal_err_std'], 0.0, 1.0),
-        alpha=0.15,
-        color='navajowhite',
-        label='CV Test balanced error ±1 SD'
-    )
-    _highlight_selected_value(
-        ax_ridge, ridge_c_grid, ridge_curves['cv_bal_err_mean'], best_ridge_idx,
-        label_prefix='Value at best CV balanced error'
-    )
-    ax_ridge.axvline(
-        float(ridge_best_c), color='red', linestyle='--', linewidth=1.5,
-        label=f'1SE-selected C = {float(ridge_best_c):.4f}'
-    )
-    ax_ridge.set_title('Ridge-sel RF — Bias-Variance vs Ridge C (Balanced Error)')
-    ax_ridge.set_xlabel(
-        'Ridge C (feature-selection strength)\n'
-        '← Lower C, stronger regularization, simpler model      '
-        'Higher C, weaker regularization, more complex model →'
-    )
-    ax_ridge.set_ylabel('Balanced Error (1 - balanced accuracy)')
-    ax_ridge.set_ylim(0, 1.02)
-    ax_ridge.legend(fontsize=9)
-    ax_ridge.grid(True, alpha=0.3)
-
-    plt.tight_layout()
-    output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'output')
-    os.makedirs(output_dir, exist_ok=True)
-    out_path_ridge = os.path.join(output_dir, f'{output_prefix}_1SE_base_rf_ridge_bias_variance.png')
-    plt.savefig(out_path_ridge, dpi=150, bbox_inches='tight')
-    print(f"Figure saved to: {os.path.abspath(out_path_ridge)}")
-    plt.close()
 
     # ===================================================================
     # PLOT 1: Bias-Variance Tradeoff (CV train + CV test error ± std)
@@ -732,7 +585,7 @@ if __name__ == "__main__":
     # ===================================================================
     print("\n========== Model Comparison Table ==========")
 
-    comparison_df, raw_ranking_rows = _build_comparison_df(raw_searches, X_train, y_train, X_test, y_test, tscv.n_splits)
+    comparison_df, raw_ranking_rows = _build_comparison_df(raw_metric_rows)
     print(comparison_df.to_string())
 
     csv_path = os.path.join(output_dir, f'{output_prefix}_base_rf_comparison.csv')
@@ -742,7 +595,7 @@ if __name__ == "__main__":
     # ===================================================================
     # DAY-OF-WEEK EXTENSION
     # Add one-hot encoded day-of-week (Mon–Thu, drop Fri) to raw OHLCV
-    # then re-run all 4 RF model variants
+    # then re-run the remaining RF model variants
     # ===================================================================
     print("\n========== Adding Day-of-Week Features ==========")
 
@@ -757,18 +610,18 @@ if __name__ == "__main__":
     )
     print(f"Feature matrix with DOW: {X_dow.shape[1]} columns")
 
-    dow_searches = _run_rf_suite(X_dow, y_classification, X_train_dow, y_train_dow, X_test_dow, y_test_dow, tscv, dataset_suffix="_dow", variant_label="+ DOW")
+    dow_searches, dow_metric_rows = _run_rf_suite(X_dow, y_classification, X_train_dow, y_train_dow, X_test_dow, y_test_dow, tscv, dataset_suffix="_dow", variant_label="+ DOW")
 
     # ===================================================================
     # COMBINED COMPARISON TABLE (raw OHLCV vs raw OHLCV + DOW)
     # ===================================================================
-    dow_df, dow_ranking_rows = _build_comparison_df(dow_searches, X_train_dow, y_train_dow, X_test_dow, y_test_dow, tscv.n_splits, suffix="+DOW")
+    dow_df, dow_ranking_rows = _build_comparison_df(dow_metric_rows, suffix="+DOW")
 
     combined_df = pd.concat([comparison_df, dow_df])
     print("\n===== Combined Comparison Table =====")
     print(combined_df.to_string())
 
-    combined_export_df = build_export_table(combined_df)
+    combined_export_df = build_latex_export_table(combined_df)
     combined_csv = os.path.join(output_dir, f'{output_prefix}_base_rf_comparison.csv')
     combined_export_df.to_csv(combined_csv, float_format='%.3f')
     print(f"\nCombined comparison table saved to: {os.path.abspath(combined_csv)}")
@@ -786,7 +639,7 @@ if __name__ == "__main__":
     # ===================================================================
     # LAG1–LAG7 EXTENSION
     # Generate lag1..lag7 of raw OHLCV features (no DOW), then re-run
-    # all 4 RF model variants
+    # the remaining RF model variants
     # ===================================================================
     print("\n========== Adding Lag1–Lag7 of Raw OHLCV Features ==========")
 
@@ -804,18 +657,18 @@ if __name__ == "__main__":
     )
     print(f"Feature matrix with lags: {X_lag.shape[1]} columns, {X_lag.shape[0]} rows")
 
-    lag_searches = _run_rf_suite(X_lag, y_lag, X_train_lag, y_train_lag, X_test_lag, y_test_lag, tscv, dataset_suffix="_lag", variant_label="+ Lags")
+    lag_searches, lag_metric_rows = _run_rf_suite(X_lag, y_lag, X_train_lag, y_train_lag, X_test_lag, y_test_lag, tscv, dataset_suffix="_lag", variant_label="+ Lags")
 
     # ===================================================================
     # FULL COMPARISON TABLE (raw + DOW + Lags)
     # ===================================================================
-    lag_df, lag_ranking_rows = _build_comparison_df(lag_searches, X_train_lag, y_train_lag, X_test_lag, y_test_lag, tscv.n_splits, suffix="+Lags")
+    lag_df, lag_ranking_rows = _build_comparison_df(lag_metric_rows, suffix="+Lags")
 
     full_df = pd.concat([comparison_df, dow_df, lag_df])
     print("\n===== Full Comparison Table =====")
     print(full_df.to_string())
 
-    full_export_df = build_export_table(full_df)
+    full_export_df = build_latex_export_table(full_df)
     full_csv = os.path.join(output_dir, f'{output_prefix}_base_rf_comparison.csv')
     full_export_df.to_csv(full_csv, float_format='%.3f')
     print(f"\nFull comparison table saved to: {os.path.abspath(full_csv)}")
@@ -849,24 +702,6 @@ if __name__ == "__main__":
             'X_test': X_test,
             'y_test': y_test,
         },
-        'LASSO-sel RF': {
-            'search': raw_searches['LASSO-sel RF'],
-            'x_param': 'feature_selector__estimator__C',
-            'x_label': 'Selector C',
-            'X_train': X_train,
-            'y_train': y_train,
-            'X_test': X_test,
-            'y_test': y_test,
-        },
-        'Ridge-sel RF': {
-            'search': raw_searches['Ridge-sel RF'],
-            'x_param': 'feature_selector__estimator__C',
-            'x_label': 'Selector C',
-            'X_train': X_train,
-            'y_train': y_train,
-            'X_test': X_test,
-            'y_test': y_test,
-        },
         'Base RF+DOW': {
             'search': dow_searches['Base RF'],
             'x_param': 'classifier__max_depth',
@@ -885,24 +720,6 @@ if __name__ == "__main__":
             'X_test': X_test_dow,
             'y_test': y_test_dow,
         },
-        'LASSO-sel RF+DOW': {
-            'search': dow_searches['LASSO-sel RF'],
-            'x_param': 'feature_selector__estimator__C',
-            'x_label': 'Selector C',
-            'X_train': X_train_dow,
-            'y_train': y_train_dow,
-            'X_test': X_test_dow,
-            'y_test': y_test_dow,
-        },
-        'Ridge-sel RF+DOW': {
-            'search': dow_searches['Ridge-sel RF'],
-            'x_param': 'feature_selector__estimator__C',
-            'x_label': 'Selector C',
-            'X_train': X_train_dow,
-            'y_train': y_train_dow,
-            'X_test': X_test_dow,
-            'y_test': y_test_dow,
-        },
         'Base RF+Lags': {
             'search': lag_searches['Base RF'],
             'x_param': 'classifier__max_depth',
@@ -916,24 +733,6 @@ if __name__ == "__main__":
             'search': lag_searches['PCA RF'],
             'x_param': 'reducer__n_components',
             'x_label': 'PCA n_components',
-            'X_train': X_train_lag,
-            'y_train': y_train_lag,
-            'X_test': X_test_lag,
-            'y_test': y_test_lag,
-        },
-        'LASSO-sel RF+Lags': {
-            'search': lag_searches['LASSO-sel RF'],
-            'x_param': 'feature_selector__estimator__C',
-            'x_label': 'Selector C',
-            'X_train': X_train_lag,
-            'y_train': y_train_lag,
-            'X_test': X_test_lag,
-            'y_test': y_test_lag,
-        },
-        'Ridge-sel RF+Lags': {
-            'search': lag_searches['Ridge-sel RF'],
-            'x_param': 'feature_selector__estimator__C',
-            'x_label': 'Selector C',
             'X_train': X_train_lag,
             'y_train': y_train_lag,
             'X_test': X_test_lag,

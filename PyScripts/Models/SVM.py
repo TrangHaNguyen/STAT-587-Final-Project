@@ -16,6 +16,9 @@ from H_eval import (
     utility_score,
     rank_models_by_metrics,
     save_best_model_plots_from_gridsearch,
+    comparison_row_from_metrics,
+    build_base_style_comparison_df,
+    write_base_style_latex_table,
 )
 from H_helpers import log_result, get_cwd, append_params_to_dict
 from H_search_history import append_search_history, append_search_run, get_git_commit, now_iso
@@ -23,6 +26,7 @@ from model_grids import (
     SVM_LINEAR_C_GRID_OPTIONS,
     SVM_GAMMA_GRID_OPTIONS,
     SVM_DEGREE_GRID_OPTIONS,
+    SVM_TOL,
 )
 
 cwd=get_cwd("STAT-587-Final-Project")
@@ -152,14 +156,14 @@ if __name__ == "__main__":
         "extra_features": True,
         "lag_period": [1, 2, 3, 4, 5, 6, 7],
         "lookback_period": 30,
-        "sector": True,
+        "sector": False,
         "corr_threshold": 0.95,
         "corr_level": 0,
     }
 
     if (FIND_OPTIMAL):
         # ------- Selection of Remaining data_clean() Parameters -------
-        base_SVM_rbf_model=SVC(kernel="rbf", cache_size=1000, class_weight='balanced', gamma='scale', random_state=1, tol=5e-2)
+        base_SVM_rbf_model=SVC(kernel="rbf", cache_size=1000, class_weight='balanced', gamma='scale', random_state=1, tol=SVM_TOL)
         base_SVM_rbf_model_pipeline=Pipeline([('scaler', StandardScaler()), ('classifier', base_SVM_rbf_model)])
 
         # ------- Selection of Optimal data_clean() Parameters -------
@@ -169,7 +173,7 @@ if __name__ == "__main__":
             'extra_features': [True, False],
             'lag_period': [[1, 2, 3, 4, 5, 6, 7]],
             'lookback_period': [30],
-            'sector': [True],
+            'sector': [False],
             'corr_level': [0],
         }
 
@@ -189,7 +193,7 @@ if __name__ == "__main__":
     tscv = TimeSeriesSplit(n_splits=5)
     # ------- Linear SVM -------
     print("\n\n------- Linear SVM Model -------")
-    SVM_linear=SVC(kernel="linear", cache_size=1000, class_weight='balanced', gamma='scale', random_state=1, tol=5e-2)
+    SVM_linear=SVC(kernel="linear", cache_size=1000, class_weight='balanced', gamma='scale', random_state=1, tol=SVM_TOL)
 
     SVM_linear_pipeline = Pipeline([('scaler', StandardScaler()),
                                     ('classifier', SVM_linear)])
@@ -219,8 +223,7 @@ if __name__ == "__main__":
     rwb_obj.rolling_window_backtest(verbose=1)
     rwb_obj.display_wfv_results()
 
-    optimized_linear_=clone(grid_search_linear.best_estimator_)
-    optimized_linear_.fit(X_train, y_train)
+    optimized_linear_ = grid_search_linear.best_estimator_
 
     results=get_final_metrics(optimized_linear_, X_train, y_train, X_test, y_test, label="Linear Ker. SVM")
     linear_results = results.copy()
@@ -235,7 +238,7 @@ if __name__ == "__main__":
 
     # ------- RBF SVM -------
     print("\n\n------- RBF SVM Model -------")
-    SVM_rbf=SVC(kernel="rbf", cache_size=1000, class_weight='balanced', gamma='scale', random_state=1, tol=5e-2)
+    SVM_rbf=SVC(kernel="rbf", cache_size=1000, class_weight='balanced', gamma='scale', random_state=1, tol=SVM_TOL)
 
     SVM_rbf_pipeline = Pipeline([('scaler', StandardScaler()),
                                  ('classifier', SVM_rbf)])
@@ -266,8 +269,7 @@ if __name__ == "__main__":
     rwb_obj.rolling_window_backtest(verbose=1)
     rwb_obj.display_wfv_results()
 
-    optimized_rbf_=clone(grid_search_rbf.best_estimator_)
-    optimized_rbf_.fit(X_train, y_train)
+    optimized_rbf_ = grid_search_rbf.best_estimator_
 
     results=get_final_metrics(optimized_rbf_, X_train, y_train, X_test, y_test, label="RBF Ker. SVM")
     rbf_results = results.copy()
@@ -282,7 +284,7 @@ if __name__ == "__main__":
 
     # ------- Polynomial SVM -------
     print("\n\n------- Polynomial SVM Model -------")
-    SVM_poly=SVC(kernel="poly", cache_size=1000, class_weight='balanced', gamma='scale', random_state=1, tol=5e-2)
+    SVM_poly=SVC(kernel="poly", cache_size=1000, class_weight='balanced', gamma='scale', random_state=1, tol=SVM_TOL)
 
     SVM_poly_pipeline = Pipeline([('scaler', StandardScaler()),
                                   ('classifier', SVM_poly)])
@@ -314,8 +316,7 @@ if __name__ == "__main__":
     rwb_obj.rolling_window_backtest(verbose=1)
     rwb_obj.display_wfv_results()
 
-    optimized_poly_=clone(grid_search_poly.best_estimator_)
-    optimized_poly_.fit(X_train, y_train)
+    optimized_poly_ = grid_search_poly.best_estimator_
 
     results=get_final_metrics(optimized_poly_, X_train, y_train, X_test, y_test, label="Poly. Ker. SVM")
     poly_results = results.copy()
@@ -355,6 +356,23 @@ if __name__ == "__main__":
         y_test,
     )
     print(f"\nBest SVM model by average rank: {best_model_name}")
+    comparison_df = build_base_style_comparison_df([
+        comparison_row_from_metrics("Linear SVM", linear_results),
+        comparison_row_from_metrics("RBF SVM", rbf_results),
+        comparison_row_from_metrics("Poly SVM", poly_results),
+    ])
+    print("\n===== SVM Comparison Table =====")
+    print(comparison_df.to_string())
+    comparison_csv = cwd / "output" / f"{output_prefix}_svm_comparison.csv"
+    comparison_tex = cwd / "output" / f"{output_prefix}_svm_comparison.tex"
+    comparison_df.to_csv(comparison_csv, float_format='%.3f')
+    write_base_style_latex_table(
+        comparison_df,
+        comparison_tex,
+        'SVM Model Comparison',
+        'tab:svm_comparison',
+        'Test Acc = plain hold-out accuracy on the final 20% test split. All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. Recall = positive-class sensitivity.'
+    )
 
     append_search_run(
         runs_path=runs_path,

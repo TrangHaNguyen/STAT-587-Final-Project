@@ -35,10 +35,24 @@ BASELINE_PCA_GRID = [0.65, 0.7, 0.75, 0.8, 0.85, 0.90, 0.95, 0.99]
 # in both raw and PCA logistic-regression workflows.
 RIDGE_GRID = np.logspace(-6, 4, 10)
 
+# Used by: `base.py`, `logistic_regression.py`, `random_forest.py`
+# Purpose: shared solver tolerance for logistic-regression optimizers,
+# including RF feature selectors built from logistic regression.
+LOGISTIC_TOL = 1e-3
+
 # Used by: `base.py`, `logistic_regression.py`
 # Purpose: shared lasso-logistic regularization grid for tuning `C`
 # in both raw and PCA logistic-regression workflows.
 LASSO_GRID = np.logspace(-6, 4, 10)
+
+# Used by: `logistic_regression.py`
+# Purpose: elastic-net logistic regularization grid for tuning `C`
+# in the no-PCA elastic-net workflow.
+ELASTIC_NET_GRID = np.logspace(-6, 4, 10)
+
+# Used by: `logistic_regression.py`
+# Purpose: candidate l1 mixing weights for elastic-net logistic regression.
+ELASTIC_NET_L1_RATIO_GRID = [0.1, 0.5, 0.9]
 
 
 # ---------------------------------------------------------------------------
@@ -104,6 +118,10 @@ SVM_GAMMA_GRID_OPTIONS = ['scale', 'auto', 0.01, 0.1, 1]
 # Used by: `base_SVM.py`, `SVM.py`
 # Purpose: fixed polynomial degree grid for polynomial-kernel SVM tuning.
 SVM_DEGREE_GRID_OPTIONS = [2, 3, 4, 5, 6]
+
+# Used by: `base_SVM.py`, `SVM.py`
+# Purpose: shared solver tolerance for SVM training.
+SVM_TOL = 5e-2
 
 
 # ---------------------------------------------------------------------------

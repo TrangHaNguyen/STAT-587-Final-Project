@@ -16,6 +16,9 @@ from H_eval import (
     utility_score,
     rank_models_by_metrics,
     save_best_model_plots_from_gridsearch,
+    comparison_row_from_metrics,
+    build_base_style_comparison_df,
+    write_base_style_latex_table,
 )
 from H_helpers import log_result, get_cwd, append_params_to_dict
 from H_search_history import append_search_history, append_search_run, get_git_commit, now_iso
@@ -23,12 +26,19 @@ from model_grids import (
     SVM_LINEAR_C_GRID_OPTIONS,
     SVM_GAMMA_GRID_OPTIONS,
     SVM_DEGREE_GRID_OPTIONS,
+    SVM_TOL,
 )
 
 cwd = get_cwd("STAT-587-Final-Project")
 MODEL_N_JOBS = int(os.getenv("MODEL_N_JOBS", "-1"))
 GRID_VERSION = os.getenv("GRID_VERSION", "v1")
 SEARCH_NOTES = os.getenv("SEARCH_NOTES", "")
+
+
+def _keep_raw_stock_ohlcv(X: pd.DataFrame) -> pd.DataFrame:
+    idx = pd.IndexSlice
+    metrics = ['Open', 'Close', 'High', 'Low', 'Volume']
+    return X.loc[:, idx[metrics, 'Stocks', :]].copy()
 
 
 def _as_sortable_numeric(value):
@@ -88,11 +98,15 @@ if __name__ == "__main__":
     download_params = {f"clean_data__{k}=": v for k, v in parameters_.items()}
 
     X, y_regression = cast(Any, clean_data(*DATA, **parameters_))
+    X = _keep_raw_stock_ohlcv(X)
+    X.columns = [f"{metric}_{ticker}" for metric, _, ticker in X.columns]
+    print(f"Feature matrix shape: {X.shape[0]} rows, {X.shape[1]} columns.")
 
     def to_binary_class(y):
         return (y >= 0).astype(int)
 
     y_classification = to_binary_class(y_regression)
+    print(f"Final shape - X: {X.shape}, y: {y_classification.shape}")
     X_train, X_test, y_train, y_test = train_test_split(
         X, y_classification, test_size=TEST_SIZE, random_state=1, shuffle=False
     )
@@ -100,7 +114,7 @@ if __name__ == "__main__":
     tscv = TimeSeriesSplit(n_splits=5)
 
     print("\n\n------- Base Linear SVM Model -------")
-    svm_linear = SVC(kernel="linear", cache_size=1000, class_weight="balanced", gamma="scale", random_state=1, tol=5e-2)
+    svm_linear = SVC(kernel="linear", cache_size=1000, class_weight="balanced", gamma="scale", random_state=1, tol=SVM_TOL)
     svm_linear_pipeline = Pipeline([("scaler", StandardScaler()), ("classifier", svm_linear)])
     param_grid = {"classifier__C": SVM_LINEAR_C_GRID_OPTIONS}
     grid_search_linear = GridSearchCV(
@@ -122,8 +136,7 @@ if __name__ == "__main__":
     rwb_obj = RollingWindowBacktest(clone(grid_search_linear.best_estimator_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
     rwb_obj.rolling_window_backtest(verbose=1)
     rwb_obj.display_wfv_results()
-    optimized_linear_ = clone(grid_search_linear.best_estimator_)
-    optimized_linear_.fit(X_train, y_train)
+    optimized_linear_ = grid_search_linear.best_estimator_
     results = get_final_metrics(optimized_linear_, X_train, y_train, X_test, y_test, label="Base Linear Ker. SVM")
     linear_results = results.copy()
     util_score = utility_score(results, rwb_obj)
@@ -135,7 +148,7 @@ if __name__ == "__main__":
         results.update(download_params)
         log_result(results, cwd / "output", "8yrs_results.csv")
     print("\n\n------- Base RBF SVM Model -------")
-    svm_rbf = SVC(kernel="rbf", cache_size=1000, class_weight="balanced", gamma="scale", random_state=1, tol=5e-2)
+    svm_rbf = SVC(kernel="rbf", cache_size=1000, class_weight="balanced", gamma="scale", random_state=1, tol=SVM_TOL)
     svm_rbf_pipeline = Pipeline([("scaler", StandardScaler()), ("classifier", svm_rbf)])
     param_grid = {
         "classifier__C": SVM_LINEAR_C_GRID_OPTIONS,
@@ -160,8 +173,7 @@ if __name__ == "__main__":
     rwb_obj = RollingWindowBacktest(clone(grid_search_rbf.best_estimator_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
     rwb_obj.rolling_window_backtest(verbose=1)
     rwb_obj.display_wfv_results()
-    optimized_rbf_ = clone(grid_search_rbf.best_estimator_)
-    optimized_rbf_.fit(X_train, y_train)
+    optimized_rbf_ = grid_search_rbf.best_estimator_
     results = get_final_metrics(optimized_rbf_, X_train, y_train, X_test, y_test, label="Base RBF Ker. SVM")
     rbf_results = results.copy()
     util_score = utility_score(results, rwb_obj)
@@ -173,7 +185,7 @@ if __name__ == "__main__":
         results.update(download_params)
         log_result(results, cwd / "output", "8yrs_results.csv")
     print("\n\n------- Base Polynomial SVM Model -------")
-    svm_poly = SVC(kernel="poly", cache_size=1000, class_weight="balanced", gamma="scale", random_state=1, tol=5e-2)
+    svm_poly = SVC(kernel="poly", cache_size=1000, class_weight="balanced", gamma="scale", random_state=1, tol=SVM_TOL)
     svm_poly_pipeline = Pipeline([("scaler", StandardScaler()), ("classifier", svm_poly)])
     param_grid = {
         "classifier__C": SVM_LINEAR_C_GRID_OPTIONS,
@@ -199,8 +211,7 @@ if __name__ == "__main__":
     rwb_obj = RollingWindowBacktest(clone(grid_search_poly.best_estimator_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
     rwb_obj.rolling_window_backtest(verbose=1)
     rwb_obj.display_wfv_results()
-    optimized_poly_ = clone(grid_search_poly.best_estimator_)
-    optimized_poly_.fit(X_train, y_train)
+    optimized_poly_ = grid_search_poly.best_estimator_
     results = get_final_metrics(optimized_poly_, X_train, y_train, X_test, y_test, label="Base Poly. Ker. SVM")
     poly_results = results.copy()
     util_score = utility_score(results, rwb_obj)
@@ -239,6 +250,30 @@ if __name__ == "__main__":
         y_test,
     )
     print(f"\nBest base SVM model by average rank: {best_model_name}")
+    comparison_df = build_base_style_comparison_df([
+        comparison_row_from_metrics("Base Linear SVM", linear_results),
+        comparison_row_from_metrics("Base RBF SVM", rbf_results),
+        comparison_row_from_metrics("Base Poly SVM", poly_results),
+    ])
+    comparison_export_df = comparison_df.rename(
+        index={
+            "Base Linear SVM": "Raw Linear SVM",
+            "Base RBF SVM": "Raw RBF SVM",
+            "Base Poly SVM": "Raw Poly SVM",
+        }
+    )
+    print("\n===== Base SVM Comparison Table =====")
+    print(comparison_df.to_string())
+    comparison_csv = cwd / "output" / f"{output_prefix}_base_svm_comparison.csv"
+    comparison_tex = cwd / "output" / f"{output_prefix}_base_svm_comparison.tex"
+    comparison_export_df.to_csv(comparison_csv, float_format='%.3f')
+    write_base_style_latex_table(
+        comparison_export_df,
+        comparison_tex,
+        'Base SVM Model Comparison',
+        'tab:base_svm_comparison',
+        'Test Acc = plain hold-out accuracy on the final 20% test split. All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. Recall = positive-class sensitivity.'
+    )
     append_search_run(
         runs_path=runs_path,
         model_name="base_SVM",

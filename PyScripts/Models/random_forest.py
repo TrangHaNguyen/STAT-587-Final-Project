@@ -24,11 +24,15 @@ from H_eval import (
     utility_score,
     rank_models_by_metrics,
     save_best_model_plots_from_gridsearch,
+    comparison_row_from_metrics,
+    build_base_style_comparison_df,
+    write_base_style_latex_table,
 )
 from H_helpers import log_result, get_cwd, append_params_to_dict
 from H_search_history import append_search_history, append_search_run, get_git_commit, now_iso
 from model_grids import (
     BASE_RF_PARAM_GRID,
+    LOGISTIC_TOL,
     PCA_RF_PARAM_GRID,
     SEL_RF_PARAM_GRID,
 )
@@ -191,7 +195,7 @@ if __name__=="__main__":
         "extra_features": True,
         "lag_period": [1, 2, 3, 4, 5, 6, 7],
         "lookback_period": 30,
-        "sector": True,
+        "sector": False,
         "corr_threshold": 0.95,
         "corr_level": 0,
     }
@@ -208,7 +212,7 @@ if __name__=="__main__":
             'extra_features': [True, False],
             'lag_period': [[1, 2, 3, 4, 5, 6, 7]],
             'lookback_period': [30],
-            'sector': [True],
+            'sector': [False],
             'corr_level': [0],
         }
 
@@ -260,8 +264,7 @@ if __name__=="__main__":
     rwb_obj.rolling_window_backtest(verbose=1)
     rwb_obj.display_wfv_results()
 
-    optimized_base_=clone(grid_search_base.best_estimator_)
-    optimized_base_.fit(X_train, y_train)
+    optimized_base_ = grid_search_base.best_estimator_
 
     results=get_final_metrics(optimized_base_, X_train, y_train, X_test, y_test, label="Base RF")
     base_results = results.copy()
@@ -309,8 +312,7 @@ if __name__=="__main__":
     rwb_obj.rolling_window_backtest(verbose=1)
     rwb_obj.display_wfv_results()
 
-    optimized_PCA_=clone(grid_search_PCA.best_estimator_)
-    optimized_PCA_.fit(X_train, y_train)
+    optimized_PCA_ = grid_search_PCA.best_estimator_
 
     results=get_final_metrics(optimized_PCA_, X_train, y_train, X_test, y_test, label="PCA RF")
     pca_results = results.copy()
@@ -325,7 +327,7 @@ if __name__=="__main__":
 
     # ------- LASSO APPLICATION -------
     print("\n\n------- LASSO RF Model -------")
-    lasso_selector=SelectFromModel(LogisticRegression(l1_ratio=1, solver='saga', random_state=1, class_weight='balanced', max_iter=500, tol=5e-2), threshold='mean')
+    lasso_selector=SelectFromModel(LogisticRegression(l1_ratio=1, solver='saga', random_state=1, class_weight='balanced', max_iter=500, tol=LOGISTIC_TOL), threshold='mean')
     RFClassifier_red_lasso=RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced')
 
     RF_pipeline_lasso=Pipeline([('scaler', StandardScaler()), 
@@ -359,8 +361,7 @@ if __name__=="__main__":
     rwb_obj.rolling_window_backtest(verbose=1)
     rwb_obj.display_wfv_results()
 
-    optimized_LASSO_=clone(grid_search_LASSO.best_estimator_)
-    optimized_LASSO_.fit(X_train, y_train)
+    optimized_LASSO_ = grid_search_LASSO.best_estimator_
 
     results=get_final_metrics(optimized_LASSO_, X_train, y_train, X_test, y_test, label="LASSO RF")
     lasso_results = results.copy()
@@ -375,7 +376,7 @@ if __name__=="__main__":
         
     # ------- RIDGE APPLICATION -------
     print("\n\n------- RIDGE RF Model -------")
-    ridge_selector=SelectFromModel(LogisticRegression(l1_ratio=0, solver="saga", random_state=1, class_weight='balanced', max_iter=500, tol=5e-2), threshold='mean')
+    ridge_selector=SelectFromModel(LogisticRegression(l1_ratio=0, solver="saga", random_state=1, class_weight='balanced', max_iter=500, tol=LOGISTIC_TOL), threshold='mean')
     RFClassifier_red_ridge=RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced')
 
     RF_pipeline_ridge=Pipeline([('scaler', StandardScaler()), 
@@ -409,8 +410,7 @@ if __name__=="__main__":
     rwb_obj.rolling_window_backtest(verbose=1)
     rwb_obj.display_wfv_results()
 
-    optimized_ridge_=clone(grid_search_ridge.best_estimator_)
-    optimized_ridge_.fit(X_train, y_train)
+    optimized_ridge_ = grid_search_ridge.best_estimator_
 
     results=get_final_metrics(optimized_ridge_, X_train, y_train, X_test, y_test, label="Ridge RF")
     ridge_results = results.copy()
@@ -452,11 +452,30 @@ if __name__=="__main__":
         X_test,
         y_test,
     )
+    comparison_df = build_base_style_comparison_df([
+        comparison_row_from_metrics("Base RF", base_results),
+        comparison_row_from_metrics("PCA RF", pca_results),
+        comparison_row_from_metrics("LASSO RF", lasso_results),
+        comparison_row_from_metrics("Ridge RF", ridge_results),
+    ])
+    comparison_export_df = comparison_df.rename(index={"Base RF": "Raw RF"})
+    print("\n===== Random Forest Comparison Table =====")
+    print(comparison_df.to_string())
+    comparison_csv = cwd / "output" / f"{output_prefix}_random_forest_comparison.csv"
+    comparison_tex = cwd / "output" / f"{output_prefix}_random_forest_comparison.tex"
+    comparison_export_df.to_csv(comparison_csv, float_format='%.3f')
+    write_base_style_latex_table(
+        comparison_export_df,
+        comparison_tex,
+        'Random Forest Model Comparison',
+        'tab:random_forest_comparison',
+        'Test Acc = plain hold-out accuracy on the final 20% test split. All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. Recall = positive-class sensitivity.'
+    )
 
     # ------- STEP-WISE REGRESSION APPLICATION (DISABLED) -------
     if False:
         print("\n\n------- LASSO(internal) -> STEP-WISE REGRESSION RF Model -------")
-        lasso_selector=SelectFromModel(LogisticRegression(l1_ratio=1, solver='saga', random_state=1, class_weight='balanced', max_iter=500, tol=5e-2), max_features=100, threshold='mean')
+        lasso_selector=SelectFromModel(LogisticRegression(l1_ratio=1, solver='saga', random_state=1, class_weight='balanced', max_iter=500, tol=LOGISTIC_TOL), max_features=100, threshold='mean')
         RFClassifier_red_lasso=RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced')
 
         RF_pipeline_lasso=Pipeline([('scaler', StandardScaler()), 

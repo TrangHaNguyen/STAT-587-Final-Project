@@ -1,11 +1,10 @@
 from typing import Any, cast
-from sklearn.linear_model import LogisticRegressionCV, LogisticRegression
+from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.base import clone
 from sklearn.model_selection import train_test_split, TimeSeriesSplit, GridSearchCV
 from sklearn.pipeline import Pipeline
-from sklearn.metrics import balanced_accuracy_score
 import os
 import pandas as pd
 import numpy as np
@@ -22,16 +21,20 @@ from H_eval import (
     utility_score,
     rank_models_by_metrics,
     save_best_model_plots_from_gridsearch,
+    comparison_row_from_metrics,
+    build_base_style_comparison_df,
+    write_base_style_latex_table,
 )
 from H_helpers import log_result, append_params_to_dict, get_cwd
 from H_search_history import append_search_history, append_search_run, get_git_commit, now_iso
 from model_grids import (
     BASELINE_PCA_GRID,
+    ELASTIC_NET_GRID,
+    ELASTIC_NET_L1_RATIO_GRID,
     LASSO_GRID,
+    LOGISTIC_TOL,
     RIDGE_GRID,
 )
-
-'''No need for hyperparameter tuning for Logistic Regression via GridSearchCV since LogisticRegressionCV performs internal CV to select the best C value. We will just use the default 10 values of C that LogisticRegressionCV tests.'''
 
 VERBOSE=0
 MODEL_N_JOBS=int(os.getenv("MODEL_N_JOBS", "-1"))
@@ -44,25 +47,6 @@ SAMPLE_PARQUET_PATH = os.path.join(
 )
 
 cwd=get_cwd("STAT-587-Final-Project")
-def logregcv_to_rows(cv_obj: LogisticRegressionCV, param_name: str = "param_classifier__C") -> dict:
-    scores_dict = cv_obj.scores_
-    class_key = list(scores_dict.keys())[0]
-    scores = np.array(scores_dict[class_key])
-    if scores.ndim == 3:
-        # Defensive handling for configurations where sklearn stores an l1_ratio axis.
-        scores = scores.mean(axis=2)
-    elif scores.ndim != 2:
-        raise ValueError(f"Unexpected LogisticRegressionCV scores_ shape: {scores.shape}")
-    mean_test = scores.mean(axis=0)
-    std_test = scores.std(axis=0)
-    rank_test = (-mean_test).argsort().argsort() + 1
-    return {
-        param_name: list(cv_obj.Cs_),
-        "mean_train_score": [np.nan] * len(cv_obj.Cs_),
-        "mean_test_score": list(mean_test),
-        "std_test_score": list(std_test),
-        "rank_test_score": list(rank_test)
-    }
 
 
 def _as_sortable_numeric(value):
@@ -102,160 +86,6 @@ def make_one_se_refit(complexity_cols: list[str], fixed_cols: list[str] | None =
         return int(min(candidate_idx, key=key_fn))
 
     return _pick_index
-
-
-def select_logregcv_c_1se(cv_obj: LogisticRegressionCV) -> float:
-    """Select C by 1-SE rule from LogisticRegressionCV scores_."""
-    scores_dict = cv_obj.scores_
-    class_key = list(scores_dict.keys())[0]
-    scores = np.array(scores_dict[class_key])
-    if scores.ndim == 3:
-        scores = scores.mean(axis=2)
-    elif scores.ndim != 2:
-        raise ValueError(f"Unexpected LogisticRegressionCV scores_ shape: {scores.shape}")
-    mean_test = scores.mean(axis=0)
-    std_test = scores.std(axis=0)
-    se_test = std_test / np.sqrt(scores.shape[0])
-    cs = np.array(cv_obj.Cs_, dtype=float)
-    best_idx = int(np.argmax(mean_test))
-    threshold = float(mean_test[best_idx] - se_test[best_idx])
-    candidate_idx = np.where(mean_test >= threshold)[0]
-    if len(candidate_idx) == 0:
-        return float(cs[best_idx])
-    # Simpler model => smaller C.
-    chosen_idx = int(candidate_idx[np.argmin(cs[candidate_idx])])
-    return float(cs[chosen_idx])
-
-
-def _compute_logregcv_bv_curves(X_train, y_train, c_grid, tscv_splitter, l1_ratio, solver):
-    cs = np.asarray(c_grid, dtype=float)
-    n_splits = tscv_splitter.get_n_splits()
-    train_bal_errors = np.zeros((n_splits, len(cs)))
-    cv_bal_errors = np.zeros((n_splits, len(cs)))
-    for fold_idx, (tr, val) in enumerate(tscv_splitter.split(X_train, y_train)):
-        X_fold = X_train.iloc[tr] if hasattr(X_train, 'iloc') else X_train[tr]
-        y_fold = y_train.iloc[tr] if hasattr(y_train, 'iloc') else y_train[tr]
-        X_val = X_train.iloc[val] if hasattr(X_train, 'iloc') else X_train[val]
-        y_val = y_train.iloc[val] if hasattr(y_train, 'iloc') else y_train[val]
-        for c_idx, c_val in enumerate(cs):
-            model = Pipeline([
-                ('scaler', StandardScaler()),
-                ('classifier', LogisticRegression(
-                    C=float(c_val), l1_ratio=l1_ratio, solver=solver,
-                    class_weight='balanced', random_state=1,
-                    max_iter=500, tol=1e-2
-                ))
-            ])
-            model.fit(X_fold, y_fold)
-            train_preds = model.predict(X_fold)
-            cv_preds = model.predict(X_val)
-            train_bal_errors[fold_idx, c_idx] = 1 - balanced_accuracy_score(y_fold, train_preds)
-            cv_bal_errors[fold_idx, c_idx] = 1 - balanced_accuracy_score(y_val, cv_preds)
-    return {
-        'cs': cs,
-        'train_bal_err_mean': train_bal_errors.mean(axis=0),
-        'train_bal_err_std': train_bal_errors.std(axis=0),
-        'cv_bal_err_mean': cv_bal_errors.mean(axis=0),
-        'cv_bal_err_std': cv_bal_errors.std(axis=0),
-    }
-
-
-def _compute_logreg_direct_errors(X_train, y_train, X_test, y_test, c_grid, l1_ratio, solver):
-    train_errors, test_errors = [], []
-    for c_val in c_grid:
-        model = Pipeline([
-            ('scaler', StandardScaler()),
-            ('classifier', LogisticRegression(
-                C=float(c_val), l1_ratio=l1_ratio, solver=solver,
-                class_weight='balanced', random_state=1,
-                max_iter=500, tol=1e-2
-            ))
-        ])
-        model.fit(X_train, y_train)
-        train_errors.append(1 - model.score(X_train, y_train))
-        test_errors.append(1 - model.score(X_test, y_test))
-    return {
-        'cs': np.asarray(c_grid, dtype=float),
-        'train_errors': np.asarray(train_errors, dtype=float),
-        'test_errors': np.asarray(test_errors, dtype=float),
-    }
-
-
-def _compute_single_logreg_direct_error(X_train, y_train, X_test, y_test, c_val, l1_ratio, solver):
-    model = Pipeline([
-        ('scaler', StandardScaler()),
-        ('classifier', LogisticRegression(
-            C=float(c_val), l1_ratio=l1_ratio, solver=solver,
-            class_weight='balanced', random_state=1,
-            max_iter=500, tol=1e-2
-        ))
-    ])
-    model.fit(X_train, y_train)
-    return 1 - model.score(X_train, y_train), 1 - model.score(X_test, y_test)
-
-
-def _save_best_logregcv_plots(
-    X_train,
-    y_train,
-    X_test,
-    y_test,
-    c_grid,
-    one_se_c,
-    model_title,
-    l1_ratio,
-    output_bv,
-    output_direct,
-):
-    solver = 'saga'
-    curves = _compute_logregcv_bv_curves(X_train, y_train, c_grid, TimeSeriesSplit(n_splits=5), l1_ratio, solver)
-    direct = _compute_logreg_direct_errors(X_train, y_train, X_test, y_test, c_grid, l1_ratio, solver)
-    best_idx = int(np.argmin(curves['cv_bal_err_mean']))
-    selected_c = float(curves['cs'][best_idx])
-    _, best_test_error = _compute_single_logreg_direct_error(X_train, y_train, X_test, y_test, selected_c, l1_ratio, solver)
-    selected_idx = int(np.argmin(np.abs(curves['cs'] - float(one_se_c))))
-
-    fig, ax = plt.subplots(figsize=(10, 5))
-    fig.suptitle(f'Bias-Variance Tradeoff — {model_title}', fontsize=13, fontweight='bold')
-    ax.semilogx(curves['cs'], curves['train_bal_err_mean'], marker='o', color='steelblue', linewidth=1.8, label='CV Train balanced error')
-    ax.semilogx(curves['cs'], curves['cv_bal_err_mean'], marker='s', color='darkorange', linewidth=1.8, label='CV Test balanced error')
-    ax.fill_between(
-        curves['cs'],
-        np.clip(curves['train_bal_err_mean'] - curves['train_bal_err_std'], 0.0, 1.0),
-        np.clip(curves['train_bal_err_mean'] + curves['train_bal_err_std'], 0.0, 1.0),
-        alpha=0.15, color='steelblue', label='CV Train balanced error ±1 SD'
-    )
-    ax.fill_between(
-        curves['cs'],
-        np.clip(curves['cv_bal_err_mean'] - curves['cv_bal_err_std'], 0.0, 1.0),
-        np.clip(curves['cv_bal_err_mean'] + curves['cv_bal_err_std'], 0.0, 1.0),
-        alpha=0.15, color='darkorange', label='CV Test balanced error ±1 SD'
-    )
-    ax.scatter([curves['cs'][best_idx]], [curves['cv_bal_err_mean'][best_idx]], color='gold', edgecolor='black', s=90, zorder=6, label='Value at best CV balanced error')
-    ax.axvline(float(curves['cs'][selected_idx]), color='red', linestyle='--', linewidth=1.5, label=f'1SE-selected C = {float(one_se_c):.4g}')
-    ax.set_title(f'{model_title} — Bias-Variance Tradeoff')
-    ax.set_xlabel('C')
-    ax.set_ylabel('Balanced Error (1 - balanced accuracy)')
-    ax.set_ylim(0, 1.02)
-    ax.legend(fontsize=9)
-    ax.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(output_bv, dpi=150, bbox_inches='tight')
-    plt.close()
-
-    fig2, ax2 = plt.subplots(figsize=(10, 5))
-    fig2.suptitle(f'Over/Underfitting Analysis — {model_title}', fontsize=13, fontweight='bold')
-    ax2.semilogx(direct['cs'], direct['train_errors'], marker='o', color='steelblue', linewidth=2, label='Train error')
-    ax2.semilogx(direct['cs'], direct['test_errors'], marker='s', color='darkorange', linewidth=2, label='Test error')
-    ax2.scatter([selected_c], [best_test_error], color='gold', edgecolor='black', s=90, zorder=6, label='Value at best CV balanced error')
-    ax2.axvline(float(curves['cs'][selected_idx]), color='red', linestyle='--', linewidth=1.5, label=f'1SE-selected C = {float(one_se_c):.4g}')
-    ax2.set_title(f'{model_title} — Train vs Test Error')
-    ax2.set_xlabel('C')
-    ax2.set_ylabel('Plain Error (1 - accuracy)')
-    ax2.legend(fontsize=9)
-    ax2.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(output_direct, dpi=150, bbox_inches='tight')
-    plt.close()
 
 
 def load_logreg_input_data():
@@ -344,14 +174,14 @@ if __name__=="__main__":
         "extra_features": True,
         "lag_period": [1, 2, 3, 4, 5, 6, 7],
         "lookback_period": 30,
-        "sector": True,
+        "sector": False,
         "corr_threshold": 0.95,
         "corr_level": 0
     }
 
     if (FIND_OPTIMAL):
         # ------- Selection of Remaining data_clean() Parameters -------
-        base_Log_Reg_model=LogisticRegression(C=1.0, l1_ratio=0, solver='saga', class_weight='balanced', random_state=1, max_iter=1000, tol=1e-3, verbose=VERBOSE)
+        base_Log_Reg_model=LogisticRegression(C=1.0, l1_ratio=0, solver='saga', class_weight='balanced', random_state=1, max_iter=1000, tol=LOGISTIC_TOL, verbose=VERBOSE)
         base_Log_Reg_model_pipeline=Pipeline([('scaler', StandardScaler()), ('classifier', base_Log_Reg_model)])
 
         # ------- Selection of Optimal data_clean() Parameters -------
@@ -361,7 +191,7 @@ if __name__=="__main__":
             'extra_features': [True, False],
             'lag_period': [[1, 2, 3, 4, 5, 6, 7]],
             'lookback_period': [30],
-            'sector': [True],
+            'sector': [False],
             'corr_level': [0],
         }
 
@@ -377,89 +207,180 @@ if __name__=="__main__":
     y_classification=to_binary_class(y_regression)
     X_train, X_test, y_train, y_test=train_test_split(X, y_classification, test_size=TEST_SIZE, random_state=1, shuffle=False)
 
-
-    # ------- LASSO(Internal) APPLICATION -------
-    Log_Reg_R=LogisticRegressionCV(Cs=LASSO_GRID, cv=tscv, l1_ratios=[1], solver='saga', class_weight='balanced', random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2, verbose=VERBOSE, scoring='balanced_accuracy')
-    
-    Log_Reg_model_pipeline_R=Pipeline([('scaler', StandardScaler()), ('classifier', Log_Reg_R)])
-
-    Log_Reg_model_pipeline_R.fit(X_train, y_train)
+    # ------- PCA Base (No Logistic Regularization) -------
+    print("\n\n------- PCA Base Logistic Model -------")
+    Log_Reg_PCA_Base = LogisticRegression(
+        C=np.inf, solver='lbfgs', class_weight='balanced',
+        random_state=1, max_iter=500, tol=LOGISTIC_TOL
+    )
+    Log_Reg_model_pipeline_PCA_Base = Pipeline([
+        ('scaler', StandardScaler()),
+        ('pca', PCA()),
+        ('classifier', Log_Reg_PCA_Base)
+    ])
+    param_grid = {
+        'pca__n_components': BASELINE_PCA_GRID
+    }
+    grid_search_PCA_base = GridSearchCV(
+        Log_Reg_model_pipeline_PCA_Base, param_grid, cv=tscv,
+        return_train_score=True, verbose=VERBOSE,
+        scoring='balanced_accuracy', refit=True
+    )
+    grid_search_PCA_base.fit(X_train, y_train)
     append_search_history(
         history_path=history_path,
-        cv_results=logregcv_to_rows(Log_Reg_model_pipeline_R.named_steps['classifier']),
+        cv_results=grid_search_PCA_base.cv_results_,
         run_time=run_time,
-        model_name="LogReg_LASSO_internal",
+        model_name="LogReg_PCA_Base",
         search_type="grid",
         grid_version=grid_label,
         notes=SEARCH_NOTES,
-        best_params={"classifier__C": select_logregcv_c_1se(Log_Reg_model_pipeline_R.named_steps['classifier'])}
+        best_params=grid_search_PCA_base.best_params_
     )
-
-    best_c = select_logregcv_c_1se(Log_Reg_model_pipeline_R.named_steps['classifier'])
-    Opt_Log_Reg_R=LogisticRegression(
-        C=best_c, l1_ratio=1, solver='saga', class_weight='balanced',
-        random_state=1, max_iter=500, tol=1e-2
-    )
-
-    Opt_Log_Reg_model_pipeline_R=Pipeline([('scaler', StandardScaler()), ('classifier', Opt_Log_Reg_R)])
-
-    rwb_obj=RollingWindowBacktest(clone(Opt_Log_Reg_model_pipeline_R), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
+    rwb_obj=RollingWindowBacktest(clone(grid_search_PCA_base.best_estimator_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
     rwb_obj.rolling_window_backtest(verbose=1)
     rwb_obj.display_wfv_results()
-
-    optimized_Log_Reg_R_=clone(Opt_Log_Reg_model_pipeline_R)
-    optimized_Log_Reg_R_.fit(X_train, y_train)
-
-    results=get_final_metrics(optimized_Log_Reg_R_, X_train, y_train, X_test, y_test, n_splits=10, label="LASSO(int.) Log. Reg.")
-    lasso_results = results.copy()
+    optimized_Log_Reg_PCA_base_ = grid_search_PCA_base.best_estimator_
+    results=get_final_metrics(optimized_Log_Reg_PCA_base_, X_train, y_train, X_test, y_test, n_splits=10, label="PCA Base")
+    pca_base_results = results.copy()
     util_score=utility_score(results, rwb_obj)
     print(f"Utility Score {util_score:.4}")
     if (EXPORT):
         results.update({'utility_score': round(util_score, 3)})
-        results=append_params_to_dict(results, optimized_Log_Reg_R_)
+        results=append_params_to_dict(results, optimized_Log_Reg_PCA_base_)
         results.update(rwb_obj.results[2])
         results.update(download_params)
         log_result(results, cwd / 'output', results_file)
 
-    # ------- RIDGE(Internal) APPLICATION -------
-    Log_Reg_L=LogisticRegressionCV(Cs=RIDGE_GRID, cv=tscv, l1_ratios=[0], solver='saga', class_weight='balanced', random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2, verbose=VERBOSE, scoring='balanced_accuracy')
-    
-    Log_Reg_model_pipeline_L=Pipeline([('scaler', StandardScaler()), ('classifier', Log_Reg_L)])
-
-    Log_Reg_model_pipeline_L.fit(X_train, y_train)
+    # ------- Ridge (No PCA) -------
+    print("\n\n------- Logistic Ridge Model -------")
+    Log_Reg_Ridge = LogisticRegression(
+        l1_ratio=0, solver='saga', class_weight='balanced',
+        random_state=1, max_iter=500, tol=LOGISTIC_TOL
+    )
+    Log_Reg_model_pipeline_Ridge = Pipeline([
+        ('scaler', StandardScaler()),
+        ('classifier', Log_Reg_Ridge)
+    ])
+    param_grid = {
+        'classifier__C': RIDGE_GRID
+    }
+    grid_search_ridge = GridSearchCV(
+        Log_Reg_model_pipeline_Ridge, param_grid, cv=tscv, return_train_score=True, verbose=VERBOSE,
+        scoring='balanced_accuracy',
+        refit=make_one_se_refit(['classifier__C'])
+    )
+    grid_search_ridge.fit(X_train, y_train)
     append_search_history(
         history_path=history_path,
-        cv_results=logregcv_to_rows(Log_Reg_model_pipeline_L.named_steps['classifier']),
+        cv_results=grid_search_ridge.cv_results_,
         run_time=run_time,
-        model_name="LogReg_Ridge_internal",
+        model_name="LogReg_Ridge",
         search_type="grid",
         grid_version=grid_label,
         notes=SEARCH_NOTES,
-        best_params={"classifier__C": select_logregcv_c_1se(Log_Reg_model_pipeline_L.named_steps['classifier'])}
+        best_params=grid_search_ridge.best_params_
     )
-
-    best_c = select_logregcv_c_1se(Log_Reg_model_pipeline_L.named_steps['classifier'])
-    Opt_Log_Reg_L=LogisticRegression(
-        C=best_c, l1_ratio=0, solver='saga', class_weight='balanced',
-        random_state=1, max_iter=500, tol=1e-2
-    )
-
-    Opt_Log_Reg_model_pipeline_L=Pipeline([('scaler', StandardScaler()), ('classifier', Opt_Log_Reg_L)])
-
-    rwb_obj=RollingWindowBacktest(clone(Opt_Log_Reg_model_pipeline_L), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
+    rwb_obj=RollingWindowBacktest(clone(grid_search_ridge.best_estimator_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
     rwb_obj.rolling_window_backtest(verbose=1)
     rwb_obj.display_wfv_results()
-
-    optimized_Log_Reg_L_=clone(Opt_Log_Reg_model_pipeline_L)
-    optimized_Log_Reg_L_.fit(X_train, y_train)
-
-    results=get_final_metrics(optimized_Log_Reg_L_, X_train, y_train, X_test, y_test, n_splits=10, label="Ridge(int.) Log. Reg.")
+    optimized_Log_Reg_ridge_ = grid_search_ridge.best_estimator_
+    results=get_final_metrics(optimized_Log_Reg_ridge_, X_train, y_train, X_test, y_test, n_splits=10, label="Ridge Log. Reg.")
     ridge_results = results.copy()
     util_score=utility_score(results, rwb_obj)
     print(f"Utility Score {util_score:.4}")
     if (EXPORT):
         results.update({'utility_score': round(util_score, 3)})
-        results=append_params_to_dict(results, optimized_Log_Reg_L_)
+        results=append_params_to_dict(results, optimized_Log_Reg_ridge_)
+        results.update(rwb_obj.results[2])
+        results.update(download_params)
+        log_result(results, cwd / 'output', results_file)
+
+    # ------- LASSO (No PCA) -------
+    print("\n\n------- Logistic LASSO Model -------")
+    Log_Reg_Lasso = LogisticRegression(
+        l1_ratio=1, solver='saga', class_weight='balanced',
+        random_state=1, max_iter=500, tol=LOGISTIC_TOL
+    )
+    Log_Reg_model_pipeline_Lasso = Pipeline([
+        ('scaler', StandardScaler()),
+        ('classifier', Log_Reg_Lasso)
+    ])
+    param_grid = {
+        'classifier__C': LASSO_GRID
+    }
+    grid_search_lasso = GridSearchCV(
+        Log_Reg_model_pipeline_Lasso, param_grid, cv=tscv, return_train_score=True, verbose=VERBOSE,
+        scoring='balanced_accuracy',
+        refit=make_one_se_refit(['classifier__C'])
+    )
+    grid_search_lasso.fit(X_train, y_train)
+    append_search_history(
+        history_path=history_path,
+        cv_results=grid_search_lasso.cv_results_,
+        run_time=run_time,
+        model_name="LogReg_LASSO",
+        search_type="grid",
+        grid_version=grid_label,
+        notes=SEARCH_NOTES,
+        best_params=grid_search_lasso.best_params_
+    )
+    rwb_obj=RollingWindowBacktest(clone(grid_search_lasso.best_estimator_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
+    rwb_obj.rolling_window_backtest(verbose=1)
+    rwb_obj.display_wfv_results()
+    optimized_Log_Reg_lasso_ = grid_search_lasso.best_estimator_
+    results=get_final_metrics(optimized_Log_Reg_lasso_, X_train, y_train, X_test, y_test, n_splits=10, label="LASSO Log. Reg.")
+    lasso_results = results.copy()
+    util_score=utility_score(results, rwb_obj)
+    print(f"Utility Score {util_score:.4}")
+    if (EXPORT):
+        results.update({'utility_score': round(util_score, 3)})
+        results=append_params_to_dict(results, optimized_Log_Reg_lasso_)
+        results.update(rwb_obj.results[2])
+        results.update(download_params)
+        log_result(results, cwd / 'output', results_file)
+
+    # ------- Elastic Net (No PCA) -------
+    print("\n\n------- Logistic Elastic Net Model -------")
+    Log_Reg_Elastic = LogisticRegression(
+        solver='saga', class_weight='balanced',
+        random_state=1, max_iter=500, tol=LOGISTIC_TOL
+    )
+    Log_Reg_model_pipeline_Elastic = Pipeline([
+        ('scaler', StandardScaler()),
+        ('classifier', Log_Reg_Elastic)
+    ])
+    param_grid = {
+        'classifier__C': ELASTIC_NET_GRID,
+        'classifier__l1_ratio': ELASTIC_NET_L1_RATIO_GRID,
+    }
+    grid_search_elastic = GridSearchCV(
+        Log_Reg_model_pipeline_Elastic, param_grid, cv=tscv, return_train_score=True, verbose=VERBOSE,
+        scoring='balanced_accuracy',
+        refit=make_one_se_refit(['classifier__C', 'classifier__l1_ratio'])
+    )
+    grid_search_elastic.fit(X_train, y_train)
+    append_search_history(
+        history_path=history_path,
+        cv_results=grid_search_elastic.cv_results_,
+        run_time=run_time,
+        model_name="LogReg_ElasticNet",
+        search_type="grid",
+        grid_version=grid_label,
+        notes=SEARCH_NOTES,
+        best_params=grid_search_elastic.best_params_
+    )
+    rwb_obj=RollingWindowBacktest(clone(grid_search_elastic.best_estimator_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
+    rwb_obj.rolling_window_backtest(verbose=1)
+    rwb_obj.display_wfv_results()
+    optimized_Log_Reg_elastic_ = grid_search_elastic.best_estimator_
+    results=get_final_metrics(optimized_Log_Reg_elastic_, X_train, y_train, X_test, y_test, n_splits=10, label="Elastic Net Log. Reg.")
+    elastic_results = results.copy()
+    util_score=utility_score(results, rwb_obj)
+    print(f"Utility Score {util_score:.4}")
+    if (EXPORT):
+        results.update({'utility_score': round(util_score, 3)})
+        results=append_params_to_dict(results, optimized_Log_Reg_elastic_)
         results.update(rwb_obj.results[2])
         results.update(download_params)
         log_result(results, cwd / 'output', results_file)
@@ -497,8 +418,7 @@ if __name__=="__main__":
     rwb_obj.rolling_window_backtest(verbose=1)
     rwb_obj.display_wfv_results()
 
-    optimized_Log_Reg_PCA_ridge_=clone(grid_search_PCA_ridge.best_estimator_)
-    optimized_Log_Reg_PCA_ridge_.fit(X_train, y_train)
+    optimized_Log_Reg_PCA_ridge_ = grid_search_PCA_ridge.best_estimator_
 
     results=get_final_metrics(optimized_Log_Reg_PCA_ridge_, X_train, y_train, X_test, y_test, n_splits=10, label="PCA Ridge(int.) Log. Reg.")
     pca_ridge_results = results.copy()
@@ -512,7 +432,7 @@ if __name__=="__main__":
         log_result(results, cwd / 'output', results_file)
 
     # ------- PCA to LASSO(Internal) APPLICATION -------
-    Log_Reg_PCA_R=LogisticRegression(l1_ratio=1, solver='saga', class_weight='balanced', random_state=1, max_iter=500, tol=1e-2)
+    Log_Reg_PCA_R=LogisticRegression(l1_ratio=1, solver='saga', class_weight='balanced', random_state=1, max_iter=500, tol=LOGISTIC_TOL)
 
     Log_Reg_model_pipeline_PCA_R=Pipeline([('scaler', StandardScaler()),
                                            ('pca', PCA()),
@@ -544,8 +464,7 @@ if __name__=="__main__":
     rwb_obj.rolling_window_backtest(verbose=1)
     rwb_obj.display_wfv_results()
 
-    optimized_Log_Reg_PCA_lasso_=clone(grid_search_PCA_lasso.best_estimator_)
-    optimized_Log_Reg_PCA_lasso_.fit(X_train, y_train)
+    optimized_Log_Reg_PCA_lasso_ = grid_search_PCA_lasso.best_estimator_
 
     results=get_final_metrics(optimized_Log_Reg_PCA_lasso_, X_train, y_train, X_test, y_test, n_splits=10, label="PCA LASSO(int.) Log. Reg.")
     pca_lasso_results = results.copy()
@@ -559,8 +478,10 @@ if __name__=="__main__":
         log_result(results, cwd / 'output', results_file)
 
     ranking_df = pd.DataFrame([
-        {"Model": "LASSO(int.) Log. Reg.", **lasso_results},
-        {"Model": "Ridge(int.) Log. Reg.", **ridge_results},
+        {"Model": "PCA Base", **pca_base_results},
+        {"Model": "Ridge Log. Reg.", **ridge_results},
+        {"Model": "LASSO Log. Reg.", **lasso_results},
+        {"Model": "Elastic Net Log. Reg.", **elastic_results},
         {"Model": "PCA Ridge(int.) Log. Reg.", **pca_ridge_results},
         {"Model": "PCA LASSO(int.) Log. Reg.", **pca_lasso_results},
     ])
@@ -568,25 +489,57 @@ if __name__=="__main__":
     best_model_name = str(ranked_df.iloc[0]["Model"])
     output_dir = cwd / "output"
     output_dir.mkdir(parents=True, exist_ok=True)
-    if best_model_name == "LASSO(int.) Log. Reg.":
-        _save_best_logregcv_plots(
-            X_train, y_train, X_test, y_test,
-            LASSO_GRID,
-            select_logregcv_c_1se(Log_Reg_model_pipeline_R.named_steps['classifier']),
+    if best_model_name == "PCA Base":
+        save_best_model_plots_from_gridsearch(
+            grid_search_PCA_base,
+            "pca__n_components",
+            "PCA n_components",
             best_model_name,
-            1,
             output_dir / f"{output_prefix}_logreg_best_bias_variance.png",
             output_dir / f"{output_prefix}_logreg_best_train_test.png",
+            X_train,
+            y_train,
+            X_test,
+            y_test,
         )
-    elif best_model_name == "Ridge(int.) Log. Reg.":
-        _save_best_logregcv_plots(
-            X_train, y_train, X_test, y_test,
-            RIDGE_GRID,
-            select_logregcv_c_1se(Log_Reg_model_pipeline_L.named_steps['classifier']),
+    elif best_model_name == "Ridge Log. Reg.":
+        save_best_model_plots_from_gridsearch(
+            grid_search_ridge,
+            "classifier__C",
+            "C",
             best_model_name,
-            0,
             output_dir / f"{output_prefix}_logreg_best_bias_variance.png",
             output_dir / f"{output_prefix}_logreg_best_train_test.png",
+            X_train,
+            y_train,
+            X_test,
+            y_test,
+        )
+    elif best_model_name == "LASSO Log. Reg.":
+        save_best_model_plots_from_gridsearch(
+            grid_search_lasso,
+            "classifier__C",
+            "C",
+            best_model_name,
+            output_dir / f"{output_prefix}_logreg_best_bias_variance.png",
+            output_dir / f"{output_prefix}_logreg_best_train_test.png",
+            X_train,
+            y_train,
+            X_test,
+            y_test,
+        )
+    elif best_model_name == "Elastic Net Log. Reg.":
+        save_best_model_plots_from_gridsearch(
+            grid_search_elastic,
+            "classifier__C",
+            "C",
+            best_model_name,
+            output_dir / f"{output_prefix}_logreg_best_bias_variance.png",
+            output_dir / f"{output_prefix}_logreg_best_train_test.png",
+            X_train,
+            y_train,
+            X_test,
+            y_test,
         )
     elif best_model_name == "PCA Ridge(int.) Log. Reg.":
         save_best_model_plots_from_gridsearch(
@@ -615,6 +568,36 @@ if __name__=="__main__":
             y_test,
         )
     print(f"\nBest logistic model by average rank: {best_model_name}")
+
+    comparison_df = build_base_style_comparison_df([
+        comparison_row_from_metrics("PCA Base", pca_base_results),
+        comparison_row_from_metrics("Ridge Log. Reg.", ridge_results),
+        comparison_row_from_metrics("LASSO Log. Reg.", lasso_results),
+        comparison_row_from_metrics("Elastic Net Log. Reg.", elastic_results),
+        comparison_row_from_metrics("PCA Ridge(int.) Log. Reg.", pca_ridge_results),
+        comparison_row_from_metrics("PCA LASSO(int.) Log. Reg.", pca_lasso_results),
+    ])
+    comparison_export_df = comparison_df.rename(
+        index={
+            "Ridge Log. Reg.": "Ridge",
+            "LASSO Log. Reg.": "LASSO",
+            "Elastic Net Log. Reg.": "Elastic Net",
+            "PCA Ridge(int.) Log. Reg.": "PCA Ridge(int.)",
+            "PCA LASSO(int.) Log. Reg.": "PCA LASSO(int.)",
+        }
+    )
+    print("\n===== Logistic Regression Comparison Table =====")
+    print(comparison_df.to_string())
+    comparison_csv = cwd / "output" / f"{output_prefix}_logistic_regression_comparison.csv"
+    comparison_tex = cwd / "output" / f"{output_prefix}_logistic_regression_comparison.tex"
+    comparison_export_df.to_csv(comparison_csv, float_format='%.3f')
+    write_base_style_latex_table(
+        comparison_export_df,
+        comparison_tex,
+        'Logistic Regression Model Comparison',
+        'tab:logistic_regression_comparison',
+        'Test Acc = plain hold-out accuracy on the final 20% test split. All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. Recall = positive-class sensitivity.'
+    )
 
     append_search_run(
         runs_path=runs_path,

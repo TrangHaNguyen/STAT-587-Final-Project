@@ -252,6 +252,61 @@ def save_best_model_plots_from_gridsearch(
     plt.savefig(output_direct, dpi=150, bbox_inches='tight')
     plt.close()
 
+
+def comparison_row_from_metrics(model_name: str, metrics: dict) -> dict:
+    """Format one model's metrics into the report-table columns used in base.py."""
+    return {
+        'Model': model_name,
+        'Test Acc': metrics['test_split_accuracy'],
+        'Precision': metrics['test_precision'],
+        'Recall': metrics['test_recall'],
+        'Specificity': metrics['test_specificity'],
+        'F1': metrics['test_f1'],
+        'ROC-AUC': metrics['test_roc_auc_macro'],
+        'CV Acc SD': metrics['validation_std_accuracy'],
+    }
+
+
+def build_base_style_comparison_df(rows: list[dict]) -> pd.DataFrame:
+    df = pd.DataFrame(rows).set_index('Model')
+    keep_cols = ['Test Acc', 'Precision', 'Recall', 'Specificity', 'F1', 'ROC-AUC', 'CV Acc SD']
+    return df[keep_cols]
+
+
+def _latex_escape(text: str) -> str:
+    return (str(text)
+            .replace("\\", r"\textbackslash{}")
+            .replace("&", r"\&")
+            .replace("%", r"\%")
+            .replace("_", r"\_")
+            .replace("#", r"\#")
+            .replace("$", r"\$")
+            .replace("{", r"\{")
+            .replace("}", r"\}"))
+
+
+def write_base_style_latex_table(df: pd.DataFrame, path, caption: str, label: str, note: str) -> None:
+    """Write a simple LaTeX comparison table using the base.py reporting columns."""
+    col_fmt = 'l' + 'r' * len(df.columns)
+    col_header = ' & '.join(['Model'] + list(df.columns)) + r' \\'
+    with open(path, 'w', encoding='utf-8') as f:
+        f.write(r'\begin{table}[htbp]' + '\n')
+        f.write(r'\centering' + '\n')
+        f.write(r'\caption{' + _latex_escape(caption) + '}\n')
+        f.write(r'\label{' + _latex_escape(label) + '}\n')
+        f.write(r'\begin{tabular}{' + col_fmt + '}\n')
+        f.write(r'\toprule' + '\n')
+        f.write(col_header + '\n')
+        f.write(r'\midrule' + '\n')
+        for name, row in df.iterrows():
+            formatted_vals = [f'{v:.3f}' for v in row.values]
+            f.write(_latex_escape(name) + ' & ' + ' & '.join(formatted_vals) + r' \\' + '\n')
+        f.write(r'\bottomrule' + '\n')
+        f.write(r'\end{tabular}' + '\n')
+        f.write(r'\par\smallskip' + '\n')
+        f.write(r'\footnotesize ' + _latex_escape(note) + '\n')
+        f.write(r'\end{table}' + '\n')
+
 def get_final_metrics(model_obj, X_train, y_train, X_test, y_test, n_splits: int =5, label: str | None =None) -> dict:
     # Previous temporary change used `KFold(n_splits=5, shuffle=False)`.
     tscv = TimeSeriesSplit(n_splits=n_splits)

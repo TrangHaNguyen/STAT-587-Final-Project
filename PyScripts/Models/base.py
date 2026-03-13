@@ -5,28 +5,25 @@ This script trains and evaluates baseline logistic regression models:
   - Baseline (No Regularization) with optimal PCA components (grid search)
   - Ridge (L2) regularization with cross-validation
   - LASSO (L1) regularization with cross-validation
-  
+
 Tested on:
   - Raw OHLCV features
   - Raw OHLCV + Day-of-Week features
-  
-All models are cached for later retrieval and analysis.
+
+Best-model diagnostics are computed only for the final selected plot winner.
 
 SCRIPT STRUCTURE:
-  1. Model Training (lines 50-600): Run models and save to cache
+  1. Model Training (lines 50-600): Run models and prepare diagnostics
   2. Comparison Tables & LaTeX Export (lines 600-680)
-  3. Helper Functions (lines 680+): Functions to load cached results for plotting
+  3. Helper Functions (lines 680+): Optional helpers for manual cache inspection
 
 USAGE:
-  - First run / no cache files yet: keep RETRAIN_ALL = True
-  - To refresh all cached outputs: Set RETRAIN_ALL = True
-  - To reuse only the cached diagnostics curves: Set RETRAIN_ALL = False
-  - To load cached results: Use helper functions at the end of this file
-    Example: cached_data = load_baseline_pca_results()
+  - The script trains/evaluates all candidate models.
+  - Bias-variance and train/test diagnostics are computed only for the final
+    selected best model.
 """
 
 import os
-import joblib
 import pandas as pd
 from H_prep import clean_data, import_data
 import numpy as np
@@ -41,43 +38,28 @@ import matplotlib.pyplot as plt
 from sklearn.linear_model import LogisticRegression, LogisticRegressionCV
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
-from sklearn.model_selection import train_test_split, TimeSeriesSplit, cross_val_score
+from sklearn.model_selection import train_test_split, TimeSeriesSplit, cross_val_score, GridSearchCV
 from sklearn.pipeline import Pipeline
+from sklearn.base import clone
 from sklearn.metrics import roc_auc_score, accuracy_score, balanced_accuracy_score
-from model_grids import BASELINE_PCA_GRID, LASSO_GRID, RIDGE_GRID
-from H_eval import get_final_metrics, rank_models_by_metrics
+from model_grids import BASELINE_PCA_GRID, LASSO_GRID, RIDGE_GRID, ELASTIC_NET_GRID, ELASTIC_NET_L1_RATIO_GRID, LOGISTIC_TOL
+from H_eval import get_final_metrics, rank_models_by_metrics, save_best_model_plots_from_gridsearch
 
-CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'cache')
-os.makedirs(CACHE_DIR, exist_ok=True)
 MODEL_N_JOBS = int(os.getenv("MODEL_N_JOBS", "-1"))
 
-# Cache files produced/consumed by this script.
-BASE_CACHE_FILES = [
-    'base_baseline_pca_cv.pkl',
-    'base_baseline_pca_dow_cv.pkl',
-    'base_ridge_cv.pkl',
-    'base_lasso_cv.pkl',
-    'base_ridge_pca_cv.pkl',
-    'base_lasso_pca_cv.pkl',
-    'base_ridge_dow_cv.pkl',
-    'base_lasso_dow_cv.pkl',
-    'base_ridge_pca_dow_cv.pkl',
-    'base_lasso_pca_dow_cv.pkl',
-    'base_raw_diagnostics.pkl',
-    'base_pca_diagnostics.pkl',
-]
-
 def clear_base_caches():
-    removed = 0
-    for filename in BASE_CACHE_FILES:
-        path = os.path.join(CACHE_DIR, filename)
-        if os.path.exists(path):
-            os.remove(path)
-            removed += 1
-    print(f"Cleared {removed} base cache file(s) from {CACHE_DIR}.")
+    # No active .pkl caches are needed for the current best-model-only
+    # plotting workflow.
+    print("No active base caches to clear.")
 
 def to_binary_class(y):
     return (y >= 0).astype(int)
+
+
+def _keep_raw_stock_ohlcv(X: pd.DataFrame) -> pd.DataFrame:
+    idx = pd.IndexSlice
+    metrics = ['Open', 'Close', 'High', 'Low', 'Volume']
+    return X.loc[:, idx[metrics, 'Stocks', :]].copy()
 
 def _select_pca_n_components_best_cv(grid_results):
     """Choose PCA n_components by best mean CV score."""
@@ -122,7 +104,7 @@ def _compute_bv_curves(cv_clf, X_tr, y_tr, tscv_splitter, l1_ratio, solver):
                 # penalty='l1'/'l2' was being combined with the default l1_ratio=0.
                 C=c_val, l1_ratio=l1_ratio, solver=solver,
                 class_weight='balanced',
-                random_state=1, max_iter=500, tol=1e-2
+                random_state=1, max_iter=500, tol=LOGISTIC_TOL
             )
             clf.fit(X_fold, y_fold)
             train_preds = clf.predict(X_fold)
@@ -151,7 +133,7 @@ def _compute_direct_split_errors(X_train, y_train, X_test, y_test, c_grid, l1_ra
         clf = LogisticRegression(
             C=c_val, l1_ratio=l1_ratio, solver=solver,
             class_weight='balanced',
-            random_state=1, max_iter=500, tol=1e-2
+            random_state=1, max_iter=500, tol=LOGISTIC_TOL
         )
         clf.fit(X_train, y_train)
         train_errors.append(1 - clf.score(X_train, y_train))
@@ -191,10 +173,48 @@ def _compute_single_direct_split_error(X_train, y_train, X_test, y_test, c_val, 
     clf = LogisticRegression(
         C=c_val, l1_ratio=l1_ratio, solver=solver,
         class_weight='balanced',
-        random_state=1, max_iter=500, tol=1e-2
+        random_state=1, max_iter=500, tol=LOGISTIC_TOL
     )
     clf.fit(X_train, y_train)
     return 1 - clf.score(X_train, y_train), 1 - clf.score(X_test, y_test)
+
+
+def _as_sortable_numeric(value):
+    try:
+        return float(value)
+    except Exception:
+        return float("inf")
+
+
+def make_one_se_refit(complexity_cols: list[str], fixed_cols: list[str] | None = None):
+    """Return a GridSearchCV refit callable implementing the 1-SE rule."""
+    def _pick_index(cv_results):
+        mean = np.asarray(cv_results["mean_test_score"], dtype=float)
+        std = np.asarray(cv_results["std_test_score"], dtype=float)
+        se = std / np.sqrt(5)
+        best_idx = int(np.argmax(mean))
+        threshold = float(mean[best_idx] - se[best_idx])
+        candidate_idx = np.where(mean >= threshold)[0]
+        if len(candidate_idx) == 0:
+            return best_idx
+        if fixed_cols:
+            for col in fixed_cols:
+                param_key = f"param_{col}"
+                best_val = cv_results[param_key][best_idx]
+                candidate_idx = np.array([i for i in candidate_idx if cv_results[param_key][i] == best_val], dtype=int)
+                if len(candidate_idx) == 0:
+                    return best_idx
+
+        def key_fn(i: int):
+            complexity = []
+            for col in complexity_cols:
+                val = cv_results[f"param_{col}"][i]
+                complexity.append(_as_sortable_numeric(val))
+            return tuple(complexity + [-float(mean[i])])
+
+        return int(min(candidate_idx, key=key_fn))
+
+    return _pick_index
 
 
 def _plot_single_model_diagnostics(
@@ -278,19 +298,16 @@ def _plot_single_model_diagnostics(
     plt.close()
 
 if __name__ == "__main__":
-    # First run: keep True so the script generates the model and diagnostics caches.
-    # False reuses only the diagnostics .pkl files for the curve plots; the fitted
-    # models in this script are still retrained below.
+    # Retained only as a compatibility switch. The active workflow no longer
+    # writes diagnostic caches.
     RETRAIN_ALL = True
-    
-    if RETRAIN_ALL:
-        clear_base_caches()
 
     # ------- Load and preprocess data -------
     # Set testing=True for the 2-year dataset; False for the full 8-year dataset.
     TESTING = False
     DATA = import_data(testing=TESTING, extra_features=False, cluster=False, n_clusters=100, corr_threshold=0.95, corr_level=0)
     X, y_regression = clean_data(*DATA, raw=True, extra_features=False)
+    X = _keep_raw_stock_ohlcv(X)
 
     # Flatten multi-level columns to single strings: "Close_AAPL", "Volume_MSFT", etc.
     X.columns = [f"{metric}_{ticker}" for metric, _, ticker in X.columns]
@@ -330,7 +347,7 @@ if __name__ == "__main__":
         # Use C=np.inf for the unpenalized baseline under sklearn's new API.
         baseline_temp = LogisticRegression(C=np.inf, solver="lbfgs", 
                                           class_weight='balanced',
-                                          random_state=1, max_iter=500, tol=1e-2)
+                                          random_state=1, max_iter=500, tol=LOGISTIC_TOL)
         scores = cross_val_score(
             baseline_temp, X_pca_temp, y_train, cv=tscv, n_jobs=MODEL_N_JOBS, scoring='balanced_accuracy'
         )
@@ -368,22 +385,21 @@ if __name__ == "__main__":
     print("\n========== BASELINE: Plain Logistic Regression (No Regularization) + PCA ===========")
     baseline_clf = LogisticRegression(C=np.inf, solver="lbfgs", random_state=1,
                                       class_weight='balanced',
-                                      max_iter=500, tol=1e-2)
+                                      max_iter=500, tol=LOGISTIC_TOL)
     baseline_clf.fit(X_train_pca, y_train)
     
     # Cache the model and grid search results
-    _baseline_pca_cache = os.path.join(CACHE_DIR, 'base_baseline_pca_cv.pkl')
-    cache_data = {
-        'model': baseline_clf,
-        'pca': pca,
-        'scaler': scaler_pca,
-        'best_n_comp': best_n_comp,
-        'best_cv_score': best_score,
-        'grid_search_results': grid_search_results,
-        'n_components_value': n_components_raw
-    }
-    joblib.dump(cache_data, _baseline_pca_cache)
-    print(f"Baseline+PCA model cached to: {_baseline_pca_cache}")
+    # Exporting the fitted baseline PCA object to .pkl is not needed for any
+    # later figures/tables in the active workflow.
+    # cache_data = {
+    #     'model': baseline_clf,
+    #     'pca': pca,
+    #     'scaler': scaler_pca,
+    #     'best_n_comp': best_n_comp,
+    #     'best_cv_score': best_score,
+    #     'grid_search_results': grid_search_results,
+    #     'n_components_value': n_components_raw
+    # }
 
     # ------- Ridge (L2): LogisticRegressionCV — stores per-fold scores for bias-variance plot -------
     print("\n========== RIDGE (L2) Logistic Regression CV ==========")
@@ -393,12 +409,10 @@ if __name__ == "__main__":
             # Single-stage ridge logistic regression: l1_ratio=0 replaces penalty='l2'.
             Cs=RIDGE_GRID, cv=tscv, l1_ratios=[0], solver='saga',
             class_weight='balanced',
-            random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2, scoring='balanced_accuracy'
+            random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=LOGISTIC_TOL, scoring='balanced_accuracy'
         ))
     ])
     pipeline_ridge.fit(X_train, y_train)
-    _ridge_cache = os.path.join(CACHE_DIR, 'base_ridge_cv.pkl')
-    joblib.dump(pipeline_ridge, _ridge_cache)
     
     ridge_cv = pipeline_ridge.named_steps['classifier']
     ridge_c_1se, ridge_c_best, _ = _select_c_1se_from_logregcv(ridge_cv)
@@ -409,7 +423,7 @@ if __name__ == "__main__":
         ('classifier', LogisticRegression(
             C=ridge_c_1se, l1_ratio=0, solver='saga',
             class_weight='balanced',
-            random_state=1, max_iter=500, tol=1e-2
+            random_state=1, max_iter=500, tol=LOGISTIC_TOL
         ))
     ])
     pipeline_ridge_1se.fit(X_train, y_train)
@@ -422,12 +436,10 @@ if __name__ == "__main__":
             # Single-stage lasso logistic regression: l1_ratio=1 replaces penalty='l1'.
             Cs=LASSO_GRID, cv=tscv, l1_ratios=[1], solver='saga',
             class_weight='balanced',
-            random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2, scoring='balanced_accuracy'
+            random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=LOGISTIC_TOL, scoring='balanced_accuracy'
         ))
     ])
     pipeline_lasso.fit(X_train, y_train)
-    _lasso_cache = os.path.join(CACHE_DIR, 'base_lasso_cv.pkl')
-    joblib.dump(pipeline_lasso, _lasso_cache)
     
     lasso_cv = pipeline_lasso.named_steps['classifier']
     lasso_c_1se, lasso_c_best, _ = _select_c_1se_from_logregcv(lasso_cv)
@@ -438,35 +450,39 @@ if __name__ == "__main__":
         ('classifier', LogisticRegression(
             C=lasso_c_1se, l1_ratio=1, solver='saga',
             class_weight='balanced',
-            random_state=1, max_iter=500, tol=1e-2
+            random_state=1, max_iter=500, tol=LOGISTIC_TOL
         ))
     ])
     pipeline_lasso_1se.fit(X_train, y_train)
 
-    # ------- Store diagnostics for later best-model plotting -------
-    print("\n========== Preparing Raw Diagnostics ==========")
-    raw_diag_cache = os.path.join(CACHE_DIR, 'base_raw_diagnostics.pkl')
+    # ------- Elastic Net (raw): GridSearchCV with 1SE refit -------
+    print("\n========== ELASTIC NET Logistic Regression Grid Search ==========")
+    pipeline_elastic = Pipeline([
+        ('scaler', StandardScaler()),
+        ('classifier', LogisticRegression(
+            solver='saga', class_weight='balanced',
+            random_state=1, max_iter=500, tol=LOGISTIC_TOL
+        ))
+    ])
+    elastic_param_grid = {
+        'classifier__C': ELASTIC_NET_GRID,
+        'classifier__l1_ratio': ELASTIC_NET_L1_RATIO_GRID,
+    }
+    grid_search_elastic = GridSearchCV(
+        pipeline_elastic, elastic_param_grid, cv=tscv, return_train_score=True,
+        n_jobs=MODEL_N_JOBS, scoring='balanced_accuracy',
+        refit=make_one_se_refit(['classifier__C', 'classifier__l1_ratio'])
+    )
+    grid_search_elastic.fit(X_train, y_train)
+    elastic_best_c = float(grid_search_elastic.best_params_['classifier__C'])
+    elastic_best_l1 = float(grid_search_elastic.best_params_['classifier__l1_ratio'])
+    print(f"1SE-selected Elastic Net params: C={elastic_best_c:.6f}, l1_ratio={elastic_best_l1:.3f}")
+    pipeline_elastic_1se = clone(grid_search_elastic.best_estimator_)
+    pipeline_elastic_1se.fit(X_train, y_train)
+
     raw_scaler = StandardScaler()
     X_train_raw_sc = raw_scaler.fit_transform(X_train)
     X_test_raw_sc = raw_scaler.transform(X_test)
-    if (not RETRAIN_ALL) and os.path.exists(raw_diag_cache):
-        raw_diagnostics = joblib.load(raw_diag_cache)
-    else:
-        raw_diagnostics = {
-            'ridge_bv': _compute_bv_curves(ridge_cv, X_train_raw_sc, y_train, tscv, 0, 'saga'),
-            'lasso_bv': _compute_bv_curves(lasso_cv, X_train_raw_sc, y_train, tscv, 1, 'saga'),
-            'ridge_direct': _compute_direct_split_errors(
-                X_train_raw_sc, y_train, X_test_raw_sc, y_test,
-                ridge_cv.Cs_,
-                0, 'saga'
-            ),
-            'lasso_direct': _compute_direct_split_errors(
-                X_train_raw_sc, y_train, X_test_raw_sc, y_test,
-                lasso_cv.Cs_,
-                1, 'saga'
-            ),
-        }
-        joblib.dump(raw_diagnostics, raw_diag_cache)
     output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'output')
     os.makedirs(output_dir, exist_ok=True)
 
@@ -476,17 +492,15 @@ if __name__ == "__main__":
     clf_ridge_pca = LogisticRegressionCV(
         Cs=RIDGE_GRID, cv=tscv, l1_ratios=[0], solver='saga',
         class_weight='balanced',
-        random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2, scoring='balanced_accuracy')
+        random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=LOGISTIC_TOL, scoring='balanced_accuracy')
     clf_ridge_pca.fit(X_train_pca, y_train)
-    _ridge_pca_cache = os.path.join(CACHE_DIR, 'base_ridge_pca_cv.pkl')
-    joblib.dump(clf_ridge_pca, _ridge_pca_cache)
     ridge_pca_c_1se, ridge_pca_c_best, _ = _select_c_1se_from_logregcv(clf_ridge_pca)
     print(f"Best C by mean CV (Ridge+PCA): {ridge_pca_c_best:.6f}")
     print(f"1SE-selected C (Ridge+PCA):    {ridge_pca_c_1se:.6f}")
     clf_ridge_pca_1se = LogisticRegression(
         C=ridge_pca_c_1se, l1_ratio=0, solver='saga',
         class_weight='balanced',
-        random_state=1, max_iter=500, tol=1e-2
+        random_state=1, max_iter=500, tol=LOGISTIC_TOL
     )
     clf_ridge_pca_1se.fit(X_train_pca, y_train)
 
@@ -495,41 +509,17 @@ if __name__ == "__main__":
     clf_lasso_pca = LogisticRegressionCV(
         Cs=LASSO_GRID, cv=tscv, l1_ratios=[1], solver='saga',
         class_weight='balanced',
-        random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2, scoring='balanced_accuracy')
+        random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=LOGISTIC_TOL, scoring='balanced_accuracy')
     clf_lasso_pca.fit(X_train_pca, y_train)
-    _lasso_pca_cache = os.path.join(CACHE_DIR, 'base_lasso_pca_cv.pkl')
-    joblib.dump(clf_lasso_pca, _lasso_pca_cache)
     lasso_pca_c_1se, lasso_pca_c_best, _ = _select_c_1se_from_logregcv(clf_lasso_pca)
     print(f"Best C by mean CV (LASSO+PCA): {lasso_pca_c_best:.6f}")
     print(f"1SE-selected C (LASSO+PCA):    {lasso_pca_c_1se:.6f}")
     clf_lasso_pca_1se = LogisticRegression(
         C=lasso_pca_c_1se, l1_ratio=1, solver='saga',
         class_weight='balanced',
-        random_state=1, max_iter=500, tol=1e-2
+        random_state=1, max_iter=500, tol=LOGISTIC_TOL
     )
     clf_lasso_pca_1se.fit(X_train_pca, y_train)
-
-    # ------- Store PCA diagnostics for later best-model plotting -------
-    print("\n========== Preparing PCA Diagnostics ==========")
-    pca_diag_cache = os.path.join(CACHE_DIR, 'base_pca_diagnostics.pkl')
-    if (not RETRAIN_ALL) and os.path.exists(pca_diag_cache):
-        pca_diagnostics = joblib.load(pca_diag_cache)
-    else:
-        pca_diagnostics = {
-            'ridge_bv': _compute_bv_curves(clf_ridge_pca, X_train_pca, y_train, tscv, 0, 'saga'),
-            'lasso_bv': _compute_bv_curves(clf_lasso_pca, X_train_pca, y_train, tscv, 1, 'saga'),
-            'ridge_direct': _compute_direct_split_errors(
-                X_train_pca, y_train, X_test_pca, y_test,
-                _augment_c_grid_with_selected_values(clf_ridge_pca.Cs_, ridge_pca_c_1se),
-                0, 'saga'
-            ),
-            'lasso_direct': _compute_direct_split_errors(
-                X_train_pca, y_train, X_test_pca, y_test,
-                _augment_c_grid_with_selected_values(clf_lasso_pca.Cs_, lasso_pca_c_1se),
-                1, 'saga'
-            ),
-        }
-        joblib.dump(pca_diagnostics, pca_diag_cache)
 
     # ===================================================================
     # MODEL COMPARISON TABLE
@@ -538,7 +528,7 @@ if __name__ == "__main__":
 
     ranking_rows = []
 
-    def _eval_row(name, model, X_tr, y_tr, X_te, y_te, n_splits, best_c=None):
+    def _eval_row(name, model, X_tr, y_tr, X_te, y_te, n_splits, best_c=None, best_c_label=None):
         shared = get_final_metrics(
             model, X_tr, y_tr, X_te, y_te, n_splits=n_splits, label=name
         )
@@ -551,7 +541,7 @@ if __name__ == "__main__":
         )
         return {
             'Model':           name,
-            'Best C':          f'{best_c:.6f}' if best_c is not None else 'N/A',
+            'Best C':          best_c_label if best_c_label is not None else (f'{best_c:.6f}' if best_c is not None else 'N/A'),
             'Avg CV Train Plain Acc':   shared['train_avg_accuracy'],
             'CV Train Plain Acc SD':    shared['train_std_accuracy'],
             'Avg CV Validation Plain Acc': shared['validation_avg_accuracy'],
@@ -569,6 +559,7 @@ if __name__ == "__main__":
         _eval_row(f'Base+PCA ({n_components_raw}, {best_n_comp*100:.0f}%)', baseline_clf, X_train_pca, y_train, X_test_pca, y_test, tscv.n_splits, best_c=None),
         _eval_row('Ridge (raw)', pipeline_ridge_1se, X_train, y_train, X_test, y_test, tscv.n_splits, best_c=ridge_c_1se),
         _eval_row('LASSO (raw)', pipeline_lasso_1se, X_train, y_train, X_test, y_test, tscv.n_splits, best_c=lasso_c_1se),
+        _eval_row('Elastic Net (raw)', pipeline_elastic_1se, X_train, y_train, X_test, y_test, tscv.n_splits, best_c=elastic_best_c, best_c_label=f'{elastic_best_c:.6f} (l1={elastic_best_l1:.2f})'),
         _eval_row(f'Ridge+PCA ({n_components_raw})', clf_ridge_pca_1se, X_train_pca, y_train, X_test_pca, y_test, tscv.n_splits, best_c=ridge_pca_c_1se),
         _eval_row(f'LASSO+PCA ({n_components_raw})', clf_lasso_pca_1se, X_train_pca, y_train, X_test_pca, y_test, tscv.n_splits, best_c=lasso_pca_c_1se),
     ]
@@ -583,9 +574,7 @@ if __name__ == "__main__":
 
     plot_configs = {
         'Ridge (raw)': {
-            'diagnostics': raw_diagnostics,
-            'bv_key': 'ridge_bv',
-            'direct_key': 'ridge_direct',
+            'logregcv': ridge_cv,
             'one_se_c': ridge_c_1se,
             'model_title': 'Ridge (L2) - LR',
             'feature_title': 'Raw OHLCV Features',
@@ -595,9 +584,7 @@ if __name__ == "__main__":
             'direct_color': 'darkorange',
         },
         'LASSO (raw)': {
-            'diagnostics': raw_diagnostics,
-            'bv_key': 'lasso_bv',
-            'direct_key': 'lasso_direct',
+            'logregcv': lasso_cv,
             'one_se_c': lasso_c_1se,
             'model_title': 'LASSO (L1) - LR',
             'feature_title': 'Raw OHLCV Features',
@@ -607,9 +594,7 @@ if __name__ == "__main__":
             'direct_color': 'seagreen',
         },
         f'Ridge+PCA ({n_components_raw})': {
-            'diagnostics': pca_diagnostics,
-            'bv_key': 'ridge_bv',
-            'direct_key': 'ridge_direct',
+            'logregcv': clf_ridge_pca,
             'one_se_c': ridge_pca_c_1se,
             'model_title': 'Ridge (L2) - LR',
             'feature_title': f'PCA Features ({n_components_raw} comps, {best_n_comp*100:.0f}% variance)',
@@ -619,9 +604,7 @@ if __name__ == "__main__":
             'direct_color': 'darkorange',
         },
         f'LASSO+PCA ({n_components_raw})': {
-            'diagnostics': pca_diagnostics,
-            'bv_key': 'lasso_bv',
-            'direct_key': 'lasso_direct',
+            'logregcv': clf_lasso_pca,
             'one_se_c': lasso_pca_c_1se,
             'model_title': 'LASSO (L1) - LR',
             'feature_title': f'PCA Features ({n_components_raw} comps, {best_n_comp*100:.0f}% variance)',
@@ -629,6 +612,14 @@ if __name__ == "__main__":
             'X_test_plot': X_test_pca,
             'l1_ratio': 1,
             'direct_color': 'seagreen',
+        },
+        'Elastic Net (raw)': {
+            'grid_search': grid_search_elastic,
+            'x_param': 'classifier__C',
+            'x_label': 'C',
+            'model_title': 'Elastic Net - LR',
+            'X_train_plot': X_train,
+            'X_test_plot': X_test,
         },
     }
 
@@ -648,22 +639,59 @@ if __name__ == "__main__":
         print(f"\nBest model by average rank: {plot_model_name}")
 
     best_plot_cfg = plot_configs[plot_model_name]
-    _plot_single_model_diagnostics(
-        diagnostics=best_plot_cfg['diagnostics'],
-        bv_key=best_plot_cfg['bv_key'],
-        direct_key=best_plot_cfg['direct_key'],
-        one_se_c=best_plot_cfg['one_se_c'],
-        model_title=best_plot_cfg['model_title'],
-        feature_title=best_plot_cfg['feature_title'],
-        X_train_plot=best_plot_cfg['X_train_plot'],
-        y_train=y_train,
-        X_test_plot=best_plot_cfg['X_test_plot'],
-        y_test=y_test,
-        l1_ratio=best_plot_cfg['l1_ratio'],
-        output_bv=os.path.join(output_dir, '8yrs_1SE_base_logistic_best_bias_variance.png'),
-        output_direct=os.path.join(output_dir, '8yrs_1SE_base_logistic_best_train_test.png'),
-        direct_color=best_plot_cfg['direct_color'],
-    )
+    if 'grid_search' in best_plot_cfg:
+        save_best_model_plots_from_gridsearch(
+            best_plot_cfg['grid_search'],
+            best_plot_cfg['x_param'],
+            best_plot_cfg['x_label'],
+            best_plot_cfg['model_title'],
+            os.path.join(output_dir, '8yrs_1SE_base_logistic_best_bias_variance.png'),
+            os.path.join(output_dir, '8yrs_1SE_base_logistic_best_train_test.png'),
+            best_plot_cfg['X_train_plot'],
+            y_train,
+            best_plot_cfg['X_test_plot'],
+            y_test,
+        )
+    else:
+        print(f"\n========== Preparing Diagnostics for {plot_model_name} ==========")
+        diagnostics = {
+            'single_bv': _compute_bv_curves(
+                best_plot_cfg['logregcv'],
+                best_plot_cfg['X_train_plot'],
+                y_train,
+                tscv,
+                best_plot_cfg['l1_ratio'],
+                'saga',
+            ),
+            'single_direct': _compute_direct_split_errors(
+                best_plot_cfg['X_train_plot'],
+                y_train,
+                best_plot_cfg['X_test_plot'],
+                y_test,
+                _augment_c_grid_with_selected_values(
+                    best_plot_cfg['logregcv'].Cs_,
+                    best_plot_cfg['one_se_c'],
+                ),
+                best_plot_cfg['l1_ratio'],
+                'saga',
+            ),
+        }
+        _plot_single_model_diagnostics(
+            diagnostics=diagnostics,
+            bv_key='single_bv',
+            direct_key='single_direct',
+            one_se_c=best_plot_cfg['one_se_c'],
+            model_title=best_plot_cfg['model_title'],
+            feature_title=best_plot_cfg['feature_title'],
+            X_train_plot=best_plot_cfg['X_train_plot'],
+            y_train=y_train,
+            X_test_plot=best_plot_cfg['X_test_plot'],
+            y_test=y_test,
+            l1_ratio=best_plot_cfg['l1_ratio'],
+            output_bv=os.path.join(output_dir, '8yrs_1SE_base_logistic_best_bias_variance.png'),
+            output_direct=os.path.join(output_dir, '8yrs_1SE_base_logistic_best_train_test.png'),
+            direct_color=best_plot_cfg['direct_color'],
+        )
 
     # ===================================================================
     # DAY-OF-WEEK EXTENSION
@@ -704,7 +732,7 @@ if __name__ == "__main__":
         # Cross-validate baseline model
         baseline_temp = LogisticRegression(C=np.inf, solver="lbfgs", 
                                           class_weight='balanced',
-                                          random_state=1, max_iter=500, tol=1e-2)
+                                          random_state=1, max_iter=500, tol=LOGISTIC_TOL)
         scores = cross_val_score(
             baseline_temp, X_pca_temp, y_train, cv=tscv, n_jobs=MODEL_N_JOBS, scoring='balanced_accuracy'
         )
@@ -742,22 +770,21 @@ if __name__ == "__main__":
     print("\n========== BASELINE (No Reg) + DOW + PCA ===========")
     baseline_dow_clf = LogisticRegression(C=np.inf, solver='lbfgs', random_state=1,
                                           class_weight='balanced',
-                                          max_iter=500, tol=1e-2)
+                                          max_iter=500, tol=LOGISTIC_TOL)
     baseline_dow_clf.fit(X_train_dow_pca, y_train)
     
     # Cache the model and grid search results
-    _baseline_pca_dow_cache = os.path.join(CACHE_DIR, 'base_baseline_pca_dow_cv.pkl')
-    cache_data = {
-        'model': baseline_dow_clf,
-        'pca': pca_dow,
-        'scaler': scaler_pca_dow,
-        'best_n_comp': best_n_comp_dow,
-        'best_cv_score': best_score_dow,
-        'grid_search_results': grid_search_results_dow,
-        'n_components_value': n_components_dow
-    }
-    joblib.dump(cache_data, _baseline_pca_dow_cache)
-    print(f"Baseline+PCA+DOW model cached to: {_baseline_pca_dow_cache}")
+    # Exporting the fitted DOW baseline PCA object to .pkl is not needed for
+    # any later figures/tables in the active workflow.
+    # cache_data = {
+    #     'model': baseline_dow_clf,
+    #     'pca': pca_dow,
+    #     'scaler': scaler_pca_dow,
+    #     'best_n_comp': best_n_comp_dow,
+    #     'best_cv_score': best_score_dow,
+    #     'grid_search_results': grid_search_results_dow,
+    #     'n_components_value': n_components_dow
+    # }
 
     # --- Ridge CV + DOW ---
     print("\n========== RIDGE CV + DOW ==========")
@@ -766,12 +793,10 @@ if __name__ == "__main__":
         ('classifier', LogisticRegressionCV(
             Cs=RIDGE_GRID, cv=tscv, l1_ratios=[0], solver='saga',
             class_weight='balanced',
-            random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2, scoring='balanced_accuracy'
+            random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=LOGISTIC_TOL, scoring='balanced_accuracy'
         ))
     ])
     pipeline_ridge_dow.fit(X_train_dow, y_train)
-    _ridge_dow_cache = os.path.join(CACHE_DIR, 'base_ridge_dow_cv.pkl')
-    joblib.dump(pipeline_ridge_dow, _ridge_dow_cache)
     ridge_dow_cv = pipeline_ridge_dow.named_steps['classifier']
     ridge_dow_c_1se, ridge_dow_c_best, _ = _select_c_1se_from_logregcv(ridge_dow_cv)
     print(f"Best C by mean CV (Ridge+DOW): {ridge_dow_c_best:.6f}")
@@ -781,7 +806,7 @@ if __name__ == "__main__":
         ('classifier', LogisticRegression(
             C=ridge_dow_c_1se, l1_ratio=0, solver='saga',
             class_weight='balanced',
-            random_state=1, max_iter=500, tol=1e-2
+            random_state=1, max_iter=500, tol=LOGISTIC_TOL
         ))
     ])
     pipeline_ridge_dow_1se.fit(X_train_dow, y_train)
@@ -793,12 +818,10 @@ if __name__ == "__main__":
         ('classifier', LogisticRegressionCV(
             Cs=LASSO_GRID, cv=tscv, l1_ratios=[1], solver='saga',
             class_weight='balanced',
-            random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2, scoring='balanced_accuracy'
+            random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=LOGISTIC_TOL, scoring='balanced_accuracy'
         ))
     ])
     pipeline_lasso_dow.fit(X_train_dow, y_train)
-    _lasso_dow_cache = os.path.join(CACHE_DIR, 'base_lasso_dow_cv.pkl')
-    joblib.dump(pipeline_lasso_dow, _lasso_dow_cache)
     lasso_dow_cv = pipeline_lasso_dow.named_steps['classifier']
     lasso_dow_c_1se, lasso_dow_c_best, _ = _select_c_1se_from_logregcv(lasso_dow_cv)
     print(f"Best C by mean CV (LASSO+DOW): {lasso_dow_c_best:.6f}")
@@ -808,7 +831,7 @@ if __name__ == "__main__":
         ('classifier', LogisticRegression(
             C=lasso_dow_c_1se, l1_ratio=1, solver='saga',
             class_weight='balanced',
-            random_state=1, max_iter=500, tol=1e-2
+            random_state=1, max_iter=500, tol=LOGISTIC_TOL
         ))
     ])
     pipeline_lasso_dow_1se.fit(X_train_dow, y_train)
@@ -819,17 +842,15 @@ if __name__ == "__main__":
     clf_ridge_pca_dow = LogisticRegressionCV(
         Cs=RIDGE_GRID, cv=tscv, l1_ratios=[0], solver='saga',
         class_weight='balanced',
-        random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2, scoring='balanced_accuracy')
+        random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=LOGISTIC_TOL, scoring='balanced_accuracy')
     clf_ridge_pca_dow.fit(X_train_dow_pca, y_train)
-    _ridge_pca_dow_cache = os.path.join(CACHE_DIR, 'base_ridge_pca_dow_cv.pkl')
-    joblib.dump(clf_ridge_pca_dow, _ridge_pca_dow_cache)
     ridge_pca_dow_c_1se, ridge_pca_dow_c_best, _ = _select_c_1se_from_logregcv(clf_ridge_pca_dow)
     print(f"Best C by mean CV (Ridge+PCA+DOW): {ridge_pca_dow_c_best:.6f}")
     print(f"1SE-selected C (Ridge+PCA+DOW):    {ridge_pca_dow_c_1se:.6f}")
     clf_ridge_pca_dow_1se = LogisticRegression(
         C=ridge_pca_dow_c_1se, l1_ratio=0, solver='saga',
         class_weight='balanced',
-        random_state=1, max_iter=500, tol=1e-2
+        random_state=1, max_iter=500, tol=LOGISTIC_TOL
     )
     clf_ridge_pca_dow_1se.fit(X_train_dow_pca, y_train)
 
@@ -838,17 +859,15 @@ if __name__ == "__main__":
     clf_lasso_pca_dow = LogisticRegressionCV(
         Cs=LASSO_GRID, cv=tscv, l1_ratios=[1], solver='saga',
         class_weight='balanced',
-        random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2, scoring='balanced_accuracy')
+        random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=LOGISTIC_TOL, scoring='balanced_accuracy')
     clf_lasso_pca_dow.fit(X_train_dow_pca, y_train)
-    _lasso_pca_dow_cache = os.path.join(CACHE_DIR, 'base_lasso_pca_dow_cv.pkl')
-    joblib.dump(clf_lasso_pca_dow, _lasso_pca_dow_cache)
     lasso_pca_dow_c_1se, lasso_pca_dow_c_best, _ = _select_c_1se_from_logregcv(clf_lasso_pca_dow)
     print(f"Best C by mean CV (LASSO+PCA+DOW): {lasso_pca_dow_c_best:.6f}")
     print(f"1SE-selected C (LASSO+PCA+DOW):    {lasso_pca_dow_c_1se:.6f}")
     clf_lasso_pca_dow_1se = LogisticRegression(
         C=lasso_pca_dow_c_1se, l1_ratio=1, solver='saga',
         class_weight='balanced',
-        random_state=1, max_iter=500, tol=1e-2
+        random_state=1, max_iter=500, tol=LOGISTIC_TOL
     )
     clf_lasso_pca_dow_1se.fit(X_train_dow_pca, y_train)
 
@@ -952,110 +971,5 @@ if __name__ == "__main__":
     print(f"LaTeX table saved to:           {os.path.abspath(tex_path)}")
 
     print("\n" + "="*70)
-    print("All models trained and cached successfully!")
+    print("All models trained successfully!")
     print("="*70)
-
-
-# ===============================================================================
-# HELPER FUNCTIONS FOR READING CACHED RESULTS (FOR PLOTTING & ANALYSIS)
-# ===============================================================================
-
-def load_baseline_pca_results(cache_dir=None):
-    """
-    Load the cached baseline PCA grid search results for analysis and plotting.
-    
-    Returns:
-        dict: Contains model, PCA transformer, scaler, best n_components, 
-              CV scores, and full grid search results
-              
-    Example usage:
-        >>> cached_data = load_baseline_pca_results()
-        >>> print(f"Best variance threshold: {cached_data['best_n_comp']}")
-        >>> print(f"Best CV score: {cached_data['best_cv_score']:.4f}")
-        >>> 
-        >>> # Plot grid search results
-        >>> import matplotlib.pyplot as plt
-        >>> results = cached_data['grid_search_results']
-        >>> n_comps = [r['n_components'] for r in results]
-        >>> means = [r['mean_cv_score'] for r in results]
-        >>> stds = [r['std_cv_score'] for r in results]
-        >>> plt.errorbar(n_comps, means, yerr=stds, marker='o')
-        >>> plt.xlabel('Variance Threshold')
-        >>> plt.ylabel('CV Accuracy')
-        >>> plt.show()
-    """
-    if cache_dir is None:
-        cache_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'cache')
-    
-    cache_path = os.path.join(cache_dir, 'base_baseline_pca_cv.pkl')
-    
-    if not os.path.exists(cache_path):
-        raise FileNotFoundError(f"Cache file not found: {cache_path}. Run base.py first to generate it.")
-    
-    return joblib.load(cache_path)
-
-
-def load_baseline_pca_dow_results(cache_dir=None):
-    """
-    Load the cached baseline PCA+DOW grid search results for analysis and plotting.
-    
-    Returns:
-        dict: Contains model, PCA transformer, scaler, best n_components, 
-              CV scores, and full grid search results
-    """
-    if cache_dir is None:
-        cache_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'cache')
-    
-    cache_path = os.path.join(cache_dir, 'base_baseline_pca_dow_cv.pkl')
-    
-    if not os.path.exists(cache_path):
-        raise FileNotFoundError(f"Cache file not found: {cache_path}. Run base.py first to generate it.")
-    
-    return joblib.load(cache_path)
-
-
-# Commented helper snippets for reading cached model artifacts without retraining.
-# These are not used by the main pipeline; they are here as a reference for manual
-# inspection if someone wants to recover the training path from the saved .pkl files.
-#
-# Example 1: inspect the baseline PCA cache
-# ------------------------------------------------------------------------------
-# cached_data = load_baseline_pca_results()
-# print("Best PCA threshold:", cached_data['best_n_comp'])
-# print("Best CV score:", round(cached_data['best_cv_score'], 4))
-# print("PCA grid search summary:")
-# for row in cached_data['grid_search_results']:
-#     print(
-#         row['n_components'],
-#         round(row['mean_cv_score'], 4),
-#         round(row['std_cv_score'], 4),
-#         row['n_components_value'],
-#     )
-#
-# Example 2: inspect a fitted model cache directly
-# ------------------------------------------------------------------------------
-# ridge_cache = os.path.join(CACHE_DIR, 'base_ridge_cv.pkl')
-# ridge_model = joblib.load(ridge_cache)
-# ridge_cv = ridge_model.named_steps['classifier']
-# print("Ridge best C:", ridge_cv.C_[0])
-# ridge_scores = np.array(list(ridge_cv.scores_.values())[0])
-# print("Ridge CV mean accuracy by C:", ridge_scores.mean(axis=0))
-#
-# Example 3: inspect the cached diagnostics used for the figures
-# ------------------------------------------------------------------------------
-# raw_diag_cache = os.path.join(CACHE_DIR, 'base_raw_diagnostics.pkl')
-# raw_diag = joblib.load(raw_diag_cache)
-# print(raw_diag.keys())  # 'ridge_bv', 'lasso_bv', 'ridge_direct', 'lasso_direct'
-# ridge_diag = raw_diag['ridge_bv']
-# print("Stored C grid:", ridge_diag['cs'])
-# print("CV error mean:", ridge_diag['cv_err_mean'])
-# print("Train error mean:", ridge_diag['tr_err_mean'])
-# print("Direct test error:", raw_diag['ridge_direct']['test_errors'])
-#
-# pca_diag_cache = os.path.join(CACHE_DIR, 'base_pca_diagnostics.pkl')
-# pca_diag = joblib.load(pca_diag_cache)
-# print("PCA diagnostic keys:", pca_diag.keys())
-#
-# Removed unused load_all_cached_models helper and dead example block.
-# The main training, figure generation, and table export paths load only the
-# specific cache files they need above.

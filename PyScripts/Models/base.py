@@ -44,8 +44,8 @@ from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split, TimeSeriesSplit, cross_val_score
 from sklearn.pipeline import Pipeline
 from sklearn.metrics import roc_auc_score, accuracy_score, balanced_accuracy_score
-from model_grids import BASELINE_PCA_GRID
-from H_eval import get_final_metrics
+from model_grids import BASELINE_PCA_GRID, LASSO_GRID, RIDGE_GRID
+from H_eval import get_final_metrics, rank_models_by_metrics
 
 CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'cache')
 os.makedirs(CACHE_DIR, exist_ok=True)
@@ -196,6 +196,87 @@ def _compute_single_direct_split_error(X_train, y_train, X_test, y_test, c_val, 
     clf.fit(X_train, y_train)
     return 1 - clf.score(X_train, y_train), 1 - clf.score(X_test, y_test)
 
+
+def _plot_single_model_diagnostics(
+    diagnostics,
+    bv_key,
+    direct_key,
+    one_se_c,
+    model_title,
+    feature_title,
+    X_train_plot,
+    y_train,
+    X_test_plot,
+    y_test,
+    l1_ratio,
+    output_bv,
+    output_direct,
+    direct_color='darkorange',
+):
+    diag = diagnostics[bv_key]
+    direct_diag = diagnostics[direct_key]
+    cs = diag['cs']
+    best_idx = int(np.argmin(diag['cv_bal_err_mean']))
+    selected_c = float(cs[best_idx])
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+    fig.suptitle(
+        f'Bias-Variance Tradeoff - {model_title}\n{feature_title}',
+        fontsize=13, fontweight='bold'
+    )
+    ax.semilogx(cs, diag['train_bal_err_mean'], marker='o', color='steelblue', linewidth=1.8, label='CV Train balanced error')
+    ax.semilogx(cs, diag['cv_bal_err_mean'], marker='s', color='darkorange', linewidth=1.8, label='CV Test balanced error')
+    ax.fill_between(
+        cs,
+        np.clip(diag['train_bal_err_mean'] - diag['train_bal_err_std'], 0.0, 1.0),
+        np.clip(diag['train_bal_err_mean'] + diag['train_bal_err_std'], 0.0, 1.0),
+        alpha=0.15,
+        color='steelblue',
+        label='CV Train balanced error ±1 SD'
+    )
+    ax.fill_between(
+        cs,
+        np.clip(diag['cv_bal_err_mean'] - diag['cv_bal_err_std'], 0.0, 1.0),
+        np.clip(diag['cv_bal_err_mean'] + diag['cv_bal_err_std'], 0.0, 1.0),
+        alpha=0.15,
+        color='darkorange',
+        label='CV Test balanced error ±1 SD'
+    )
+    _highlight_selected_value(ax, cs, diag['cv_bal_err_mean'], best_idx, label_prefix='Value at best CV balanced error')
+    ax.axvline(one_se_c, color='red', linestyle='--', linewidth=1.5, label=f'1SE-selected C = {one_se_c:.4f}')
+    ax.set_title(f'{model_title} - Bias-Variance Tradeoff (Balanced Error)')
+    ax.set_xlabel('C  (Inverse Regularization Strength)\n← High Regularization, Simpler Model      Low Regularization, More Complex →')
+    ax.set_ylabel('Balanced Error (1 - balanced accuracy)')
+    ax.set_ylim(0, 1.02)
+    ax.legend(fontsize=9)
+    ax.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(output_bv, dpi=150, bbox_inches='tight')
+    print(f"Figure saved to: {os.path.abspath(output_bv)}")
+    plt.close()
+
+    _, best_test_error = _compute_single_direct_split_error(
+        X_train_plot, y_train, X_test_plot, y_test, selected_c, l1_ratio, 'saga'
+    )
+    fig2, ax2 = plt.subplots(figsize=(10, 5))
+    fig2.suptitle(
+        f'Over/Underfitting Analysis - {model_title}\n{feature_title}',
+        fontsize=13, fontweight='bold'
+    )
+    ax2.semilogx(direct_diag['cs'], direct_diag['train_errors'], marker='o', color='steelblue', linewidth=2, label='Train error')
+    ax2.semilogx(direct_diag['cs'], direct_diag['test_errors'], marker='s', color=direct_color, linewidth=2, label='Test error')
+    ax2.scatter([selected_c], [best_test_error], color='gold', edgecolor='black', s=90, zorder=6, label='Value at best CV balanced error')
+    ax2.axvline(one_se_c, color='red', linestyle='--', linewidth=1.5, label=f'1SE-selected C = {one_se_c:.4f}')
+    ax2.set_title(f'{model_title} - Train vs Test Error (Plain Error)')
+    ax2.set_xlabel('C  (Inverse Regularization Strength)\n← High Regularization, Simpler Model      Low Regularization, More Complex →')
+    ax2.set_ylabel('Plain Error (1 - accuracy)')
+    ax2.legend(fontsize=9)
+    ax2.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(output_direct, dpi=150, bbox_inches='tight')
+    print(f"Figure saved to: {os.path.abspath(output_direct)}")
+    plt.close()
+
 if __name__ == "__main__":
     # First run: keep True so the script generates the model and diagnostics caches.
     # False reuses only the diagnostics .pkl files for the curve plots; the fitted
@@ -310,7 +391,7 @@ if __name__ == "__main__":
         ('scaler',     StandardScaler()),
         ('classifier', LogisticRegressionCV(
             # Single-stage ridge logistic regression: l1_ratio=0 replaces penalty='l2'.
-            Cs=20, cv=tscv, l1_ratios=[0], solver='saga',
+            Cs=RIDGE_GRID, cv=tscv, l1_ratios=[0], solver='saga',
             class_weight='balanced',
             random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2, scoring='balanced_accuracy'
         ))
@@ -339,7 +420,7 @@ if __name__ == "__main__":
         ('scaler',     StandardScaler()),
         ('classifier', LogisticRegressionCV(
             # Single-stage lasso logistic regression: l1_ratio=1 replaces penalty='l1'.
-            Cs=np.logspace(-6, 4, 20), cv=tscv, l1_ratios=[1], solver='saga',
+            Cs=LASSO_GRID, cv=tscv, l1_ratios=[1], solver='saga',
             class_weight='balanced',
             random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2, scoring='balanced_accuracy'
         ))
@@ -362,15 +443,15 @@ if __name__ == "__main__":
     ])
     pipeline_lasso_1se.fit(X_train, y_train)
 
-    # ------- Bias-Variance Tradeoff Plot (Ridge + LASSO) -------
-    print("\n========== Generating Bias-Variance Tradeoff Plot ==========")
+    # ------- Store diagnostics for later best-model plotting -------
+    print("\n========== Preparing Raw Diagnostics ==========")
     raw_diag_cache = os.path.join(CACHE_DIR, 'base_raw_diagnostics.pkl')
+    raw_scaler = StandardScaler()
+    X_train_raw_sc = raw_scaler.fit_transform(X_train)
+    X_test_raw_sc = raw_scaler.transform(X_test)
     if (not RETRAIN_ALL) and os.path.exists(raw_diag_cache):
         raw_diagnostics = joblib.load(raw_diag_cache)
     else:
-        raw_scaler = StandardScaler()
-        X_train_raw_sc = raw_scaler.fit_transform(X_train)
-        X_test_raw_sc = raw_scaler.transform(X_test)
         raw_diagnostics = {
             'ridge_bv': _compute_bv_curves(ridge_cv, X_train_raw_sc, y_train, tscv, 0, 'saga'),
             'lasso_bv': _compute_bv_curves(lasso_cv, X_train_raw_sc, y_train, tscv, 1, 'saga'),
@@ -386,113 +467,14 @@ if __name__ == "__main__":
             ),
         }
         joblib.dump(raw_diagnostics, raw_diag_cache)
-
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-    fig.suptitle('Bias-Variance Tradeoff - LR — Raw OHLCV Features\n(Train/CV Balanced Error per Regularization Strength)',
-                 fontsize=13, fontweight='bold')
-
-    for ax, (label, diag_key, c_1se) in zip(axes, [
-        ('Ridge (L2)', 'ridge_bv', ridge_c_1se),
-        ('LASSO (L1)', 'lasso_bv', lasso_c_1se),
-    ]):
-        diag = raw_diagnostics[diag_key]
-        cs = diag['cs']
-        train_bal_mean = diag['train_bal_err_mean']
-        train_bal_std = diag['train_bal_err_std']
-        cv_bal_mean = diag['cv_bal_err_mean']
-        cv_bal_std = diag['cv_bal_err_std']
-        best_idx = int(np.argmin(cv_bal_mean))
-        ax.semilogx(cs, train_bal_mean, marker='o', color='steelblue', linewidth=1.8, label='CV Train balanced error')
-        ax.semilogx(cs, cv_bal_mean, marker='s', color='darkorange', linewidth=1.8, label='CV Test balanced error')
-        ax.fill_between(
-            cs,
-            np.clip(train_bal_mean - train_bal_std, 0.0, 1.0),
-            np.clip(train_bal_mean + train_bal_std, 0.0, 1.0),
-            alpha=0.15,
-            color='steelblue',
-            label='CV Train balanced error ±1 SD'
-        )
-        ax.fill_between(
-            cs,
-            np.clip(cv_bal_mean - cv_bal_std, 0.0, 1.0),
-            np.clip(cv_bal_mean + cv_bal_std, 0.0, 1.0),
-            alpha=0.15,
-            color='darkorange',
-            label='CV Test balanced error ±1 SD'
-        )
-        _highlight_selected_value(
-            ax, cs, cv_bal_mean, best_idx,
-            label_prefix='Value at best CV balanced error'
-        )
-        ax.axvline(c_1se, color='red', linestyle='--', linewidth=1.5,
-                   label=f'1SE-selected C = {c_1se:.4f}')
-        ax.set_title(f'{label} - LR — Bias-Variance Tradeoff (Balanced Error)')
-        ax.set_xlabel('C  (Inverse Regularization Strength)\n'
-                      '← High Regularization, Simpler Model      '
-                      'Low Regularization, More Complex →')
-        ax.set_ylabel('Balanced Error (1 - balanced accuracy)')
-        ax.set_ylim(0, 1.02)
-        ax.legend(fontsize=9)
-        ax.grid(True, alpha=0.3)
-
-    plt.tight_layout()
     output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'output')
     os.makedirs(output_dir, exist_ok=True)
-    out_path = os.path.join(output_dir, '8yrs_1SE_base_logistic_bias_variance.png')
-    plt.savefig(out_path, dpi=150, bbox_inches='tight')
-    print(f"Figure saved to: {os.path.abspath(out_path)}")
-    plt.close()
-
-    # ------- Train vs Test Error Plot (direct, no CV averaging) -------
-    print("\n========== Generating Train vs Test Error Plot (Direct Split) ==========")
-
-    fig2, axes2 = plt.subplots(1, 2, figsize=(14, 5))
-    fig2.suptitle('Over/Underfitting Analysis - LR — Raw OHLCV Features\n(Direct Train/Test Split, No CV)',
-                  fontsize=13, fontweight='bold')
-
-    for ax, (label, diag_key, guide_key, color) in zip(axes2, [
-        ('Ridge (L2)', 'ridge_direct', 'ridge_bv', 'darkorange'),
-        ('LASSO (L1)', 'lasso_direct', 'lasso_bv', 'seagreen'),
-    ]):
-        diag = raw_diagnostics[diag_key]
-        guide_diag = raw_diagnostics[guide_key]
-        best_idx = int(np.argmin(guide_diag['cv_bal_err_mean']))
-        selected_c = float(guide_diag['cs'][best_idx])
-        _, best_test_error = _compute_single_direct_split_error(
-            X_train_raw_sc, y_train, X_test_raw_sc, y_test,
-            selected_c, 0 if 'ridge' in diag_key else 1, 'saga'
-        )
-        ax.semilogx(diag['cs'], diag['train_errors'], marker='o', color='steelblue',
-                    linewidth=2, label='Train error')
-        ax.semilogx(diag['cs'], diag['test_errors'], marker='s', color=color,
-                    linewidth=2, label='Test error')
-        ax.scatter(
-            [selected_c], [best_test_error],
-            color='gold', edgecolor='black', s=90, zorder=6,
-            label='Value at best CV balanced error'
-        )
-        one_se_c = ridge_c_1se if 'ridge' in diag_key else lasso_c_1se
-        ax.axvline(one_se_c, color='red', linestyle='--', linewidth=1.5,
-                   label=f'1SE-selected C = {one_se_c:.4f}')
-        ax.set_title(f'{label} - LR — Train vs Test Error (Plain Error)')
-        ax.set_xlabel('C  (Inverse Regularization Strength)\n'
-                      '← High Regularization, Simpler Model      '
-                      'Low Regularization, More Complex →')
-        ax.set_ylabel('Plain Error (1 - accuracy)')
-        ax.legend(fontsize=9)
-        ax.grid(True, alpha=0.3)
-
-    plt.tight_layout()
-    out_path2 = os.path.join(output_dir, '8yrs_1SE_base_logistic_train_test.png')
-    plt.savefig(out_path2, dpi=150, bbox_inches='tight')
-    print(f"Figure saved to: {os.path.abspath(out_path2)}")
-    plt.close()
 
 
     # ------- Ridge CV after PCA -------
     print("\n========== RIDGE (L2) + PCA — LogisticRegressionCV ==========")
     clf_ridge_pca = LogisticRegressionCV(
-        Cs=20, cv=tscv, l1_ratios=[0], solver='saga',
+        Cs=RIDGE_GRID, cv=tscv, l1_ratios=[0], solver='saga',
         class_weight='balanced',
         random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2, scoring='balanced_accuracy')
     clf_ridge_pca.fit(X_train_pca, y_train)
@@ -511,7 +493,7 @@ if __name__ == "__main__":
     # ------- LASSO CV after PCA -------
     print("\n========== LASSO (L1) + PCA — LogisticRegressionCV ==========")
     clf_lasso_pca = LogisticRegressionCV(
-        Cs=np.logspace(-6, 4, 20), cv=tscv, l1_ratios=[1], solver='saga',
+        Cs=LASSO_GRID, cv=tscv, l1_ratios=[1], solver='saga',
         class_weight='balanced',
         random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2, scoring='balanced_accuracy')
     clf_lasso_pca.fit(X_train_pca, y_train)
@@ -527,8 +509,8 @@ if __name__ == "__main__":
     )
     clf_lasso_pca_1se.fit(X_train_pca, y_train)
 
-    # ------- Bias-Variance Tradeoff Plot (PCA + Ridge/LASSO) -------
-    print("\n========== Generating PCA Bias-Variance Tradeoff Plot ==========")
+    # ------- Store PCA diagnostics for later best-model plotting -------
+    print("\n========== Preparing PCA Diagnostics ==========")
     pca_diag_cache = os.path.join(CACHE_DIR, 'base_pca_diagnostics.pkl')
     if (not RETRAIN_ALL) and os.path.exists(pca_diag_cache):
         pca_diagnostics = joblib.load(pca_diag_cache)
@@ -549,116 +531,18 @@ if __name__ == "__main__":
         }
         joblib.dump(pca_diagnostics, pca_diag_cache)
 
-    fig3, axes3 = plt.subplots(1, 2, figsize=(14, 5))
-    fig3.suptitle(f'Bias-Variance Tradeoff - LR — PCA Features ({n_components_raw} comps, {best_n_comp*100:.0f}% variance)\n'
-                  '(Train/CV Balanced Error per Regularization Strength)',
-                  fontsize=13, fontweight='bold')
-
-    for ax, (label, diag_key, c_1se) in zip(axes3, [
-        ('Ridge (L2)', 'ridge_bv', ridge_pca_c_1se),
-        ('LASSO (L1)', 'lasso_bv', lasso_pca_c_1se),
-    ]):
-        diag = pca_diagnostics[diag_key]
-        cs = diag['cs']
-        train_bal_mean = diag['train_bal_err_mean']
-        train_bal_std = diag['train_bal_err_std']
-        cv_bal_mean = diag['cv_bal_err_mean']
-        cv_bal_std = diag['cv_bal_err_std']
-        best_idx = int(np.argmin(cv_bal_mean))
-        ax.semilogx(cs, train_bal_mean, marker='o', color='steelblue', linewidth=1.8, label='CV Train balanced error')
-        ax.semilogx(cs, cv_bal_mean, marker='s', color='darkorange', linewidth=1.8, label='CV Test balanced error')
-        ax.fill_between(
-            cs,
-            np.clip(train_bal_mean - train_bal_std, 0.0, 1.0),
-            np.clip(train_bal_mean + train_bal_std, 0.0, 1.0),
-            alpha=0.15,
-            color='steelblue',
-            label='CV Train balanced error ±1 SD'
-        )
-        ax.fill_between(
-            cs,
-            np.clip(cv_bal_mean - cv_bal_std, 0.0, 1.0),
-            np.clip(cv_bal_mean + cv_bal_std, 0.0, 1.0),
-            alpha=0.15,
-            color='darkorange',
-            label='CV Test balanced error ±1 SD'
-        )
-        _highlight_selected_value(
-            ax, cs, cv_bal_mean, best_idx,
-            label_prefix='Value at best CV balanced error'
-        )
-        ax.axvline(c_1se, color='red', linestyle='--', linewidth=1.5,
-                   label=f'1SE-selected C = {c_1se:.4f}')
-        ax.set_title(f'{label} - LR — Bias-Variance Tradeoff (PCA, Balanced Error)')
-        ax.set_xlabel('C  (Inverse Regularization Strength)\n'
-                      '← High Regularization, Simpler Model      '
-                      'Low Regularization, More Complex →')
-        ax.set_ylabel('Balanced Error (1 - balanced accuracy)')
-        ax.set_ylim(0, 1.02)
-        ax.legend(fontsize=9)
-        ax.grid(True, alpha=0.3)
-
-    plt.tight_layout()
-    out_path3 = os.path.join(output_dir, '8yrs_1SE_base_logistic_pca_bias_variance.png')
-    plt.savefig(out_path3, dpi=150, bbox_inches='tight')
-    print(f"Figure saved to: {os.path.abspath(out_path3)}")
-    plt.close()
-
-    # ------- Train vs Test Error Plot after PCA (direct split) -------
-    print("\n========== Generating PCA Train vs Test Error Plot (Direct Split) ==========")
-
-    fig4, axes4 = plt.subplots(1, 2, figsize=(14, 5))
-    fig4.suptitle(f'Over/Underfitting Analysis - LR — PCA Features ({n_components_raw} comps, {best_n_comp*100:.0f}% variance)\n'
-                  '(Direct Train/Test Split, No CV)',
-                  fontsize=13, fontweight='bold')
-
-    for ax, (label, diag_key, guide_key, color) in zip(axes4, [
-        ('Ridge (L2)', 'ridge_direct', 'ridge_bv', 'darkorange'),
-        ('LASSO (L1)', 'lasso_direct', 'lasso_bv', 'seagreen'),
-    ]):
-        diag = pca_diagnostics[diag_key]
-        guide_diag = pca_diagnostics[guide_key]
-        best_idx = int(np.argmin(guide_diag['cv_bal_err_mean']))
-        selected_c = float(guide_diag['cs'][best_idx])
-        _, best_test_error = _compute_single_direct_split_error(
-            X_train_pca, y_train, X_test_pca, y_test,
-            selected_c, 0 if 'ridge' in diag_key else 1, 'saga'
-        )
-        ax.semilogx(diag['cs'], diag['train_errors'], marker='o', color='steelblue',
-                    linewidth=2, label='Train error')
-        ax.semilogx(diag['cs'], diag['test_errors'], marker='s', color=color,
-                    linewidth=2, label='Test error')
-        ax.scatter(
-            [selected_c], [best_test_error],
-            color='gold', edgecolor='black', s=90, zorder=6,
-            label='Value at best CV balanced error'
-        )
-        one_se_c = ridge_pca_c_1se if 'ridge' in diag_key else lasso_pca_c_1se
-        ax.axvline(one_se_c, color='red', linestyle='--', linewidth=1.5,
-                   label=f'1SE-selected C = {one_se_c:.4f}')
-        ax.set_title(f'{label} - LR — Train vs Test Error (PCA, Plain Error)')
-        ax.set_xlabel('C  (Inverse Regularization Strength)\n'
-                      '← High Regularization, Simpler Model      '
-                      'Low Regularization, More Complex →')
-        ax.set_ylabel('Plain Error (1 - accuracy)')
-        ax.legend(fontsize=9)
-        ax.grid(True, alpha=0.3)
-
-    plt.tight_layout()
-    out_path4 = os.path.join(output_dir, '8yrs_1SE_base_logistic_pca_train_test.png')
-    plt.savefig(out_path4, dpi=150, bbox_inches='tight')
-    print(f"Figure saved to: {os.path.abspath(out_path4)}")
-    plt.close()
-
     # ===================================================================
     # MODEL COMPARISON TABLE
     # ===================================================================
     print("\n========== Model Comparison Table ==========")
 
+    ranking_rows = []
+
     def _eval_row(name, model, X_tr, y_tr, X_te, y_te, n_splits, best_c=None):
         shared = get_final_metrics(
             model, X_tr, y_tr, X_te, y_te, n_splits=n_splits, label=name
         )
+        ranking_rows.append({'Model': name, **shared})
         preds = model.predict(X_te)
         is_degenerate = (
             best_c is not None
@@ -671,7 +555,7 @@ if __name__ == "__main__":
             'Avg CV Train Plain Acc':   shared['train_avg_accuracy'],
             'CV Train Plain Acc SD':    shared['train_std_accuracy'],
             'Avg CV Validation Plain Acc': shared['validation_avg_accuracy'],
-            'CV Acc SD':                   shared['cv_test_sd_error'],
+            'CV Acc SD':                   shared['validation_std_accuracy'],
             'Test Acc':                    shared['test_split_accuracy'],
             'Precision':       shared['test_precision'],
             'Recall':          shared['test_recall'],
@@ -691,6 +575,95 @@ if __name__ == "__main__":
 
     comparison_df = pd.DataFrame(rows).set_index('Model')
     print(comparison_df.to_string())
+
+    ranked_df = rank_models_by_metrics(pd.DataFrame(ranking_rows))
+    print("\n===== Ranked Baseline Models =====")
+    print(ranked_df[['Model', 'rank_test_split_accuracy', 'rank_test_sensitivity_macro',
+                     'rank_test_specificity_macro', 'rank_test_roc_auc_macro', 'average_rank']].to_string(index=False))
+
+    plot_configs = {
+        'Ridge (raw)': {
+            'diagnostics': raw_diagnostics,
+            'bv_key': 'ridge_bv',
+            'direct_key': 'ridge_direct',
+            'one_se_c': ridge_c_1se,
+            'model_title': 'Ridge (L2) - LR',
+            'feature_title': 'Raw OHLCV Features',
+            'X_train_plot': X_train_raw_sc,
+            'X_test_plot': X_test_raw_sc,
+            'l1_ratio': 0,
+            'direct_color': 'darkorange',
+        },
+        'LASSO (raw)': {
+            'diagnostics': raw_diagnostics,
+            'bv_key': 'lasso_bv',
+            'direct_key': 'lasso_direct',
+            'one_se_c': lasso_c_1se,
+            'model_title': 'LASSO (L1) - LR',
+            'feature_title': 'Raw OHLCV Features',
+            'X_train_plot': X_train_raw_sc,
+            'X_test_plot': X_test_raw_sc,
+            'l1_ratio': 1,
+            'direct_color': 'seagreen',
+        },
+        f'Ridge+PCA ({n_components_raw})': {
+            'diagnostics': pca_diagnostics,
+            'bv_key': 'ridge_bv',
+            'direct_key': 'ridge_direct',
+            'one_se_c': ridge_pca_c_1se,
+            'model_title': 'Ridge (L2) - LR',
+            'feature_title': f'PCA Features ({n_components_raw} comps, {best_n_comp*100:.0f}% variance)',
+            'X_train_plot': X_train_pca,
+            'X_test_plot': X_test_pca,
+            'l1_ratio': 0,
+            'direct_color': 'darkorange',
+        },
+        f'LASSO+PCA ({n_components_raw})': {
+            'diagnostics': pca_diagnostics,
+            'bv_key': 'lasso_bv',
+            'direct_key': 'lasso_direct',
+            'one_se_c': lasso_pca_c_1se,
+            'model_title': 'LASSO (L1) - LR',
+            'feature_title': f'PCA Features ({n_components_raw} comps, {best_n_comp*100:.0f}% variance)',
+            'X_train_plot': X_train_pca,
+            'X_test_plot': X_test_pca,
+            'l1_ratio': 1,
+            'direct_color': 'seagreen',
+        },
+    }
+
+    best_model_name = str(ranked_df.iloc[0]['Model'])
+    if best_model_name not in plot_configs:
+        plottable_ranked = ranked_df[ranked_df['Model'].isin(plot_configs)]
+        if plottable_ranked.empty:
+            raise ValueError("No ranked model has available diagnostics for plotting.")
+        plot_model_name = str(plottable_ranked.iloc[0]['Model'])
+        print(
+            f"\nBest overall model by average rank is '{best_model_name}', "
+            f"but available bias-variance/train-test plots exist only for regularized models. "
+            f"Plotting '{plot_model_name}' instead."
+        )
+    else:
+        plot_model_name = best_model_name
+        print(f"\nBest model by average rank: {plot_model_name}")
+
+    best_plot_cfg = plot_configs[plot_model_name]
+    _plot_single_model_diagnostics(
+        diagnostics=best_plot_cfg['diagnostics'],
+        bv_key=best_plot_cfg['bv_key'],
+        direct_key=best_plot_cfg['direct_key'],
+        one_se_c=best_plot_cfg['one_se_c'],
+        model_title=best_plot_cfg['model_title'],
+        feature_title=best_plot_cfg['feature_title'],
+        X_train_plot=best_plot_cfg['X_train_plot'],
+        y_train=y_train,
+        X_test_plot=best_plot_cfg['X_test_plot'],
+        y_test=y_test,
+        l1_ratio=best_plot_cfg['l1_ratio'],
+        output_bv=os.path.join(output_dir, '8yrs_1SE_base_logistic_best_bias_variance.png'),
+        output_direct=os.path.join(output_dir, '8yrs_1SE_base_logistic_best_train_test.png'),
+        direct_color=best_plot_cfg['direct_color'],
+    )
 
     # ===================================================================
     # DAY-OF-WEEK EXTENSION
@@ -791,7 +764,7 @@ if __name__ == "__main__":
     pipeline_ridge_dow = Pipeline([
         ('scaler',     StandardScaler()),
         ('classifier', LogisticRegressionCV(
-            Cs=20, cv=tscv, l1_ratios=[0], solver='saga',
+            Cs=RIDGE_GRID, cv=tscv, l1_ratios=[0], solver='saga',
             class_weight='balanced',
             random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2, scoring='balanced_accuracy'
         ))
@@ -818,7 +791,7 @@ if __name__ == "__main__":
     pipeline_lasso_dow = Pipeline([
         ('scaler',     StandardScaler()),
         ('classifier', LogisticRegressionCV(
-            Cs=np.logspace(-6, 4, 20), cv=tscv, l1_ratios=[1], solver='saga',
+            Cs=LASSO_GRID, cv=tscv, l1_ratios=[1], solver='saga',
             class_weight='balanced',
             random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2, scoring='balanced_accuracy'
         ))
@@ -844,7 +817,7 @@ if __name__ == "__main__":
     # --- Ridge CV + PCA + DOW ---
     print("\n========== RIDGE CV + PCA + DOW ==========")
     clf_ridge_pca_dow = LogisticRegressionCV(
-        Cs=20, cv=tscv, l1_ratios=[0], solver='saga',
+        Cs=RIDGE_GRID, cv=tscv, l1_ratios=[0], solver='saga',
         class_weight='balanced',
         random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2, scoring='balanced_accuracy')
     clf_ridge_pca_dow.fit(X_train_dow_pca, y_train)
@@ -863,7 +836,7 @@ if __name__ == "__main__":
     # --- LASSO CV + PCA + DOW ---
     print("\n========== LASSO CV + PCA + DOW ==========")
     clf_lasso_pca_dow = LogisticRegressionCV(
-        Cs=np.logspace(-6, 4, 20), cv=tscv, l1_ratios=[1], solver='saga',
+        Cs=LASSO_GRID, cv=tscv, l1_ratios=[1], solver='saga',
         class_weight='balanced',
         random_state=1, n_jobs=MODEL_N_JOBS, max_iter=500, tol=1e-2, scoring='balanced_accuracy')
     clf_lasso_pca_dow.fit(X_train_dow_pca, y_train)

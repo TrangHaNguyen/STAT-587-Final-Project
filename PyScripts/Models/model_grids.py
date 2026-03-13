@@ -11,6 +11,8 @@ Each grid block below includes a short note showing which script(s) consume it.
 
 from __future__ import annotations
 
+import numpy as np
+
 
 def choose_grid_variant(variant: str, left_values, center_values, right_values):
     """Select one of three grid presets by variant name."""
@@ -27,6 +29,16 @@ def choose_grid_variant(variant: str, left_values, center_values, right_values):
 # Purpose: baseline PCA search grid for choosing the best `n_components`
 # in the baseline comparison workflow. Kept fixed by design.
 BASELINE_PCA_GRID = [0.65, 0.7, 0.75, 0.8, 0.85, 0.90, 0.95, 0.99]
+
+# Used by: `base.py`, `logistic_regression.py`
+# Purpose: shared ridge-logistic regularization grid for tuning `C`
+# in both raw and PCA logistic-regression workflows.
+RIDGE_GRID = np.logspace(-6, 4, 10)
+
+# Used by: `base.py`, `logistic_regression.py`
+# Purpose: shared lasso-logistic regularization grid for tuning `C`
+# in both raw and PCA logistic-regression workflows.
+LASSO_GRID = np.logspace(-6, 4, 10)
 
 
 # ---------------------------------------------------------------------------
@@ -81,151 +93,17 @@ SEL_RF_PARAM_GRID = {
 # ---------------------------------------------------------------------------
 
 # Used by: `base_SVM.py`, `SVM.py`
-# Purpose: `C` grid for linear SVM tuning, and also reused as the base
-# `C` search range in nonlinear SVM variants.
-SVM_LINEAR_C_GRID_OPTIONS = (
-    [0.01, 0.1, 1],
-    [0.1, 1, 10],
-    [1, 10, 100],
-)
+# Purpose: fixed `C` grid for linear SVM tuning, and also reused as the
+# base `C` search range in nonlinear SVM variants.
+SVM_LINEAR_C_GRID_OPTIONS = [0.01, 0.1, 1, 10, 100]
 
 # Used by: `base_SVM.py`, `SVM.py`
-# Purpose: `gamma` grid for RBF and polynomial SVM tuning.
-SVM_GAMMA_GRID_OPTIONS = (
-    ['scale', 'auto', 0.001, 0.01, 0.1],
-    ['scale', 'auto', 0.01, 0.1, 1],
-    ['scale', 'auto', 0.1, 1, 10],
-)
+# Purpose: fixed `gamma` grid for RBF and polynomial SVM tuning.
+SVM_GAMMA_GRID_OPTIONS = ['scale', 'auto', 0.01, 0.1, 1]
 
 # Used by: `base_SVM.py`, `SVM.py`
-# Purpose: polynomial degree grid for polynomial-kernel SVM tuning.
-SVM_DEGREE_GRID_OPTIONS = (
-    [1, 2, 3, 4],
-    [2, 3, 4, 5],
-    [3, 4, 5, 6],
-)
-
-
-# ---------------------------------------------------------------------------
-# Shared engineered-data grids
-# ---------------------------------------------------------------------------
-
-# Used by: `logistic_regression.py`, `random_forest.py`, `SVM.py`
-# Purpose: candidate lag configurations for the data-cleaning /
-# feature-engineering search (`lag_period`).
-DATA_CLEAN_LAG_GRID_OPTIONS = (
-    [1, 2, [1, 2], [1, 2, 3]],
-    [1, 2, 3, 4, 5, [1, 2], [1, 2, 3], [2, 3], [1, 3]],
-    [3, 4, 5, 6, 7, [2, 3], [3, 4], [2, 3, 4], [3, 5]],
-)
-
-# Used by: `logistic_regression.py`, `random_forest.py`, `SVM.py`
-# Purpose: candidate rolling-window lookback sizes for the data-cleaning /
-# feature-engineering search (`lookback_period`).
-DATA_CLEAN_LOOKBACK_GRID_OPTIONS = (
-    [5, 7, 10, 12, 14, 17, 21],
-    [7, 10, 14, 17, 21, 24, 28],
-    [14, 17, 21, 24, 28, 32, 36],
-)
-
-# Used by: `logistic_regression.py`, `random_forest.py`, `SVM.py`
-# Purpose: candidate correlation thresholds for pruning highly correlated
-# features in the data-cleaning search (`corr_threshold`).
-DATA_CLEAN_CORR_THRESHOLD_OPTIONS = (
-    [0.7, 0.8, 0.85],
-    [0.8, 0.9, 0.95],
-    [0.9, 0.95, 0.98],
-)
-
-
-# ---------------------------------------------------------------------------
-# Used in: logistic_regression.py
-# ---------------------------------------------------------------------------
-
-# Ordered as (left, center, right) to match choose_grid(...) usage.
-# Used by: `logistic_regression.py`
-# Purpose: candidate PCA variance-retention levels used to tune
-# `reducer__n_components` in logistic-regression PCA models.
-LOGREG_PCA_GRID_OPTIONS = (
-    [0.5, 0.55, 0.6, 0.65],
-    [0.7, 0.75, 0.8, 0.85],
-    [0.9, 0.925, 0.95, 0.99],
-)
-
-# Used by: `logistic_regression.py`
-# Purpose: candidate `C` values passed into `LogisticRegressionCV`
-# to tune the main logistic regularization strength.
-LOGREG_INTERNAL_C_GRID_OPTIONS = (
-    [0.005, 0.01, 0.1, 1.0],
-    [0.05, 0.1, 1.0, 10.0],
-    [0.1, 1.0, 10.0, 100.0],
-)
-
-# Used by: `logistic_regression.py`
-# Purpose: candidate `classifier__C` values for ridge-style logistic
-# models after PCA / feature-reduction steps.
-LOGREG_RIDGE_PCA_C_GRID_OPTIONS = (
-    [0.001, 0.01, 0.1, 1.0],
-    [0.01, 0.1, 1.0, 10.0],
-    [0.1, 1.0, 10.0, 100.0],
-)
-
-
-# ---------------------------------------------------------------------------
-# Used in: random_forest.py
-# ---------------------------------------------------------------------------
-
-# Used by: `random_forest.py`
-# Purpose: RF baseline search ranges for tuning `classifier__max_depth`
-# and `classifier__n_estimators` in the main RF workflow, plus
-# `classifier__max_features`.
-RF_BASE_PARAM_GRID_OPTIONS = {
-    "classifier__max_depth": (
-        [1, 2, 3, 5],
-        [2, 3, 5, 10],
-        [3, 5, 10, 20],
-    ),
-    "classifier__n_estimators": (
-        [100, 250],
-        [250, 500],
-        [500, 750],
-    ),
-    "classifier__max_features": RF_MAX_FEATURES_GRID,
-}
-
-# Used by: `random_forest.py`
-# Purpose: candidate PCA variance-retention levels used to tune
-# `reducer__n_components` in random-forest PCA models.
-RF_PCA_GRID_OPTIONS = (
-    [0.7, 0.8],
-    [0.85, 0.9],
-    [0.95, 0.99],
-)
-
-# Used by: `random_forest.py`
-# Purpose: selector penalty grids used to tune the logistic selector's
-# `C` parameter for lasso- and ridge-based feature selection before RF fitting.
-RF_SELECTOR_C_GRID_OPTIONS = {
-    "lasso": (
-        [0.0001, 0.001, 0.01, 0.1],
-        [0.001, 0.01, 0.1, 1],
-        [0.01, 0.1, 1, 10],
-    ),
-    "ridge": (
-        [0.0001, 0.001, 0.01, 0.1],
-        [0.001, 0.01, 0.1, 1],
-        [0.01, 0.1, 1, 10],
-    ),
-}
-
-# Used by: `random_forest.py`
-# Purpose: forest-size grid used in selector-based RF models after
-# feature selection.
-RF_SELECTOR_N_ESTIMATORS_OPTIONS = (
-    [250],
-    [500],
-    [750],
-)
+# Purpose: fixed polynomial degree grid for polynomial-kernel SVM tuning.
+SVM_DEGREE_GRID_OPTIONS = [2, 3, 4, 5, 6]
 
 
 # ---------------------------------------------------------------------------

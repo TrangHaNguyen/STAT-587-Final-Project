@@ -25,7 +25,12 @@ from sklearn.metrics import (
 )
 
 from H_prep import clean_data, import_data
-from H_eval import RollingWindowBacktest, get_final_metrics
+from H_eval import (
+    RollingWindowBacktest,
+    get_final_metrics,
+    rank_models_by_metrics,
+    save_best_model_plots_from_gridsearch,
+)
 from model_grids import BASE_RF_PARAM_GRID, PCA_RF_PARAM_GRID, SEL_RF_PARAM_GRID
 
 CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'cache')
@@ -53,6 +58,17 @@ def _as_sortable_numeric(value):
     except Exception:
         return float("inf")
 
+
+def _rf_max_features_sort_value(value):
+    if value == 'log2':
+        return 0.0
+    if value == 'sqrt':
+        return 1.0
+    try:
+        return 2.0 + float(value)
+    except Exception:
+        return float("inf")
+
 def make_one_se_refit(complexity_cols: list[str], fixed_cols: list[str] | None = None):
     """Return a GridSearchCV refit callable implementing the 1-SE rule."""
     def _pick_index(cv_results):
@@ -77,7 +93,10 @@ def make_one_se_refit(complexity_cols: list[str], fixed_cols: list[str] | None =
             for col in complexity_cols:
                 param_key = f"param_{col}"
                 val = cv_results[param_key][i]
-                complexity.append(_as_sortable_numeric(val))
+                if col == 'classifier__max_features':
+                    complexity.append(_rf_max_features_sort_value(val))
+                else:
+                    complexity.append(_as_sortable_numeric(val))
             # Prefer simplest model; if tie, prefer higher score.
             return tuple(complexity + [-float(mean[i])])
 
@@ -294,7 +313,7 @@ def _run_rf_suite(X_full, y_full, X_train, y_train, X_test, y_test, tscv, datase
             'cache_name': f'base_rf{dataset_suffix}_gridsearch.pkl',
             'pipeline': _base_rf_pipeline(),
             'param_grid': BASE_RF_PARAM_GRID,
-            'refit': make_one_se_refit(['classifier__max_depth', 'classifier__n_estimators']),
+            'refit': make_one_se_refit(['classifier__max_depth', 'classifier__n_estimators', 'classifier__max_features']),
         },
         {
             'name': 'PCA RF',
@@ -302,7 +321,7 @@ def _run_rf_suite(X_full, y_full, X_train, y_train, X_test, y_test, tscv, datase
             'cache_name': f'base_rf_pca{dataset_suffix}_gridsearch.pkl',
             'pipeline': _pca_rf_pipeline(),
             'param_grid': PCA_RF_PARAM_GRID,
-            'refit': make_one_se_refit(['classifier__max_depth', 'classifier__n_estimators'], fixed_cols=['reducer__n_components']),
+            'refit': make_one_se_refit(['classifier__max_depth', 'classifier__n_estimators', 'classifier__max_features'], fixed_cols=['reducer__n_components']),
         },
         {
             'name': 'LASSO-sel RF',
@@ -310,7 +329,7 @@ def _run_rf_suite(X_full, y_full, X_train, y_train, X_test, y_test, tscv, datase
             'cache_name': f'base_rf_lasso{dataset_suffix}_gridsearch.pkl',
             'pipeline': _lasso_rf_pipeline(),
             'param_grid': SEL_RF_PARAM_GRID,
-            'refit': make_one_se_refit(['feature_selector__estimator__C', 'classifier__max_depth', 'classifier__n_estimators']),
+            'refit': make_one_se_refit(['feature_selector__estimator__C', 'classifier__max_depth', 'classifier__n_estimators', 'classifier__max_features']),
         },
         {
             'name': 'Ridge-sel RF',
@@ -318,7 +337,7 @@ def _run_rf_suite(X_full, y_full, X_train, y_train, X_test, y_test, tscv, datase
             'cache_name': f'base_rf_ridge{dataset_suffix}_gridsearch.pkl',
             'pipeline': _ridge_rf_pipeline(),
             'param_grid': SEL_RF_PARAM_GRID,
-            'refit': make_one_se_refit(['feature_selector__estimator__C', 'classifier__max_depth', 'classifier__n_estimators']),
+            'refit': make_one_se_refit(['feature_selector__estimator__C', 'classifier__max_depth', 'classifier__n_estimators', 'classifier__max_features']),
         },
     ]
 
@@ -341,11 +360,11 @@ def _run_rf_suite(X_full, y_full, X_train, y_train, X_test, y_test, tscv, datase
         searches[spec['name']] = search_obj
     return searches
 
-def _rf_metrics_row(name, grid_obj, X_tr, y_tr, X_te, y_te, n_splits):
+def _rf_metrics_payload(name, grid_obj, X_tr, y_tr, X_te, y_te, n_splits):
     shared = get_final_metrics(
         grid_obj.best_estimator_, X_tr, y_tr, X_te, y_te, n_splits=n_splits, label=name
     )
-    return {
+    display_row = {
         'Model':             name,
         'Avg CV Train Plain Acc':      shared['train_avg_accuracy'],
         'CV Train Plain Acc SD':       shared['train_std_accuracy'],
@@ -358,19 +377,30 @@ def _rf_metrics_row(name, grid_obj, X_tr, y_tr, X_te, y_te, n_splits):
         'F1':                shared['test_f1'],
         'ROC-AUC':           shared['test_roc_auc_macro'],
     }
+    ranking_row = {'Model': name, **shared}
+    return display_row, ranking_row
 
 def _build_comparison_df(searches, X_train, y_train, X_test, y_test, n_splits, suffix=""):
-    rows = [
-        _rf_metrics_row(f'Base RF{suffix}', searches['Base RF'], X_train, y_train, X_test, y_test, n_splits),
-        _rf_metrics_row(f'PCA RF{suffix}', searches['PCA RF'], X_train, y_train, X_test, y_test, n_splits),
-        _rf_metrics_row(f'LASSO-sel RF{suffix}', searches['LASSO-sel RF'], X_train, y_train, X_test, y_test, n_splits),
-        _rf_metrics_row(f'Ridge-sel RF{suffix}', searches['Ridge-sel RF'], X_train, y_train, X_test, y_test, n_splits),
-    ]
-    return pd.DataFrame(rows).set_index('Model')
+    display_rows = []
+    ranking_rows = []
+    for model_name in ['Base RF', 'PCA RF', 'LASSO-sel RF', 'Ridge-sel RF']:
+        display_row, ranking_row = _rf_metrics_payload(
+            f'{model_name}{suffix}',
+            searches[model_name],
+            X_train,
+            y_train,
+            X_test,
+            y_test,
+            n_splits,
+        )
+        display_rows.append(display_row)
+        ranking_rows.append(ranking_row)
+    return pd.DataFrame(display_rows).set_index('Model'), ranking_rows
 
 if __name__ == "__main__":
     # ------- Load raw data (no extra clean_data feature engineering) -------
     TESTING = False
+    output_prefix = "sample" if USE_SAMPLE_PARQUET else "8yrs"
     print(f"MODEL_N_JOBS={MODEL_N_JOBS} (set env MODEL_N_JOBS to override)")
     if USE_SAMPLE_PARQUET:
         print(f"USE_SAMPLE_PARQUET=1 -> loading sample parquet from {os.path.abspath(SAMPLE_PARQUET_PATH)}")
@@ -433,6 +463,7 @@ if __name__ == "__main__":
 
     best_depth  = grid_search_rf.best_params_['classifier__max_depth']
     best_n_est  = grid_search_rf.best_params_['classifier__n_estimators']
+    best_max_features = grid_search_rf.best_params_['classifier__max_features']
 
     # ===================================================================
     # PLOT: Ridge-sel RF Bias-Variance vs Ridge C
@@ -444,6 +475,7 @@ if __name__ == "__main__":
     ridge_best_c = grid_search_ridge.best_params_['feature_selector__estimator__C']
     ridge_best_depth = grid_search_ridge.best_params_['classifier__max_depth']
     ridge_best_nest = grid_search_ridge.best_params_['classifier__n_estimators']
+    ridge_best_max_features = grid_search_ridge.best_params_['classifier__max_features']
 
     def _ridge_curve_models():
         models = []
@@ -465,7 +497,8 @@ if __name__ == "__main__":
                     n_jobs=RF_FIT_N_JOBS,
                     class_weight='balanced',
                     max_depth=ridge_best_depth,
-                    n_estimators=ridge_best_nest
+                    n_estimators=ridge_best_nest,
+                    max_features=ridge_best_max_features
                 ))
             ]))
         return models
@@ -477,7 +510,7 @@ if __name__ == "__main__":
     fig_ridge, ax_ridge = plt.subplots(figsize=(10, 5))
     fig_ridge.suptitle(
         'Bias-Variance Tradeoff — Ridge-selected RF (Raw OHLCV)\n'
-        f'(Train/CV Balanced Error vs Ridge C, depth={ridge_best_depth}, n_estimators={ridge_best_nest})',
+        f'(Train/CV Balanced Error vs Ridge C, depth={ridge_best_depth}, n_estimators={ridge_best_nest}, max_features={ridge_best_max_features})',
         fontsize=13, fontweight='bold'
     )
     ax_ridge.semilogx(
@@ -526,7 +559,7 @@ if __name__ == "__main__":
     plt.tight_layout()
     output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'output')
     os.makedirs(output_dir, exist_ok=True)
-    out_path_ridge = os.path.join(output_dir, '8yrs_1SE_base_rf_ridge_bias_variance.png')
+    out_path_ridge = os.path.join(output_dir, f'{output_prefix}_1SE_base_rf_ridge_bias_variance.png')
     plt.savefig(out_path_ridge, dpi=150, bbox_inches='tight')
     print(f"Figure saved to: {os.path.abspath(out_path_ridge)}")
     plt.close()
@@ -545,6 +578,7 @@ if __name__ == "__main__":
                 ('scaler', StandardScaler()),
                 ('classifier', RandomForestClassifier(
                     max_depth=depth, n_estimators=best_n_est,
+                    max_features=best_max_features,
                     random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))
             ]))
         return models
@@ -554,7 +588,7 @@ if __name__ == "__main__":
     fig1, ax1 = plt.subplots(figsize=(10, 5))
     fig1.suptitle(
         'Bias-Variance Tradeoff — RF, Raw OHLCV Features\n'
-        f'(Train vs CV Balanced Error, n_estimators={best_n_est})',
+        f'(Train vs CV Balanced Error, n_estimators={best_n_est}, max_features={best_max_features})',
         fontsize=13, fontweight='bold'
     )
     ax1.plot(depth_grid, depth_curves['train_bal_err_mean'], marker='o', color='lightsteelblue',
@@ -599,7 +633,7 @@ if __name__ == "__main__":
     os.makedirs(output_dir, exist_ok=True)
     tex_output_dir = output_dir
     os.makedirs(tex_output_dir, exist_ok=True)
-    out_path1 = os.path.join(output_dir, '8yrs_base_rf_bias_variance.png')
+    out_path1 = os.path.join(output_dir, f'{output_prefix}_base_rf_bias_variance.png')
     plt.savefig(out_path1, dpi=150, bbox_inches='tight')
     print(f"Figure saved to: {os.path.abspath(out_path1)}")
     plt.close()
@@ -618,6 +652,7 @@ if __name__ == "__main__":
     for depth in depth_grid:
         clf = RandomForestClassifier(
             max_depth=depth, n_estimators=best_n_est,
+            max_features=best_max_features,
             random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced')
         clf.fit(X_tr_sc, y_train)
         train_errors.append(1 - clf.score(X_tr_sc, y_train))
@@ -626,7 +661,7 @@ if __name__ == "__main__":
     fig2, ax2 = plt.subplots(figsize=(10, 5))
     fig2.suptitle(
         'Over/Underfitting Analysis — RF, Raw OHLCV Features\n'
-        f'(Direct Train/Test Split, No CV, n_estimators={best_n_est})',
+        f'(Direct Train/Test Split, No CV, n_estimators={best_n_est}, max_features={best_max_features})',
         fontsize=13, fontweight='bold'
     )
     ax2.plot(depth_grid, train_errors, marker='o', color='steelblue',
@@ -651,7 +686,7 @@ if __name__ == "__main__":
     ax2.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    out_path2 = os.path.join(output_dir, '8yrs_base_rf_train_test.png')
+    out_path2 = os.path.join(output_dir, f'{output_prefix}_base_rf_train_test.png')
     plt.savefig(out_path2, dpi=150, bbox_inches='tight')
     print(f"Figure saved to: {os.path.abspath(out_path2)}")
     plt.close()
@@ -682,12 +717,12 @@ if __name__ == "__main__":
     )
     ax3.set_title(
         f'RF — Representative Tree #{best_tree_idx}\n'
-        f'(max_depth={best_depth}, n_estimators={best_n_est}, '
+        f'(max_depth={best_depth}, n_estimators={best_n_est}, max_features={best_max_features}, '
         f'{leaf_counts[best_tree_idx]} leaves)',
         fontsize=13, fontweight='bold'
     )
     plt.tight_layout()
-    out_path3 = os.path.join(output_dir, '8yrs_base_rf_best_tree.png')
+    out_path3 = os.path.join(output_dir, f'{output_prefix}_base_rf_best_tree.png')
     plt.savefig(out_path3, dpi=150, bbox_inches='tight')
     print(f"Figure saved to: {os.path.abspath(out_path3)}")
     plt.close()
@@ -697,10 +732,10 @@ if __name__ == "__main__":
     # ===================================================================
     print("\n========== Model Comparison Table ==========")
 
-    comparison_df = _build_comparison_df(raw_searches, X_train, y_train, X_test, y_test, tscv.n_splits)
+    comparison_df, raw_ranking_rows = _build_comparison_df(raw_searches, X_train, y_train, X_test, y_test, tscv.n_splits)
     print(comparison_df.to_string())
 
-    csv_path = os.path.join(output_dir, '8yrs_base_rf_comparison.csv')
+    csv_path = os.path.join(output_dir, f'{output_prefix}_base_rf_comparison.csv')
     comparison_df.to_csv(csv_path, float_format='%.3f')
     print(f"\nComparison table (raw) saved to: {os.path.abspath(csv_path)}")
 
@@ -727,18 +762,18 @@ if __name__ == "__main__":
     # ===================================================================
     # COMBINED COMPARISON TABLE (raw OHLCV vs raw OHLCV + DOW)
     # ===================================================================
-    dow_df = _build_comparison_df(dow_searches, X_train_dow, y_train_dow, X_test_dow, y_test_dow, tscv.n_splits, suffix="+DOW")
+    dow_df, dow_ranking_rows = _build_comparison_df(dow_searches, X_train_dow, y_train_dow, X_test_dow, y_test_dow, tscv.n_splits, suffix="+DOW")
 
     combined_df = pd.concat([comparison_df, dow_df])
     print("\n===== Combined Comparison Table =====")
     print(combined_df.to_string())
 
     combined_export_df = build_export_table(combined_df)
-    combined_csv = os.path.join(output_dir, '8yrs_base_rf_comparison.csv')
+    combined_csv = os.path.join(output_dir, f'{output_prefix}_base_rf_comparison.csv')
     combined_export_df.to_csv(combined_csv, float_format='%.3f')
     print(f"\nCombined comparison table saved to: {os.path.abspath(combined_csv)}")
 
-    tex_path = os.path.join(tex_output_dir, '8yrs_1SE_base_random_forest.tex')
+    tex_path = os.path.join(tex_output_dir, f'{output_prefix}_1SE_base_random_forest.tex')
     write_latex_table(
         combined_export_df,
         tex_path,
@@ -774,18 +809,18 @@ if __name__ == "__main__":
     # ===================================================================
     # FULL COMPARISON TABLE (raw + DOW + Lags)
     # ===================================================================
-    lag_df = _build_comparison_df(lag_searches, X_train_lag, y_train_lag, X_test_lag, y_test_lag, tscv.n_splits, suffix="+Lags")
+    lag_df, lag_ranking_rows = _build_comparison_df(lag_searches, X_train_lag, y_train_lag, X_test_lag, y_test_lag, tscv.n_splits, suffix="+Lags")
 
     full_df = pd.concat([comparison_df, dow_df, lag_df])
     print("\n===== Full Comparison Table =====")
     print(full_df.to_string())
 
     full_export_df = build_export_table(full_df)
-    full_csv = os.path.join(output_dir, '8yrs_base_rf_comparison.csv')
+    full_csv = os.path.join(output_dir, f'{output_prefix}_base_rf_comparison.csv')
     full_export_df.to_csv(full_csv, float_format='%.3f')
     print(f"\nFull comparison table saved to: {os.path.abspath(full_csv)}")
 
-    tex_path = os.path.join(tex_output_dir, '8yrs_1SE_base_random_forest.tex')
+    tex_path = os.path.join(tex_output_dir, f'{output_prefix}_1SE_base_random_forest.tex')
     write_latex_table(
         full_export_df,
         tex_path,
@@ -794,3 +829,131 @@ if __name__ == "__main__":
         note=f'Test Acc = plain hold-out accuracy on the final 20% test split. All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. {RECALL_NOTE}'
     )
     print(f"LaTeX table saved to:           {os.path.abspath(tex_path)}")
+
+    plot_candidates = {
+        'Base RF': {
+            'search': raw_searches['Base RF'],
+            'x_param': 'classifier__max_depth',
+            'x_label': 'max_depth',
+            'X_train': X_train,
+            'y_train': y_train,
+            'X_test': X_test,
+            'y_test': y_test,
+        },
+        'PCA RF': {
+            'search': raw_searches['PCA RF'],
+            'x_param': 'reducer__n_components',
+            'x_label': 'PCA n_components',
+            'X_train': X_train,
+            'y_train': y_train,
+            'X_test': X_test,
+            'y_test': y_test,
+        },
+        'LASSO-sel RF': {
+            'search': raw_searches['LASSO-sel RF'],
+            'x_param': 'feature_selector__estimator__C',
+            'x_label': 'Selector C',
+            'X_train': X_train,
+            'y_train': y_train,
+            'X_test': X_test,
+            'y_test': y_test,
+        },
+        'Ridge-sel RF': {
+            'search': raw_searches['Ridge-sel RF'],
+            'x_param': 'feature_selector__estimator__C',
+            'x_label': 'Selector C',
+            'X_train': X_train,
+            'y_train': y_train,
+            'X_test': X_test,
+            'y_test': y_test,
+        },
+        'Base RF+DOW': {
+            'search': dow_searches['Base RF'],
+            'x_param': 'classifier__max_depth',
+            'x_label': 'max_depth',
+            'X_train': X_train_dow,
+            'y_train': y_train_dow,
+            'X_test': X_test_dow,
+            'y_test': y_test_dow,
+        },
+        'PCA RF+DOW': {
+            'search': dow_searches['PCA RF'],
+            'x_param': 'reducer__n_components',
+            'x_label': 'PCA n_components',
+            'X_train': X_train_dow,
+            'y_train': y_train_dow,
+            'X_test': X_test_dow,
+            'y_test': y_test_dow,
+        },
+        'LASSO-sel RF+DOW': {
+            'search': dow_searches['LASSO-sel RF'],
+            'x_param': 'feature_selector__estimator__C',
+            'x_label': 'Selector C',
+            'X_train': X_train_dow,
+            'y_train': y_train_dow,
+            'X_test': X_test_dow,
+            'y_test': y_test_dow,
+        },
+        'Ridge-sel RF+DOW': {
+            'search': dow_searches['Ridge-sel RF'],
+            'x_param': 'feature_selector__estimator__C',
+            'x_label': 'Selector C',
+            'X_train': X_train_dow,
+            'y_train': y_train_dow,
+            'X_test': X_test_dow,
+            'y_test': y_test_dow,
+        },
+        'Base RF+Lags': {
+            'search': lag_searches['Base RF'],
+            'x_param': 'classifier__max_depth',
+            'x_label': 'max_depth',
+            'X_train': X_train_lag,
+            'y_train': y_train_lag,
+            'X_test': X_test_lag,
+            'y_test': y_test_lag,
+        },
+        'PCA RF+Lags': {
+            'search': lag_searches['PCA RF'],
+            'x_param': 'reducer__n_components',
+            'x_label': 'PCA n_components',
+            'X_train': X_train_lag,
+            'y_train': y_train_lag,
+            'X_test': X_test_lag,
+            'y_test': y_test_lag,
+        },
+        'LASSO-sel RF+Lags': {
+            'search': lag_searches['LASSO-sel RF'],
+            'x_param': 'feature_selector__estimator__C',
+            'x_label': 'Selector C',
+            'X_train': X_train_lag,
+            'y_train': y_train_lag,
+            'X_test': X_test_lag,
+            'y_test': y_test_lag,
+        },
+        'Ridge-sel RF+Lags': {
+            'search': lag_searches['Ridge-sel RF'],
+            'x_param': 'feature_selector__estimator__C',
+            'x_label': 'Selector C',
+            'X_train': X_train_lag,
+            'y_train': y_train_lag,
+            'X_test': X_test_lag,
+            'y_test': y_test_lag,
+        },
+    }
+    ranking_rows = raw_ranking_rows + dow_ranking_rows + lag_ranking_rows
+    ranked_df = rank_models_by_metrics(pd.DataFrame(ranking_rows))
+    best_model_name = str(ranked_df.iloc[0]["Model"])
+    best_candidate = plot_candidates[best_model_name]
+    save_best_model_plots_from_gridsearch(
+        best_candidate['search'],
+        best_candidate['x_param'],
+        best_candidate['x_label'],
+        best_model_name,
+        os.path.join(output_dir, f'{output_prefix}_base_rf_best_model_bias_variance.png'),
+        os.path.join(output_dir, f'{output_prefix}_base_rf_best_model_train_test.png'),
+        best_candidate['X_train'],
+        best_candidate['y_train'],
+        best_candidate['X_test'],
+        best_candidate['y_test'],
+    )
+    print(f"\nBest baseline RF-family model by average rank: {best_model_name}")

@@ -52,7 +52,7 @@ def stream_run(cmd: list[str], env: dict[str, str], stage_log: Path) -> int:
     stage_log.parent.mkdir(parents=True, exist_ok=True)
     with stage_log.open("a", encoding="utf-8") as f:
         f.write(f"\n[{now_iso()}] CMD: {' '.join(cmd)}\n")
-        f.write(f"[{now_iso()}] ENV: MODEL_N_JOBS={env.get('MODEL_N_JOBS')} GRID_VARIANT={env.get('GRID_VARIANT')} GRID_VERSION={env.get('GRID_VERSION')}\n")
+        f.write(f"[{now_iso()}] ENV: MODEL_N_JOBS={env.get('MODEL_N_JOBS')} GRID_VERSION={env.get('GRID_VERSION')}\n")
         proc = subprocess.Popen(
             cmd,
             cwd=str(PROJECT_ROOT),
@@ -111,20 +111,18 @@ def run_stage(
     return False
 
 
-def build_model_stages(models: list[str], variants: list[str], grid_version: str) -> list[tuple[str, list[str], str]]:
+def build_model_stages(models: list[str], grid_version: str) -> list[tuple[str, list[str]]]:
     model_to_script = {
         "svm": "SVM.py",
         "logreg": "logistic_regression.py",
         "rf": "random_forest.py"
     }
-    stages: list[tuple[str, list[str], str]] = []
-    for variant in variants:
-        grid_label = f"{grid_version}_{variant}"
-        for model in models:
-            script = model_to_script[model]
-            stage_id = f"model:{model}:{grid_label}"
-            cmd = [sys.executable, str(MODELS_DIR / script)]
-            stages.append((stage_id, cmd, variant))
+    stages: list[tuple[str, list[str]]] = []
+    for model in models:
+        script = model_to_script[model]
+        stage_id = f"model:{model}:{grid_version}"
+        cmd = [sys.executable, str(MODELS_DIR / script)]
+        stages.append((stage_id, cmd))
     return stages
 
 
@@ -166,7 +164,6 @@ def plot_input_available(model: str, model_name: str, grid_version: str, x_param
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run all model searches safely with checkpoint/resume and optional plotting.")
     parser.add_argument("--models", default="svm,logreg,rf", help="Comma list: svm,logreg,rf")
-    parser.add_argument("--grid-variants", default="left,center,right", help="Comma list: left,center,right")
     parser.add_argument("--grid-version", default="v1", help="Grid version label (e.g., v3).")
     parser.add_argument("--n-jobs", type=int, default=4, help="MODEL_N_JOBS passed to model scripts.")
     parser.add_argument("--resume", action="store_true", help="Skip completed stages from checkpoint.")
@@ -179,16 +176,11 @@ def main() -> None:
     args = parser.parse_args()
 
     models = parse_list(args.models)
-    variants = parse_list(args.grid_variants)
     allowed_models = {"svm", "logreg", "rf"}
-    allowed_variants = {"left", "center", "right"}
 
     unknown_models = [m for m in models if m not in allowed_models]
-    unknown_variants = [v for v in variants if v not in allowed_variants]
     if unknown_models:
         raise ValueError(f"Unknown models: {unknown_models}. Allowed: {sorted(allowed_models)}")
-    if unknown_variants:
-        raise ValueError(f"Unknown grid variants: {unknown_variants}. Allowed: {sorted(allowed_variants)}")
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     PLOTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -203,69 +195,65 @@ def main() -> None:
     base_env["VECLIB_MAXIMUM_THREADS"] = "1"
     base_env["NUMEXPR_NUM_THREADS"] = "1"
     base_env["MODEL_N_JOBS"] = str(args.n_jobs)
-    base_env["PAUSE_BETWEEN_MODELS"] = "0"
     base_env["GRID_VERSION"] = args.grid_version
     base_env["SEARCH_NOTES"] = args.notes
 
     append_log(
-        f"Pipeline start | models={models} variants={variants} grid_version={args.grid_version} "
+        f"Pipeline start | models={models} grid_version={args.grid_version} "
         f"n_jobs={args.n_jobs} resume={args.resume} skip_models={args.skip_models} skip_plots={args.skip_plots}"
     )
 
     if not args.skip_models:
-        for stage_id, cmd, variant in build_model_stages(models, variants, args.grid_version):
+        for stage_id, cmd in build_model_stages(models, args.grid_version):
             env = base_env.copy()
-            env["GRID_VARIANT"] = variant
             run_stage(state, stage_id, cmd, env, resume=args.resume, stop_on_error=args.stop_on_error)
 
     if not args.skip_plots:
-        # Run plots after models, stage-by-stage.
-        for variant in variants:
-            gv = f"{args.grid_version}_{variant}"
-            plot_specs = []
-            if "svm" in models:
-                plot_specs.extend([
-                    ("svm_linear_c", ["--model", "svm", "--x-param", "param_classifier__C", "--model-name", "SVM_linear"]),
-                    ("svm_rbf_c", ["--model", "svm", "--x-param", "param_classifier__C", "--model-name", "SVM_rbf"]),
-                    ("svm_rbf_gamma", ["--model", "svm", "--x-param", "param_classifier__gamma", "--model-name", "SVM_rbf",
-                                       "--ordered-x", "0.001,0.01,0.1,1,10,auto,scale"]),
-                    ("svm_poly_degree", ["--model", "svm", "--x-param", "param_classifier__degree", "--model-name", "SVM_poly"]),
-                ])
-            if "logreg" in models:
-                plot_specs.extend([
-                    ("logreg_lasso_c", ["--model", "logreg", "--x-param", "param_classifier__C", "--model-name", "LogReg_LASSO_internal"]),
-                    ("logreg_ridge_c", ["--model", "logreg", "--x-param", "param_classifier__C", "--model-name", "LogReg_Ridge_internal"]),
-                    ("logreg_pca_c", ["--model", "logreg", "--x-param", "param_classifier__C", "--model-name", "LogReg_PCA_Ridge"]),
-                    ("logreg_pca_ncomp", ["--model", "logreg", "--x-param", "param_pca__n_components", "--model-name", "LogReg_PCA_Ridge"]),
-                ])
-            if "rf" in models:
-                plot_specs.extend([
-                    ("rf_base_depth", ["--model", "rf", "--x-param", "param_classifier__max_depth", "--model-name", "RF_base"]),
-                    ("rf_base_nest", ["--model", "rf", "--x-param", "param_classifier__n_estimators", "--model-name", "RF_base"]),
-                    ("rf_pca_ncomp", ["--model", "rf", "--x-param", "param_reducer__n_components", "--model-name", "RF_pca"]),
-                    ("rf_lasso_c", ["--model", "rf", "--x-param", "param_feature_selector__estimator__C", "--model-name", "RF_lasso"]),
-                    ("rf_ridge_c", ["--model", "rf", "--x-param", "param_feature_selector__estimator__C", "--model-name", "RF_ridge"]),
-                ])
+        gv = args.grid_version
+        plot_specs = []
+        if "svm" in models:
+            plot_specs.extend([
+                ("svm_linear_c", ["--model", "svm", "--x-param", "param_classifier__C", "--model-name", "SVM_linear"]),
+                ("svm_rbf_c", ["--model", "svm", "--x-param", "param_classifier__C", "--model-name", "SVM_rbf"]),
+                ("svm_rbf_gamma", ["--model", "svm", "--x-param", "param_classifier__gamma", "--model-name", "SVM_rbf",
+                                   "--ordered-x", "0.001,0.01,0.1,1,10,auto,scale"]),
+                ("svm_poly_degree", ["--model", "svm", "--x-param", "param_classifier__degree", "--model-name", "SVM_poly"]),
+            ])
+        if "logreg" in models:
+            plot_specs.extend([
+                ("logreg_lasso_c", ["--model", "logreg", "--x-param", "param_classifier__C", "--model-name", "LogReg_LASSO_internal"]),
+                ("logreg_ridge_c", ["--model", "logreg", "--x-param", "param_classifier__C", "--model-name", "LogReg_Ridge_internal"]),
+                ("logreg_pca_c", ["--model", "logreg", "--x-param", "param_classifier__C", "--model-name", "LogReg_PCA_Ridge"]),
+                ("logreg_pca_ncomp", ["--model", "logreg", "--x-param", "param_pca__n_components", "--model-name", "LogReg_PCA_Ridge"]),
+            ])
+        if "rf" in models:
+            plot_specs.extend([
+                ("rf_base_depth", ["--model", "rf", "--x-param", "param_classifier__max_depth", "--model-name", "RF_base"]),
+                ("rf_base_nest", ["--model", "rf", "--x-param", "param_classifier__n_estimators", "--model-name", "RF_base"]),
+                ("rf_pca_ncomp", ["--model", "rf", "--x-param", "param_reducer__n_components", "--model-name", "RF_pca"]),
+                ("rf_lasso_c", ["--model", "rf", "--x-param", "param_feature_selector__estimator__C", "--model-name", "RF_lasso"]),
+                ("rf_ridge_c", ["--model", "rf", "--x-param", "param_feature_selector__estimator__C", "--model-name", "RF_ridge"]),
+            ])
 
-            for name, core_args in plot_specs:
-                model = core_args[1]
-                x_param = core_args[3]
-                model_name = core_args[5]
-                ok, reason = plot_input_available(model=model, model_name=model_name, grid_version=gv, x_param=x_param)
-                if not ok:
-                    append_log(f"SKIP plot:{name}:{gv} ({reason})")
-                    continue
-                out_path = PLOTS_DIR / f"8yrs_over_under_fit_{name}_{gv}.png"
-                cmd = [
-                    sys.executable,
-                    str(MODELS_DIR / "over_under_fit.py"),
-                    *core_args,
-                    "--grid-version", gv,
-                    "--trend-window", "8",
-                    "--out", str(out_path)
-                ]
-                stage_id = f"plot:{name}:{gv}"
-                run_stage(state, stage_id, cmd, base_env, resume=args.resume, stop_on_error=args.stop_on_error)
+        for name, core_args in plot_specs:
+            model = core_args[1]
+            x_param = core_args[3]
+            model_name = core_args[5]
+            ok, reason = plot_input_available(model=model, model_name=model_name, grid_version=gv, x_param=x_param)
+            if not ok:
+                append_log(f"SKIP plot:{name}:{gv} ({reason})")
+                continue
+            out_path = PLOTS_DIR / f"8yrs_over_under_fit_{name}_{gv}.png"
+            cmd = [
+                sys.executable,
+                str(MODELS_DIR / "over_under_fit.py"),
+                *core_args,
+                "--grid-version", gv,
+                "--trend-window", "8",
+                "--out", str(out_path)
+            ]
+            stage_id = f"plot:{name}:{gv}"
+            run_stage(state, stage_id, cmd, base_env, resume=args.resume, stop_on_error=args.stop_on_error)
 
     append_log("Pipeline finished.")
 

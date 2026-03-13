@@ -5,7 +5,7 @@ import os
 from sklearn.model_selection import cross_validate
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import confusion_matrix, roc_auc_score, recall_score, precision_score, f1_score, make_scorer
-from sklearn.base import BaseEstimator
+from sklearn.base import BaseEstimator, clone
 from sklearn.metrics import matthews_corrcoef
 import datetime
 
@@ -74,12 +74,19 @@ def _specificity_score(y_true, y_pred) -> float:
 def rank_models_by_metrics(results, criteria=None) -> pd.DataFrame:
     """Rank models by multiple criteria and return average-rank ordering.
 
-    Higher is better for ROC-AUC, Recall, and Specificity.
-    Lower is better for misclassification error.
+    By default, models are ranked using:
+    - test accuracy
+    - test sensitivity
+    - test specificity
+    - test ROC-AUC
+
+    Rank 1 is best for each metric, and larger ranks are worse.
     """
     if criteria is None:
+        # All default ranking metrics are "higher is better", so
+        # ascending=False gives rank 1 to the best model on each metric.
         criteria = {
-            'test_misclassification_error': True,
+            'test_split_accuracy': False,
             'test_roc_auc_macro': False,
             'test_sensitivity_macro': False,
             'test_specificity_macro': False,
@@ -100,7 +107,150 @@ def rank_models_by_metrics(results, criteria=None) -> pd.DataFrame:
 
     rank_cols = [f"rank_{metric_name}" for metric_name in criteria]
     ranked_df['average_rank'] = ranked_df[rank_cols].mean(axis=1)
+    if 'validation_std_accuracy' in ranked_df.columns:
+        # Tie-break lower average rank by preferring the model with the
+        # lowest cross-validation accuracy SD.
+        return ranked_df.sort_values(
+            ['average_rank', 'validation_std_accuracy'],
+            ascending=[True, True]
+        ).reset_index(drop=True)
     return ranked_df.sort_values('average_rank').reset_index(drop=True)
+
+
+def gridsearch_curve_data(search, x_param: str) -> dict:
+    """Extract a one-parameter CV curve from GridSearchCV at best fixed settings."""
+    df = pd.DataFrame(search.cv_results_).copy()
+    best_params = search.best_params_
+
+    for param_name, param_value in best_params.items():
+        if param_name == x_param:
+            continue
+        col = f"param_{param_name}"
+        if col not in df.columns:
+            continue
+        df = df[df[col].astype(str) == str(param_value)]
+
+    if df.empty:
+        raise ValueError(f"No GridSearchCV rows left for x_param={x_param} after filtering best fixed params.")
+
+    x_raw = df[f"param_{x_param}"].to_list()
+    x_num = pd.to_numeric(pd.Series(x_raw), errors="coerce")
+    if x_num.notna().all():
+        df = df.assign(_x_numeric=x_num.to_numpy(), _x_label=x_num.astype(str).to_numpy())
+    else:
+        df = df.assign(_x_numeric=np.arange(len(df)), _x_label=pd.Series(x_raw).astype(str).to_numpy())
+    df = df.sort_values("_x_numeric")
+
+    return {
+        "x_raw": df[f"param_{x_param}"].to_list(),
+        "x_numeric": df["_x_numeric"].to_numpy(dtype=float),
+        "x_labels": df["_x_label"].to_list(),
+        "train_bal_err_mean": 1 - df["mean_train_score"].to_numpy(dtype=float),
+        "train_bal_err_std": df["std_train_score"].to_numpy(dtype=float) if "std_train_score" in df.columns else np.zeros(len(df), dtype=float),
+        "cv_bal_err_mean": 1 - df["mean_test_score"].to_numpy(dtype=float),
+        "cv_bal_err_std": df["std_test_score"].to_numpy(dtype=float),
+    }
+
+
+def direct_errors_for_grid_param(search, x_param: str, X_train, y_train, X_test, y_test) -> dict:
+    """Compute direct train/test plain error while varying one GridSearchCV parameter."""
+    curve = gridsearch_curve_data(search, x_param)
+    train_errors = []
+    test_errors = []
+    for x_val in curve["x_raw"]:
+        model = clone(search.best_estimator_)
+        model.set_params(**{x_param: x_val})
+        model.fit(X_train, y_train)
+        train_errors.append(1 - model.score(X_train, y_train))
+        test_errors.append(1 - model.score(X_test, y_test))
+    curve["train_errors"] = np.asarray(train_errors, dtype=float)
+    curve["test_errors"] = np.asarray(test_errors, dtype=float)
+    return curve
+
+
+def save_best_model_plots_from_gridsearch(
+    search,
+    x_param: str,
+    x_label: str,
+    model_title: str,
+    output_bv,
+    output_direct,
+    X_train,
+    y_train,
+    X_test,
+    y_test,
+):
+    """Save best-model bias-variance and direct train/test plots from a GridSearchCV object."""
+    curve = gridsearch_curve_data(search, x_param)
+    direct = direct_errors_for_grid_param(search, x_param, X_train, y_train, X_test, y_test)
+    best_idx = int(np.argmin(curve["cv_bal_err_mean"]))
+    one_se_value = search.best_params_[x_param]
+    selected_idx = next(
+        (i for i, value in enumerate(curve["x_raw"]) if str(value) == str(one_se_value)),
+        best_idx,
+    )
+    rotate_ticks = any(lbl != str(val) for lbl, val in zip(curve["x_labels"], curve["x_numeric"]))
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+    fig.suptitle(f'Bias-Variance Tradeoff — {model_title}', fontsize=13, fontweight='bold')
+    ax.plot(curve["x_numeric"], curve["train_bal_err_mean"], marker='o', color='steelblue', linewidth=1.8, label='CV Train balanced error')
+    ax.plot(curve["x_numeric"], curve["cv_bal_err_mean"], marker='s', color='darkorange', linewidth=1.8, label='CV Test balanced error')
+    ax.fill_between(
+        curve["x_numeric"],
+        np.clip(curve["train_bal_err_mean"] - curve["train_bal_err_std"], 0.0, 1.0),
+        np.clip(curve["train_bal_err_mean"] + curve["train_bal_err_std"], 0.0, 1.0),
+        alpha=0.15, color='steelblue', label='CV Train balanced error ±1 SD'
+    )
+    ax.fill_between(
+        curve["x_numeric"],
+        np.clip(curve["cv_bal_err_mean"] - curve["cv_bal_err_std"], 0.0, 1.0),
+        np.clip(curve["cv_bal_err_mean"] + curve["cv_bal_err_std"], 0.0, 1.0),
+        alpha=0.15, color='darkorange', label='CV Test balanced error ±1 SD'
+    )
+    ax.scatter(
+        [curve["x_numeric"][best_idx]], [curve["cv_bal_err_mean"][best_idx]],
+        color='gold', edgecolor='black', s=90, zorder=6,
+        label='Value at best CV balanced error'
+    )
+    ax.axvline(
+        float(curve["x_numeric"][selected_idx]), color='red', linestyle='--', linewidth=1.5,
+        label=f'1SE-selected value = {one_se_value}'
+    )
+    ax.set_title(f'{model_title} — Bias-Variance Tradeoff')
+    ax.set_xlabel(x_label)
+    ax.set_ylabel('Balanced Error (1 - balanced accuracy)')
+    ax.set_ylim(0, 1.02)
+    ax.set_xticks(curve["x_numeric"])
+    ax.set_xticklabels(curve["x_labels"], rotation=45 if rotate_ticks else 0, ha='right' if rotate_ticks else 'center')
+    ax.legend(fontsize=9)
+    ax.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(output_bv, dpi=150, bbox_inches='tight')
+    plt.close()
+
+    fig2, ax2 = plt.subplots(figsize=(10, 5))
+    fig2.suptitle(f'Over/Underfitting Analysis — {model_title}', fontsize=13, fontweight='bold')
+    ax2.plot(direct["x_numeric"], direct["train_errors"], marker='o', color='steelblue', linewidth=2, label='Train error')
+    ax2.plot(direct["x_numeric"], direct["test_errors"], marker='s', color='darkorange', linewidth=2, label='Test error')
+    ax2.scatter(
+        [direct["x_numeric"][best_idx]], [direct["test_errors"][best_idx]],
+        color='gold', edgecolor='black', s=90, zorder=6,
+        label='Value at best CV balanced error'
+    )
+    ax2.axvline(
+        float(direct["x_numeric"][selected_idx]), color='red', linestyle='--', linewidth=1.5,
+        label=f'1SE-selected value = {one_se_value}'
+    )
+    ax2.set_title(f'{model_title} — Train vs Test Error')
+    ax2.set_xlabel(x_label)
+    ax2.set_ylabel('Plain Error (1 - accuracy)')
+    ax2.set_xticks(direct["x_numeric"])
+    ax2.set_xticklabels(direct["x_labels"], rotation=45 if rotate_ticks else 0, ha='right' if rotate_ticks else 'center')
+    ax2.legend(fontsize=9)
+    ax2.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(output_direct, dpi=150, bbox_inches='tight')
+    plt.close()
 
 def get_final_metrics(model_obj, X_train, y_train, X_test, y_test, n_splits: int =5, label: str | None =None) -> dict:
     # Previous temporary change used `KFold(n_splits=5, shuffle=False)`.

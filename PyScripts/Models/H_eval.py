@@ -74,7 +74,7 @@ def _specificity_score(y_true, y_pred) -> float:
 def rank_models_by_metrics(results, criteria=None) -> pd.DataFrame:
     """Rank models by multiple criteria and return average-rank ordering.
 
-    Higher is better for ROC-AUC, Sensitivity, and Specificity.
+    Higher is better for ROC-AUC, Recall, and Specificity.
     Lower is better for misclassification error.
     """
     if criteria is None:
@@ -127,7 +127,7 @@ def get_final_metrics(model_obj, X_train, y_train, X_test, y_test, n_splits: int
     mean_cv_test=np.mean(cv_results['test_accuracy'])
     std_cv_test=np.std(cv_results['test_accuracy'])
 
-    mean_test_sensitivity=np.mean(cv_results['test_sensitivity'])
+    mean_test_recall=np.mean(cv_results['test_sensitivity'])
     mean_test_precision=np.mean(cv_results['test_precision'])
     mean_test_specificity=np.mean(cv_results['test_specificity'])
 
@@ -140,11 +140,11 @@ def get_final_metrics(model_obj, X_train, y_train, X_test, y_test, n_splits: int
     up_precision=round(safe_div(conf_mat[1][1], conf_mat[1][1] + conf_mat[0][1]), 3)
     down_precision=round(safe_div(conf_mat[0][0], conf_mat[0][0] + conf_mat[1][0]), 3)
     misclassification_error=1 - final_score
-    sensitivity_macro=recall_score(y_test, preds, average='macro', zero_division=0)
+    recall_macro=recall_score(y_test, preds, average='macro', zero_division=0)
     specificity_macro=_macro_specificity_from_confusion(conf_mat)
     roc_auc_macro=roc_auc_score(y_test, y_score)
     test_precision=precision_score(y_test, preds, zero_division=0)
-    test_sensitivity=recall_score(y_test, preds, zero_division=0)
+    test_recall=recall_score(y_test, preds, zero_division=0)
     test_specificity=safe_div(conf_mat[0][0], conf_mat[0][0] + conf_mat[0][1])
     test_f1=f1_score(y_test, preds, zero_division=0)
 
@@ -155,14 +155,14 @@ def get_final_metrics(model_obj, X_train, y_train, X_test, y_test, n_splits: int
     print(f"Avg CV Train Plain Accuracy:      {mean_train:.4f} (±{std_train:.4f})")
     print(f"Avg CV Validation Plain Accuracy: {mean_cv_test:.4f} (±{std_cv_test:.4f})") # This validation score is computed from plain accuracy on time-series CV splits after balanced-accuracy tuning.
     print(f"Avg CV Validation Precision: {mean_test_precision:.4}")
-    print(f"Avg CV Validation Sensitivity: {mean_test_sensitivity:.4}")
+    print(f"Avg CV Validation Recall:      {mean_test_recall:.4}")
     print(f"Avg CV Validation Specificity: {mean_test_specificity:.4}")
     print(f"Final Test Accuracy:    {final_score:.4f}")
     print(f"Test Plain Misclassification Error:    {misclassification_error:.4f}")
     print(f"Test ROC-AUC (macro):                 {roc_auc_macro:.4f}")
-    print(f"Test Sensitivity:                     {test_sensitivity:.4f}")
+    print(f"Test Recall:                          {test_recall:.4f}")
     print(f"Test Specificity:                     {test_specificity:.4f}")
-    print(f"Test Sensitivity (macro):             {sensitivity_macro:.4f}")
+    print(f"Test Recall (macro):                  {recall_macro:.4f}")
     print(f"Test Specificity (macro):             {specificity_macro:.4f}")
     print(f"Positive Prediction Rate (Test):        {np.mean(preds):.4f}")
     print(f"True Up Rate (Test):   {true_up_rate:.4f}")
@@ -186,15 +186,18 @@ def get_final_metrics(model_obj, X_train, y_train, X_test, y_test, n_splits: int
         "validation_std_accuracy": round(std_cv_test, 3),
         "cv_test_sd_error": round(std_cv_test, 3),
         "validation_avg_precision": round(mean_test_precision, 3),
-        "validation_avg_sensitivity": round(mean_test_sensitivity, 3),
+        "validation_avg_recall": round(mean_test_recall, 3),
+        "validation_avg_sensitivity": round(mean_test_recall, 3),
         "validation_avg_specificity": round(mean_test_specificity, 3),
         "test_split_accuracy": round(final_score, 3),
         "test_misclassification_error": round(misclassification_error, 3),
         "test_roc_auc_macro": round(roc_auc_macro, 3),
-        "test_sensitivity_macro": round(sensitivity_macro, 3),
+        "test_recall_macro": round(recall_macro, 3),
+        "test_sensitivity_macro": round(recall_macro, 3),
         "test_specificity_macro": round(specificity_macro, 3),
         "test_precision": round(test_precision, 3),
-        "test_sensitivity": round(test_sensitivity, 3),
+        "test_recall": round(test_recall, 3),
+        "test_sensitivity": round(test_recall, 3),
         "test_specificity": round(test_specificity, 3),
         "test_f1": round(test_f1, 3),
         "test_split_positive_prediction_rate": round(np.mean(preds), 3),

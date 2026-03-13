@@ -48,7 +48,7 @@ They can be found in difference.csv and ticker_largest_difference. Potential exp
 
 ### 4. Run codes for base model of only OHLCV features (and days of week for cyclical adjustment)
 - `PyScripts/Models/base.py` saves fitted model caches and diagnostic caches in `PyScripts/cache/`.
-- If you do not want to retrain the models, keep those `.pkl` files and inspect them later using the commented helper examples at the end of [base.py](/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/base.py).
+- If you do not want to retrain the models, keep those `.pkl` files and inspect them later using the commented helper examples at the end of [base.py]
 - The model `.pkl` files store fitted estimators; the diagnostics `.pkl` files store the cached bias-variance and train/test curve values used for the figures.
 
 

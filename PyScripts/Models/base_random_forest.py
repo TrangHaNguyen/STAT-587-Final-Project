@@ -26,7 +26,7 @@ from sklearn.metrics import (
 
 from H_prep import clean_data, import_data
 from H_eval import RollingWindowBacktest, get_final_metrics
-from model_grids import BASE_RF_PCA_GRID
+from model_grids import BASE_RF_PARAM_GRID, PCA_RF_PARAM_GRID, SEL_RF_PARAM_GRID
 
 CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'cache')
 os.makedirs(CACHE_DIR, exist_ok=True)
@@ -142,7 +142,7 @@ def build_export_table(df: pd.DataFrame) -> pd.DataFrame:
     keep_cols = ["Test Acc", "Precision", "Recall", "F1", "ROC-AUC"]
     return out[keep_cols]
 
-RECALL_NOTE = "Recall = Sensitivity for the positive (Up) class."
+RECALL_NOTE = "Recall = positive-class sensitivity."
 
 def _highlight_selected_value(
     ax,
@@ -212,23 +212,6 @@ def _compute_cv_metric_curves(model_factory, X_train, y_train, cv):
         'cv_bal_err_std': cv_bal_errors.std(axis=0),
         'cv_bal_err_se': cv_bal_errors.std(axis=0) / np.sqrt(cv.get_n_splits()),
     }
-
-BASE_RF_PARAM_GRID = {
-    'classifier__max_depth': [2, 3, 5, 8, 15],
-    'classifier__n_estimators': [50, 100, 200, 500],
-}
-
-PCA_RF_PARAM_GRID = {
-    'reducer__n_components': BASE_RF_PCA_GRID,
-    'classifier__max_depth': [2, 3, 5],
-    'classifier__n_estimators': [250, 500],
-}
-
-SEL_RF_PARAM_GRID = {
-    'feature_selector__estimator__C': [0.001, 0.01, 0.1],
-    'classifier__max_depth': [2, 3, 5],
-    'classifier__n_estimators': [500],
-}
 
 def _base_rf_pipeline():
     return Pipeline([
@@ -370,7 +353,7 @@ def _rf_metrics_row(name, grid_obj, X_tr, y_tr, X_te, y_te, n_splits):
         'CV Acc SD':                   shared['cv_test_sd_error'],
         'Test Acc':                    shared['test_split_accuracy'],
         'Precision':         shared['test_precision'],
-        'Recall':            shared['test_recall'],
+        'Recall':            shared['test_sensitivity'],
         'F1':                shared['test_f1'],
         'ROC-AUC':           shared['test_roc_auc_macro'],
     }

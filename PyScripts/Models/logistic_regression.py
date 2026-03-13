@@ -14,7 +14,15 @@ from H_prep import clean_data, data_clean_param_selection, import_data
 from H_eval import get_final_metrics, RollingWindowBacktest, utility_score
 from H_helpers import log_result, append_params_to_dict, get_cwd
 from H_search_history import append_search_history, append_search_run, get_git_commit, now_iso
-from model_grids import LOGREG_PCA_GRID_OPTIONS
+from model_grids import (
+    LOGREG_INTERNAL_C_GRID_OPTIONS,
+    LOGREG_PCA_GRID_OPTIONS,
+    LOGREG_RIDGE_PCA_C_GRID_OPTIONS,
+    DATA_CLEAN_LAG_GRID_OPTIONS,
+    DATA_CLEAN_LOOKBACK_GRID_OPTIONS,
+    DATA_CLEAN_CORR_THRESHOLD_OPTIONS,
+    choose_grid_variant,
+)
 
 '''No need for hyperparameter tuning for Logistic Regression via GridSearchCV since LogisticRegressionCV performs internal CV to select the best C value. We will just use the default 10 values of C that LogisticRegressionCV tests.'''
 
@@ -29,10 +37,7 @@ cwd=get_cwd("STAT-587-Final-Project")
 
 
 def choose_grid(left_values, center_values, right_values):
-    options={"left": left_values, "center": center_values, "right": right_values}
-    if (GRID_VARIANT not in options):
-        raise ValueError("GRID_VARIANT must be one of: left, center, right.")
-    return options[GRID_VARIANT]
+    return choose_grid_variant(GRID_VARIANT, left_values, center_values, right_values)
 
 
 def logregcv_to_rows(cv_obj: LogisticRegressionCV, param_name: str = "param_classifier__C") -> dict:
@@ -126,11 +131,7 @@ if __name__=="__main__":
     TEST_SIZE=0.2
     # Previous temporary change used `KFold(n_splits=5, shuffle=False)`.
     tscv = TimeSeriesSplit(n_splits=5)
-    custom_Cs=choose_grid(
-        [0.005, 0.01, 0.1, 1.0],
-        [0.05, 0.1, 1.0, 10.0],
-        [0.1, 1.0, 10.0, 100.0]
-    )
+    custom_Cs=choose_grid(*LOGREG_INTERNAL_C_GRID_OPTIONS)
     print(f"MODEL_N_JOBS={MODEL_N_JOBS} (set env MODEL_N_JOBS to override)")
     print(f"GRID_VARIANT={GRID_VARIANT} (left/center/right)")
     print(f"GRID_VERSION={GRID_VERSION}")
@@ -160,11 +161,7 @@ if __name__=="__main__":
         
         print("------- Finding Optimal lag_period Value")
         param_grid={
-            'lag_period': choose_grid(
-                [1, 2, [1, 2], [1, 2, 3]],
-                [1, 2, 3, 4, 5, [1, 2], [1, 2, 3], [2, 3], [1, 3]],
-                [3, 4, 5, 6, 7, [2, 3], [3, 4], [2, 3, 4], [3, 5]]
-            ),
+            'lag_period': choose_grid(*DATA_CLEAN_LAG_GRID_OPTIONS),
             'sector': [True],
             'corr_level': [2]
         }
@@ -176,11 +173,7 @@ if __name__=="__main__":
 
         print("------- Finding Optimal lookback_period Value")
         param_grid={
-            'lookback_period': choose_grid(
-                [5, 7, 10, 12, 14, 17, 21],
-                [7, 10, 14, 17, 21, 24, 28],
-                [14, 17, 21, 24, 28, 32, 36]
-            ),
+            'lookback_period': choose_grid(*DATA_CLEAN_LOOKBACK_GRID_OPTIONS),
             'sector': [True],
             'corr_level': [2]
         }
@@ -199,11 +192,7 @@ if __name__=="__main__":
             'lookback_period': [best_lookback],
             'sector': [True],
             'corr_level': [0, 1, 2, 3],
-            'corr_threshold': choose_grid(
-                [0.7, 0.8, 0.85],
-                [0.8, 0.9, 0.95],
-                [0.9, 0.95, 0.98]
-            )
+            'corr_threshold': choose_grid(*DATA_CLEAN_CORR_THRESHOLD_OPTIONS)
         }
 
         _, parameters_, best_score=data_clean_param_selection(*DATA, clone(base_Log_Reg_model_pipeline), TEST_SIZE, WINDOW_SIZE, HORIZON, **param_grid)
@@ -320,11 +309,7 @@ if __name__=="__main__":
         'pca__n_components': choose_grid(
             *LOGREG_PCA_GRID_OPTIONS
         ),
-        'classifier__C': choose_grid(
-            [0.001, 0.01, 0.1, 1.0],
-            [0.01, 0.1, 1.0, 10.0],
-            [0.1, 1.0, 10.0, 100.0]
-        )
+        'classifier__C': choose_grid(*LOGREG_RIDGE_PCA_C_GRID_OPTIONS)
     }
     grid_search_PCA_ridge=GridSearchCV(
         Log_Reg_model_pipeline_PCA_L, param_grid, cv=tscv, return_train_score=True, verbose=VERBOSE,

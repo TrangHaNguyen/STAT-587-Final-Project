@@ -424,15 +424,16 @@
 
 
 \begin{frame}[t,shrink=8]{Method Overview: Models and Model Selection}
-\begin{block}{Model Tuning and Selection} (Ch. 7, ESL)
+  \textbf{Modification of loss function: balanced weight for classes is used}
+\begin{block}{Model Tuning and Selection} (Mainly Ch. 7, ESL)
 \begin{itemize}
-    \item Parameters for each model is selected by cross-validation with 1SE rule 
-    \item Validation methods: $k$-fold cross-validation
+    \item Validation methods: \textbf{Time series} cross-validation
+    \item Parameters. For stat models: selected by 1SE rule. For PCA: best CV metric 
     \item Evaluation metrics:
     \begin{itemize}
       \item Balanced accuracy in parameter tunning (reduced degenerated one)
       \item Mainly Test accuracy for model comparison
-      \item Other metrics: F1 score, Precision, ROC-AUC
+      \item Other metrics: ROC-AUC, Specificity, Sensitivity (recall)
     \end{itemize}
 \end{itemize}
 \end{block}
@@ -462,7 +463,7 @@
 \begin{frame}{Results}
 \begin{itemize}
   \item Overall accuracy around 50-55\%, slightly better than random guessing
-  \item Best hold-out accuracy: Baseline (noregularization)+ PCA (197 comps), Hold-out Test Acc = 0.5572
+  \item Best test accuracy: Baseline (noregularization)+ PCA (197 comps), Test Acc = 0.5572
   \item Best ROC-AUC: Ridge CV (PCA-197)
   \item Several LASSO models are degenerated
   \item PCA lead to loss of some information 

@@ -670,7 +670,7 @@ if __name__ == "__main__":
             'CV Acc SD':                   shared['cv_test_sd_error'],
             'Test Acc':                    shared['test_split_accuracy'],
             'Precision':       shared['test_precision'],
-            'Sensitivity':     shared['test_sensitivity'],
+            'Recall':          shared['test_recall'],
             'Specificity':     shared['test_specificity'],
             'F1':              shared['test_f1'],
             'ROC-AUC':         shared['test_roc_auc_macro'],
@@ -902,7 +902,7 @@ if __name__ == "__main__":
     full_df = combined_df.copy()
     full_df.index.name = 'Model'
     # Keep only the reporting columns used in slides/tables.
-    keep_cols = ['Test Acc', 'Precision', 'Sensitivity', 'Specificity', 'F1', 'ROC-AUC', 'CV Acc SD']
+    keep_cols = ['Test Acc', 'Precision', 'Recall', 'Specificity', 'F1', 'ROC-AUC', 'CV Acc SD']
     full_df = full_df[keep_cols]
 
     print("\n===== Full Comparison Table =====")
@@ -919,12 +919,12 @@ if __name__ == "__main__":
         r'Base = baseline logistic regression without regularization. '
         r'Test Acc = plain hold-out accuracy on the final 20\% test split. '
         r'All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. '
-        r'Recall = Sensitivity for the positive (Up) class.'
+        r'Recall = positive-class sensitivity.'
     )
     lasso_note = (
         r'$^\dagger$ Degenerate classifier: optimal $C = 10^{-6}$ shrinks all '
         r'coefficients to zero; model predicts majority class for every observation '
-        r'(Sensitivity = 1.0, Precision $\approx$ base rate).'
+        r'(Recall = 1.0, Precision $\approx$ base rate).'
     )
 
     def _latex_escape(text):

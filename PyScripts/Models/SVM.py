@@ -11,6 +11,15 @@ from H_prep import clean_data, import_data, data_clean_param_selection
 from H_eval import RollingWindowBacktest, get_final_metrics, utility_score
 from H_helpers import log_result, get_cwd, append_params_to_dict
 from H_search_history import append_search_history, append_search_run, get_git_commit, now_iso
+from model_grids import (
+    SVM_LINEAR_C_GRID_OPTIONS,
+    SVM_GAMMA_GRID_OPTIONS,
+    SVM_DEGREE_GRID_OPTIONS,
+    DATA_CLEAN_LAG_GRID_OPTIONS,
+    DATA_CLEAN_LOOKBACK_GRID_OPTIONS,
+    DATA_CLEAN_CORR_THRESHOLD_OPTIONS,
+    choose_grid_variant,
+)
 
 cwd=get_cwd("STAT-587-Final-Project")
 MODEL_N_JOBS=int(os.getenv("MODEL_N_JOBS", "-1"))
@@ -21,10 +30,7 @@ SEARCH_NOTES=os.getenv("SEARCH_NOTES", "")
 
 
 def choose_grid(left_values, center_values, right_values):
-    options={"left": left_values, "center": center_values, "right": right_values}
-    if (GRID_VARIANT not in options):
-        raise ValueError("GRID_VARIANT must be one of: left, center, right.")
-    return options[GRID_VARIANT]
+    return choose_grid_variant(GRID_VARIANT, left_values, center_values, right_values)
 
 
 def _as_sortable_numeric(value):
@@ -96,11 +102,7 @@ if __name__ == "__main__":
         
         print("------- Finding Optimal lag_period Value")
         param_grid={
-            'lag_period': choose_grid(
-                [1, 2, [1, 2], [1, 2, 3]],
-                [1, 2, 3, 4, 5, [1, 2], [1, 2, 3], [2, 3], [1, 3]],
-                [3, 4, 5, 6, 7, [2, 3], [3, 4], [2, 3, 4], [3, 5]]
-            ),
+            'lag_period': choose_grid(*DATA_CLEAN_LAG_GRID_OPTIONS),
             'sector': [True],
             'corr_level': [2]
         }
@@ -112,11 +114,7 @@ if __name__ == "__main__":
 
         print("------- Finding Optimal lookback_period Value")
         param_grid={
-            'lookback_period': choose_grid(
-                [5, 7, 10, 12, 14, 17, 21],
-                [7, 10, 14, 17, 21, 24, 28],
-                [14, 17, 21, 24, 28, 32, 36]
-            ),
+            'lookback_period': choose_grid(*DATA_CLEAN_LOOKBACK_GRID_OPTIONS),
             'sector': [True],
             'corr_level': [2]
         }
@@ -135,11 +133,7 @@ if __name__ == "__main__":
             'lookback_period': [best_lookback],
             'sector': [True],
             'corr_level': [0, 1, 2, 3],
-            'corr_threshold': choose_grid(
-                [0.7, 0.8, 0.85],
-                [0.8, 0.9, 0.95],
-                [0.9, 0.95, 0.98]
-            )
+            'corr_threshold': choose_grid(*DATA_CLEAN_CORR_THRESHOLD_OPTIONS)
         }
 
         _, parameters_, best_score=data_clean_param_selection(*DATA, clone(base_SVM_rbf_model_pipeline), TEST_SIZE, WINDOW_SIZE, HORIZON, **param_grid)
@@ -164,11 +158,7 @@ if __name__ == "__main__":
                                     ('classifier', SVM_linear)])
 
     param_grid={
-        'classifier__C': choose_grid(
-            [0.01, 0.1, 1],
-            [0.1, 1, 10],
-            [1, 10, 100]
-        )
+        'classifier__C': choose_grid(*SVM_LINEAR_C_GRID_OPTIONS)
     }
     
     grid_search_linear = GridSearchCV(
@@ -216,16 +206,8 @@ if __name__ == "__main__":
                                  ('classifier', SVM_rbf)])
 
     param_grid={
-        'classifier__C': choose_grid(
-            [0.01, 0.1, 1],
-            [0.1, 1, 10],
-            [1, 10, 100]
-        ),
-        'classifier__gamma': choose_grid(
-            ['scale', 'auto', 0.001, 0.01, 0.1],
-            ['scale', 'auto', 0.01, 0.1, 1],
-            ['scale', 'auto', 0.1, 1, 10]
-        )
+        'classifier__C': choose_grid(*SVM_LINEAR_C_GRID_OPTIONS),
+        'classifier__gamma': choose_grid(*SVM_GAMMA_GRID_OPTIONS)
     }
     
     grid_search_rbf = GridSearchCV(
@@ -273,21 +255,9 @@ if __name__ == "__main__":
                                   ('classifier', SVM_poly)])
 
     param_grid={
-        'classifier__C': choose_grid(
-            [0.01, 0.1, 1],
-            [0.1, 1, 10],
-            [1, 10, 100]
-        ),
-        'classifier__gamma': choose_grid(
-            ['scale', 'auto', 0.001, 0.01, 0.1],
-            ['scale', 'auto', 0.01, 0.1, 1],
-            ['scale', 'auto', 0.1, 1, 10]
-        ),
-        'classifier__degree': choose_grid(
-            [1, 2, 3, 4],
-            [2, 3, 4, 5],
-            [3, 4, 5, 6]
-        )
+        'classifier__C': choose_grid(*SVM_LINEAR_C_GRID_OPTIONS),
+        'classifier__gamma': choose_grid(*SVM_GAMMA_GRID_OPTIONS),
+        'classifier__degree': choose_grid(*SVM_DEGREE_GRID_OPTIONS)
     }
     
     grid_search_poly = GridSearchCV(

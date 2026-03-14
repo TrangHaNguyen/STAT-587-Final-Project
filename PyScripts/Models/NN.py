@@ -378,7 +378,7 @@ def main() -> None:
     comparison_df = build_base_style_comparison_df(rows)
     export_df = build_compact_export_table(
         comparison_df,
-        keep_cols=["Test Acc", "MCC", "Precision", "Recall", "Specificity", "F1", "ROC-AUC"],
+        keep_cols=["ROC-AUC", "MCC", "Test Acc", "Recall", "Specificity"],
     )
     tex_path = output_dir / "8yrs_nn_comparison.tex"
 
@@ -387,7 +387,7 @@ def main() -> None:
         tex_path,
         caption="Neural-network model comparison on raw baseline-style sequence features.",
         label="tab:nn_comparison",
-        note="Columns follow the base-model comparison format, excluding cross-validation columns because neural-network hyperparameters have not yet been tuned with cross-validation.",
+        note="Columns follow the base-model comparison format, excluding Precision, F1, and cross-validation columns because neural-network hyperparameters have not yet been tuned with cross-validation.",
     )
 
     print("\nNeural-network comparison table:")

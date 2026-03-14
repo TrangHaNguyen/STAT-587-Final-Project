@@ -30,6 +30,10 @@ LaTex/*.toc
 output/*.parquet
 output/*.pkl
 output/*.csv
+output/checkpoints/
+output/.DS_Store
+output/checkpoints/.DS_Store
 /PyScripts/Ignore/
 PyScripts/Data/hourly_data.parquet
 PyScripts/Data/raw_data_8_years.parquet
+.DS_Store

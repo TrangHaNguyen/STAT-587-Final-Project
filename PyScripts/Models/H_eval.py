@@ -520,7 +520,8 @@ def comparison_row_from_metrics(model_name: str, metrics: dict) -> dict:
 
 def build_base_style_comparison_df(rows: list[dict]) -> pd.DataFrame:
     df = pd.DataFrame(rows).set_index('Model')
-    keep_cols = ['Test Acc', 'MCC', 'Precision', 'Recall', 'Specificity', 'F1', 'ROC-AUC', 'CV Acc SD']
+    # Hidden for report export for now: Precision, F1, CV Acc SD
+    keep_cols = ['ROC-AUC', 'MCC', 'Test Acc', 'Recall', 'Specificity']
     return df[keep_cols]
 
 
@@ -531,7 +532,8 @@ def build_compact_export_table(
 ) -> pd.DataFrame:
     """Keep only compact reporting columns and optionally rename rows for export."""
     if keep_cols is None:
-        keep_cols = ['Test Acc', 'MCC', 'Precision', 'Recall', 'Specificity', 'F1', 'ROC-AUC', 'CV Acc SD']
+        # Hidden for report export for now: Precision, F1, CV Acc SD
+        keep_cols = ['ROC-AUC', 'MCC', 'Test Acc', 'Recall', 'Specificity']
     export_df = df.copy()[keep_cols]
     if index_renames:
         export_df = export_df.rename(index=index_renames)

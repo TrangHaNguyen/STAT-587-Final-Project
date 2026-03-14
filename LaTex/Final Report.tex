@@ -82,6 +82,9 @@
     {\large \today \par}
 \end{titlepage}
 
+\pagenumbering{roman}
+\setcounter{page}{1}
+
 \section*{Acknowledgment of Project Development and Prior Contributions}
 \addcontentsline{toc}{section}{Acknowledgment of Project Development and Prior Contributions}
 
@@ -90,9 +93,14 @@ This work was initially undertaken as part of a group project and was later sepa
 The author acknowledges contributions from the earlier shared project stage in the following areas: initial code for loading daily data and sector grouping, which was later subject to minor adjustment in the present version; portions of the original logistic regression and random forest pipeline code, which were substantially revised; and portions of the exploratory data analysis graphing code, which were moderately revised and incorporated into the present version.
 
 %---------------- Table of Contents ----------------%
+\newpage
 \listoftodos
+\newpage
 \tableofcontents
 \newpage      
+
+\pagenumbering{arabic}
+\setcounter{page}{1}
 
 \section{Introduction}
 
@@ -186,7 +194,7 @@ Figure \ref{fig:top-sectors} shows the intra-sector correlation matrices for the
 Figure \ref{fig:sector-vol} shows the rolling 21-day average cross-sectional standard deviation of daily stock returns for each GICS sector and the smoothed version obtained by applying a 40-day rolling mean. This was created utilizing the engineered feature `Close VOL 28'. The volatility series reveal that certain sectors, such as \todo{Need to be revised} Energy and Financials, tend to exhibit higher volatility compared to others like Utilities and Consumer Staples. This support our earlier construction of volatility features for all stocks (before dimensionality reduction) rather than just a single index. In addition, similar time trend across sectors suggest data redundency.
 
 
-For a numerical summary, Table \ref{tab:descriptive_stats} reports yearly means and standard deviations of returns for the three key sectors, along with the yearly S\&P 500 up-day proportion.
+For a numerical summary, the descriptive-statistics table below reports yearly means and standard deviations of returns for the three key sectors, along with the yearly S\&P 500 up-day proportion.
 \safeinput{../output/8yrs_descriptive_stats.tex}
 
 Average daily returns are generally positive except for 2022. The volatility in return rises sharply in 2020 and again in 2022, with Technology consistently exhibiting the highest dispersion and Consumer Defensive the lowest. The S\&P 500 up-day proportion is above 0.50 in most years but drops below 0.50 in 2022, meaning that the data is not very balanced in terms of responses.
@@ -218,7 +226,7 @@ Additional  method employed in our analysis is neural network with the focus on 
 
 Regarding to the selection of optimal parameters for the above mentioned methods,  beside standard k-fold cross-validation provided in the textbook that we are used for all models, walk-forward validation are employed in some feasible ones. This method utilizes a shifting window of training (\verb|window_size|) and test splits (\verb|horizon|) that look to simulate how an investor and/or trader may view the market before making a decision. Given by the nature of past data becoming holding less predictive power over future events (which can be seen as a diminishing correlation between two days as they spread further apart), a more recent \verb|window_size| and an appropriately short \verb|horizon| would be preferable to stay consistent and in-alignment with the then present market regime. % For some neural network models that is computationally intensive, the number of fold is set to be 5 instead of 10. 
 
-The general selection of hyperparameter is mainly based on the model with highest average cross validation accuracy. In addition, other metrics like ROC-AUC, F1-score, precision-recall, and ROC-AUC are also considered when they are available to specific models. Among several models of similar average cross validation accuracy, the more parsimonious one will be selected. Detailed of optimal hyperparameter for each model is in included in the appendix.
+The general selection of hyperparameter is mainly based on the model with highest average cross validation accuracy. In addition, other metrics such as MCC, recall, specificity, and ROC-AUC are also considered when they are available to specific models. Among several models of similar average cross validation accuracy, the more parsimonious one will be selected. Detailed of optimal hyperparameter for each model is in included in the appendix.
 
 %\textbf{Further part need to be addressed:
 %Baseline model is RF, Logistic, SVM with indexes only.
@@ -257,9 +265,10 @@ Table~\ref{tab:base_logistic_comparison} presents the performance comparison of 
 \safeinput{../output/8yrs_1SE_base_random_forest.tex}
 \FloatBarrier
 
-Table~\ref{tab:base_rf_comparison} presents the performance comparison of different random forest models with predictors of raw features and of selected PCA components. The depth of the tree and number of estimators are selected based on grid search cross validation. The random forest using raw features outperforms the PCA-based logistic regression, and applying PCA before the random forest improves performance even further (accuracy in the test set increased to 54 \%). LASSO and Ridge application in feature selections for random forest does not improve performance compared to PCA. However, the standard deviation of both train and test cross validation accuracy is higher for the random forest compared to logistic regression, which suggests that the random forest may be more sensitive to the data set used to train. 
+Table~\ref{tab:base_rf_comparison} presents the performance comparison of different random forest models with predictors of raw features and of selected PCA components. The depth of the tree and number of estimators are selected based on grid search cross validation. The random forest using raw features outperforms the PCA-based logistic regression, and applying PCA before the random forest improves performance even further (accuracy in the test set increased to 54 \%). LASSO and Ridge application in feature selections for random forest does not improve performance compared to PCA. Overall, the random-forest models show unstable tradeoffs between recall and specificity, which suggests that their classification boundary may be more sensitive to the data set used to train.
 
-
+\safeinput{../output/8yrs_base_svm_comparison.tex}
+\FloatBarrier
 
 
 
@@ -268,19 +277,22 @@ Table~\ref{tab:base_rf_comparison} presents the performance comparison of differ
 
 \subsubsection{Extended Feature Models}
 
-This section will present the performance comparison of models that utilize the engineered features, including lag values, percent change, volatility, max/min channel position, rolling volume weighted average prices, rolling z-scores, daily range, and day of week. The models will include logistic regression with automatic regularization (LASSO and Ridge), random forest classifier, support vector machine with RBF kernel, and neural networks (CNN, simple RNN, LSTM). The performance metrics will include accuracy, precision, recall, F1-score, and ROC-AUC where applicable. The results will be compared to the baseline models that only use raw features to evaluate the impact of feature engineering on predictive performance.
-
-\safeinput{model_comparison_table.tex}
+This section will present the performance comparison of models that utilize the engineered features, including lag values, percent change, volatility, max/min channel position, rolling volume weighted average prices, rolling z-scores, daily range, and day of week. The models will include logistic regression with automatic regularization (LASSO and Ridge), random forest classifier, support vector machine with RBF kernel, and neural networks (CNN, simple RNN, LSTM). The performance metrics will include accuracy, MCC, recall, specificity, and ROC-AUC where applicable. The results will be compared to the baseline models that only use raw features to evaluate the impact of feature engineering on predictive performance.
+\safeinput{../output/8yrs_logistic_regression_comparison.tex}
+\safeinput{../output/8yrs_random_forest_comparison.tex}
+\safeinput{../output/8yrs_svm_comparison.tex}
+\safeinput{../output/8yrs_3methods_comparison.tex}
 \FloatBarrier
 
-Table~\ref{tab:model_comparison} reveals that sequential models (RNN and LSTM) achieve the best overall performance with F1-scores of 0.6592 and 0.6571 respectively, benefiting from their ability to capture temporal dependencies in 7-day windows. The Simple RNN emerges as the recommended model for deployment, achieving the highest accuracy (0.5461) among all models while maintaining a good balance between precision (0.5535) and recall (0.8148). Among linear models, LASSO regularization (L1) demonstrates superior performance with the highest accuracy (0.5486) and the only ROC-AUC above 0.50 (0.5342), indicating actual discriminative ability beyond random guessing. Notably, the SVM with RBF kernel exhibits degenerate behavior, predicting all samples as ``Up'' (Recall=1.0) and achieving a ROC-AUC below random chance (0.4917), rendering it unsuitable for practical application despite a misleadingly high F1-score. The dimensionality reduction models (PCA, LASSO-reduced, Ridge-reduced) show moderate performance with accuracies ranging from 0.4632 to 0.5368, suggesting that while dimension reduction techniques help manage the curse of dimensionality with 41K features, they also risk losing important predictive signals. Overall, all models operate near 50-55\% accuracy, confirming that S\&P 500 direction prediction remains inherently challenging even with sophisticated machine learning approaches. Incorporating different metrics beyond accuracy, such as ROC-AUC and standard deviation of the cross validation accuracy, we propose the use of logistic regression with Ridge and LASSO regularization for the predictors included engineered features.
+
+The model-comparison results above reveal that sequential models (RNN and LSTM) achieve the strongest recall among the engineered-feature models, benefiting from their ability to capture temporal dependencies in 7-day windows. The Simple RNN emerges as a promising candidate for deployment, achieving the highest accuracy among the sequential models while preserving strong recall. Among linear models, LASSO regularization (L1) demonstrates competitive accuracy and one of the more favorable ROC-AUC values, indicating some discriminative ability beyond random guessing. Notably, the SVM with RBF kernel exhibits degenerate behavior, predicting all samples as ``Up'' (Recall=1.0) and achieving a ROC-AUC below random chance, rendering it unsuitable for practical application. The dimensionality reduction models (PCA, LASSO-reduced, Ridge-reduced) show moderate performance, suggesting that while dimension reduction techniques help manage the curse of dimensionality with 41K features, they also risk losing important predictive signals. Overall, all models operate near 50-55\% accuracy, confirming that S\&P 500 direction prediction remains inherently challenging even with sophisticated machine learning approaches. Using accuracy together with MCC, recall, specificity, and ROC-AUC, we propose the use of logistic regression with Ridge and LASSO regularization for the predictors included engineered features.
 
 \subsection{Hourly Models}
 
 \safeinput{../output/8yrs_logistic_regression_24hours_three_model_comparison.tex}
 \FloatBarrier
 
-To further investigate the temporal dependencies of the market, we also experimented with similar models for the hourly data. Table \ref{tab:logreg_l2_elasticnet_24h} presents the performance comparison of logistic regression models with L2 regularization, Elastic Net regularization, and feature-engineered L2 regularization using 24-hour lag features. The results indicate that the performance of the hourly models is better than the daily models, with the best performing model  with an accuracy of 0.5478 and ROC-AUC value around 60 \%. This suggests that a clearer short window of dependencies rather than by days/ weeks.
+To further investigate the temporal dependencies of the market, we also experimented with similar models for the hourly data. The hourly-comparison table below presents the performance comparison of logistic regression models with L2 regularization, Elastic Net regularization, and feature-engineered L2 regularization using 24-hour lag features. The results indicate that the performance of the hourly models is better than the daily models, with the best performing model with an accuracy of 0.5478 and ROC-AUC value around 60 \%. This suggests that a clearer short window of dependencies rather than by days/weeks.
 
 \subsection{Visualization of predictions}
 
@@ -303,20 +315,22 @@ This issue was mostly alleviated by introducing further dimensionality reduction
 
 \subsection{Limitations}
 
-  This study has several limitations. In terms of data, we only used historical price and volume information and did not include sentiment analysis, macroeconomic indicators, or alternative data sources. In terms of modeling, we did not explore mixed-model approaches or more complex deep learning architectures. In terms of evaluation, we mainly relied on accuracy, F1-score, and ROC-AUC under walk-forward validation and cross-validation, while additional selection rules (such as the 1SE rule based on k-fold cross validation) could be considered in future work. Finally, both time and computational resource constraints limited the extent of hyperparameter tuning, model experimentation, and large-scale cross-validation.
+  This study has several limitations. In terms of data, we only used historical price and volume information and did not include sentiment analysis, macroeconomic indicators, or alternative data sources. In terms of modeling, we did not explore mixed-model approaches or more complex deep learning architectures. In terms of evaluation, we mainly relied on accuracy, MCC, recall, specificity, and ROC-AUC under walk-forward validation and cross-validation, while additional selection rules (such as the 1SE rule based on k-fold cross validation) could be considered in future work. Finally, both time and computational resource constraints limited the extent of hyperparameter tuning, model experimentation, and large-scale cross-validation.
 
 \subsection{Possible methodological extensions}
 
 Future methodological extensions include more extensive hyperparameter tuning and broader model experimentation, along with a more comprehensive evaluation framework that incorporates additional metrics and validation techniques. The analysis could also be strengthened by including political and economic indicators, sentiment analysis, and other alternative data sources to improve predictive power. In addition, future work should explore more sophisticated modeling approaches, including deeper neural network architectures and hybrid strategies that combine machine learning with classical economic time-series methods such as ARIMA and GARCH.
 
 \section{Reproducibility Requirements}
-
+\todo{the instruction is listed in more detail in README in the folder. Overall, the setting is loading packages in requirement.txt before running any code.}
 \subsection{Environment file or package list}
-
+\todo{Cite this to the file requirement.txt}
 \subsection{Folder structure}
+\todo{Ask chat gpt to generate png file to reflect the last organized folder structure}
 \subsection{Random seed control}
+The random seed can be adjusted in \texttt{model\_grids.py} at \texttt{PyScripts/Models/model\_grids.py}.
 \subsection{Clear function/code organization}
-
+\todo{Arrange all the code in the file All.py}
 %Additional comments: more features vs just basic:
 %- ridge reduces coefficient variance, not the redundancy in the data.
 %- Curse of dimensionality / weak signals: extra features increase complexity
@@ -329,7 +343,8 @@ n, so the best achievable generalization can decrease.
 \section*{References}
 \bibliographystyle{apacite}
 \bibliography{Bibliography}
-\section*{Appendix}
+\appendix
+\section{Appendix}
 \subsection{Details of Enginearing Features Before Dimensionality Reduction}
 \label{subsec:feature_engineering}
 

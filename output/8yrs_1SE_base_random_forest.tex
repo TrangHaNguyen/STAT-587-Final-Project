@@ -1,18 +1,18 @@
 \begin{table}[htbp]
 \centering
 \caption{Random Forest Model Comparison: Raw OHLCV vs +Day-of-Week}
-\label{tab:base_rf_comparison}
+\label{tab:base\_rf\_comparison}
 \begin{tabular}{lrrrrr}
 \toprule
 Model & ROC-AUC & MCC & Test Acc & Recall & Specificity \\
 \midrule
-Raw RF & 0.508 & -0.031 & 0.458 & 0.009 & 0.984 \\
-PCA RF & 0.430 & -0.099 & 0.440 & 0.051 & 0.897 \\
+Raw RF & 0.513 & 0.055 & 0.530 & 0.558 & 0.497 \\
+PCA RF & 0.527 & 0.069 & 0.552 & 0.871 & 0.178 \\
 \midrule
-RF+DOW & 0.545 & 0.026 & 0.473 & 0.078 & 0.935 \\
-PCA RF+DOW & 0.472 & -0.031 & 0.458 & 0.009 & 0.984 \\
+RF+DOW & 0.595 & 0.128 & 0.550 & 0.415 & 0.708 \\
+PCA RF+DOW & 0.468 & -0.055 & 0.475 & 0.507 & 0.438 \\
 \bottomrule
 \end{tabular}
 \par\smallskip
-\footnotesize Test Acc = plain hold-out accuracy on the final 20\% test split. Recall = positive-class sensitivity.
+\footnotesize Test Acc = plain hold-out accuracy on the final 20\% test split. All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. Recall = positive-class sensitivity.
 \end{table}

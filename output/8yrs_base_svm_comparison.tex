@@ -1,16 +1,14 @@
 \begin{table}[htbp]
 \centering
-\caption{Logistic Regression Model Comparison}
-\label{tab:logistic\_regression\_comparison}
+\caption{Raw SVM Model Comparison}
+\label{tab:base\_svm\_comparison}
 \begin{tabular}{lrrrrr}
 \toprule
 Model & ROC-AUC & MCC & Test Acc & Recall & Specificity \\
 \midrule
-PCA Base & 0.494 & -0.059 & 0.453 & 0.219 & 0.731 \\
-Ridge & 0.457 & 0.010 & 0.529 & 0.805 & 0.203 \\
-LASSO & 0.478 & -0.008 & 0.539 & 0.981 & 0.016 \\
-PCA Ridge(int.) & 0.513 & -0.067 & 0.448 & 0.033 & 0.940 \\
-PCA LASSO(int.) & 0.523 & -0.006 & 0.499 & 0.516 & 0.478 \\
+Raw Linear SVM & 0.465 & -0.024 & 0.535 & 0.977 & 0.016 \\
+Raw RBF SVM & 0.509 & 0.010 & 0.540 & 0.986 & 0.016 \\
+Raw Poly SVM & 0.518 & 0.034 & 0.480 & 0.124 & 0.897 \\
 \bottomrule
 \end{tabular}
 \par\smallskip

@@ -299,12 +299,102 @@ To further investigate the temporal dependencies of the market, we also experime
 \subsection{Validation results}
 \quad \ Initially, a \verb|window_size| of 21 days was chosen to represent roughly a month worth of trading days, and a \verb|horizon| of 5 days to represent roughly a week worth of trading days. However, this posed an issue of overfitting (further in detail below) since the feature space would almost always be greater than the \verb|window_size|.
 
+The validation plots below summarize the final bias-variance tradeoffs for the best-performing daily models retained in the 8-year analysis. They are included here to show how the selected model complexity settings balanced cross-validation fit against out-of-sample performance.
+
+\begin{figure}[htbp]
+  \centering
+  \safeincludegraphics[width=0.95\textwidth]{../output/8yrs_1SE_base_logistic_best_bias_variance.png}
+  \caption{Best bias-variance tradeoff among baseline logistic-regression models on raw OHLCV features.}
+  \label{fig:validation-base-logreg-best-bv}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \safeincludegraphics[width=0.95\textwidth]{../output/8yrs_1SE_base_logistic_best_bias_variance_pca_n_components.png}
+  \caption{Best PCA-based bias-variance tradeoff among baseline logistic-regression models.}
+  \label{fig:validation-base-logreg-pca-best-bv}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \safeincludegraphics[width=0.95\textwidth]{../output/8yrs_logreg_best_bias_variance.png}
+  \caption{Best bias-variance tradeoff among engineered-feature logistic-regression models.}
+  \label{fig:validation-logreg-best-bv}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \safeincludegraphics[width=0.95\textwidth]{../output/8yrs_base_rf_best_model_bias_variance.png}
+  \caption{Best overall bias-variance tradeoff among baseline random-forest models.}
+  \label{fig:validation-base-rf-best-bv}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \safeincludegraphics[width=0.95\textwidth]{../output/8yrs_base_rf_best_model_bias_variance_classifier_max_features.png}
+  \caption{Bias-variance sensitivity of the selected baseline random-forest model to \texttt{max\_features}.}
+  \label{fig:validation-base-rf-best-bv-max-features}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \safeincludegraphics[width=0.95\textwidth]{../output/8yrs_base_rf_best_model_bias_variance_classifier_n_estimators.png}
+  \caption{Bias-variance sensitivity of the selected baseline random-forest model to the number of estimators.}
+  \label{fig:validation-base-rf-best-bv-n-estimators}
+\end{figure}
+\FloatBarrier
+
 \subsection{Overfitting/underfitting analysis}
 
 
 \quad \ A general note on overfitting and other issues with select models. Given by the fact that the raw data inherently has more features than observations, overfitting was a big issue, especially in earlier implementations of the model. Overfitting results in a train misclassification rate of zero perpetually and no amount of generalization was possible towards validation sets and test splits. Furthermore, partly because of this overfitting, when certain models (most notably logistic regression) would search for an optimal hyperparameter, since the training misclassification rate would be impeccable, if the lower bound of the $C$-values were small enough, the model would degenerate to always guessing 1 or 0 depending on the imbalance in the splits. 
 
 This issue was mostly alleviated by introducing further dimensionality reduction methods (most notably grouping by sector and collinearity reduction), which reduced the dimensionality of the feature space enough for there to be any sense of meaningful training on the training set.
+
+The train-versus-test plots below complement the validation figures by showing how the best-selected model settings behaved on direct hold-out splits. These plots make the remaining overfitting and underfitting patterns easier to compare across the final daily-model candidates.
+
+\begin{figure}[htbp]
+  \centering
+  \safeincludegraphics[width=0.95\textwidth]{../output/8yrs_1SE_base_logistic_best_train_test.png}
+  \caption{Train-versus-test error for the best baseline logistic-regression model on raw OHLCV features.}
+  \label{fig:overfit-base-logreg-best-train-test}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \safeincludegraphics[width=0.95\textwidth]{../output/8yrs_1SE_base_logistic_best_train_test_pca_n_components.png}
+  \caption{Train-versus-test error for the best PCA-based baseline logistic-regression model.}
+  \label{fig:overfit-base-logreg-pca-best-train-test}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \safeincludegraphics[width=0.95\textwidth]{../output/8yrs_logreg_best_train_test.png}
+  \caption{Train-versus-test error for the best engineered-feature logistic-regression model.}
+  \label{fig:overfit-logreg-best-train-test}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \safeincludegraphics[width=0.95\textwidth]{../output/8yrs_base_rf_best_model_train_test.png}
+  \caption{Train-versus-test error for the best overall baseline random-forest model.}
+  \label{fig:overfit-base-rf-best-train-test}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \safeincludegraphics[width=0.95\textwidth]{../output/8yrs_base_rf_best_model_train_test_classifier_max_features.png}
+  \caption{Train-versus-test sensitivity of the selected baseline random-forest model to \texttt{max\_features}.}
+  \label{fig:overfit-base-rf-best-train-test-max-features}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \safeincludegraphics[width=0.95\textwidth]{../output/8yrs_base_rf_best_model_train_test_classifier_n_estimators.png}
+  \caption{Train-versus-test sensitivity of the selected baseline random-forest model to the number of estimators.}
+  \label{fig:overfit-base-rf-best-train-test-n-estimators}
+\end{figure}
+\FloatBarrier
 
 \section{Discussion}
 

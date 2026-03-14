@@ -1,7 +1,7 @@
 ORCA SETUP AND BATCH SUBMISSION GUIDE
 
 This file gives a full command-line workflow for:
-- connecting to ORCA
+- connecting to ORCA: ssh orca when you save orca infor in your config
 - cloning or updating this repo on ORCA
 - creating the Python environment
 - submitting run_all.slurm
@@ -34,23 +34,46 @@ module avail python
 
 Option A: ORCA has Python 3.11 as a module
 
-module load python/3.11
-python -m venv .venv
-source .venv/bin/activate
-python --version
-pip install --upgrade pip
-pip install -r requirements.txt
 
-
-Option B: ORCA does not have Python 3.11, so use uv
-
+deactivate 2>/dev/null || true
+module purge
 module load uv
 uv python install 3.11
-uv venv --python 3.11 .venv
-source .venv/bin/activate
+uv venv --python 3.11 .venv311
+source .venv311/bin/activate
 python --version
 pip install --upgrade pip
 pip install -r requirements.txt
+
+
+source .venv311/bin/activate
+python -m ensurepip --upgrade
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+
+
+
+python --version
+python -m pip --version
+
+
+deactivate 2>/dev/null || true
+mv .venv .venv_broken_$(date +%Y%m%d_%H%M%S)
+module purge
+module load uv
+uv venv --python 3.11 .venv
+source .venv/bin/activate
+echo "$VIRTUAL_ENV"
+
+
+python -m ensurepip --upgrade
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+
+python --version
+python -m pip --version
+
+
 
 
 ==================================================
@@ -76,21 +99,24 @@ Submitted batch job 123456
 4. MONITOR THE JOB
 ==================================================
 
+When back to orca:
+ssh orca
+cd ~/STAT-587-Final-Project
+squeue -u $USER
+tail -n 50 output/all_pipeline.log
+cat output/all_pipeline_state.json
+
+
+
 Check whether it is queued or running:
 
 squeue -u $USER
 
-Watch the Slurm stdout log:
 
-tail -f all_models-123456.out
+tail -f all_models-<batchid>81704.out
+tail -f output/all_pipeline.log
+squeue -u $USER
 
-Watch the Slurm stderr log:
-
-tail -f all_models-123456.err
-
-Cancel the job if needed:
-
-scancel 123456
 
 
 ==================================================
@@ -131,51 +157,28 @@ find output -maxdepth 3 | sort
 ==================================================
 
 After the Slurm job finishes, log into ORCA and go to the repo:
-
-ssh your_username@orca
-cd ~/projects/STAT-587-Final-Project
+ssh orca
+cd ~/STAT-587-Final-Project
 
 List everything currently in output/:
-
 ls output
 
 List all files recursively in sorted order:
-
 find output -type f | sort
 
 See the newest files first:
-
 ls -lt output
 
 Check the pipeline status:
-
 cat output/all_pipeline_state.json
 
 Check the pipeline log:
-
 tail -n 50 output/all_pipeline.log
 
-If you want to search for a specific kind of result:
-
-find output -name "*.png" | sort
-find output -name "*.tex" | sort
-find output -name "*.csv" | sort
-find output -name "*.log" | sort
-
-To copy the whole output folder from ORCA to your local machine, run this
+To copy the whole tex and png output from ORCA to your local machine, run this
 from your LOCAL terminal, not from inside ORCA:
-
-scp -r your_username@orca:~/projects/STAT-587-Final-Project/output .
-
-To copy a single file from ORCA to your local machine:
-
-scp your_username@orca:~/projects/STAT-587-Final-Project/output/all_pipeline_state.json .
-
-To copy one specific result file:
-
-scp your_username@orca:~/projects/STAT-587-Final-Project/output/<filename> .
-
-
+scp 'orca:~/STAT-587-Final-Project/output/*.png' /Users/tranghanguyen/STAT-587-Final-Project/output/
+scp 'orca:~/STAT-587-Final-Project/output/*.tex' /Users/tranghanguyen/STAT-587-Final-Project/output/
 ==================================================
 6. RESUME / CHECKPOINT BEHAVIOR
 ==================================================
@@ -202,7 +205,7 @@ ssh your_username@orca
 
 Go to the repo:
 
-cd ~/projects/STAT-587-Final-Project
+cd ~/STAT-587-Final-Project
 
 Pull the latest changes:
 

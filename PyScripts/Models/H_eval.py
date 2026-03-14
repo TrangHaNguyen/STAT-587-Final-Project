@@ -614,6 +614,11 @@ def _latex_escape(text: str) -> str:
             .replace("}", r"\}"))
 
 
+def _latex_label(text: str) -> str:
+    """Keep LaTeX labels machine-safe without escaping underscores."""
+    return str(text).strip().replace(" ", "_")
+
+
 def write_base_style_latex_table(df: pd.DataFrame, path, caption: str, label: str, note: str) -> None:
     """Write a simple LaTeX comparison table using the base.py reporting columns."""
     col_fmt = 'l' + 'r' * len(df.columns)
@@ -622,7 +627,7 @@ def write_base_style_latex_table(df: pd.DataFrame, path, caption: str, label: st
         f.write(r'\begin{table}[htbp]' + '\n')
         f.write(r'\centering' + '\n')
         f.write(r'\caption{' + _latex_escape(caption) + '}\n')
-        f.write(r'\label{' + _latex_escape(label) + '}\n')
+        f.write(r'\label{' + _latex_label(label) + '}\n')
         f.write(r'\begin{tabular}{' + col_fmt + '}\n')
         f.write(r'\toprule' + '\n')
         f.write(col_header + '\n')
@@ -667,7 +672,7 @@ def write_grouped_latex_table(
         f.write(r'\begin{table}[htbp]' + '\n')
         f.write(r'\centering' + '\n')
         f.write(r'\caption{' + _latex_escape(caption) + '}\n')
-        f.write(r'\label{' + _latex_escape(label) + '}\n')
+        f.write(r'\label{' + _latex_label(label) + '}\n')
         f.write(r'\begin{tabular}{' + col_fmt + '}\n')
         f.write(r'\toprule' + '\n')
         f.write(col_header + '\n')

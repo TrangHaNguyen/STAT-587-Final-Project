@@ -9,7 +9,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=48G
-#SBATCH --partition=compute
+#SBATCH --partition=medium
 #SBATCH --hint=nomultithread
 #SBATCH --requeue
 

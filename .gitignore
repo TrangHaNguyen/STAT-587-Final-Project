@@ -3,7 +3,9 @@
 !/PyScripts/
 !/.gitignore
 !/README.md
+!/ORCA.txt
 !/LaTex/
+!/run_all.slurm
 !/output/
 !/requirements.txt
 !/LectureNotes/

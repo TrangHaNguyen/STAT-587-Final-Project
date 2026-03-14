@@ -1,0 +1,259 @@
+ORCA SETUP AND BATCH SUBMISSION GUIDE
+
+This file gives a full command-line workflow for:
+- connecting to ORCA
+- cloning or updating this repo on ORCA
+- creating the Python environment
+- submitting run_all.slurm
+- checking logs, outputs, and checkpoints
+
+==================================================
+1. FIRST-TIME SETUP ON ORCA
+==================================================
+
+From your local terminal:
+
+ssh your_username@orca
+
+On ORCA:
+
+mkdir -p ~/projects
+cd ~/projects
+git clone <your-github-repo-url>
+cd STAT-587-Final-Project
+
+Check Python availability:
+
+python3 --version
+module avail python
+
+
+==================================================
+2. CREATE THE PYTHON ENVIRONMENT
+==================================================
+
+Option A: ORCA has Python 3.11 as a module
+
+module load python/3.11
+python -m venv .venv
+source .venv/bin/activate
+python --version
+pip install --upgrade pip
+pip install -r requirements.txt
+
+
+Option B: ORCA does not have Python 3.11, so use uv
+
+module load uv
+uv python install 3.11
+uv venv --python 3.11 .venv
+source .venv/bin/activate
+python --version
+pip install --upgrade pip
+pip install -r requirements.txt
+
+
+==================================================
+3. SUBMIT THE SLURM JOB
+==================================================
+
+If you used the standard Python-module route:
+
+cd ~/projects/STAT-587-Final-Project
+sbatch run_all.slurm
+
+If you used the uv route:
+
+cd ~/projects/STAT-587-Final-Project
+USE_UV=1 sbatch run_all.slurm
+
+Slurm should return a job ID, for example:
+
+Submitted batch job 123456
+
+
+==================================================
+4. MONITOR THE JOB
+==================================================
+
+Check whether it is queued or running:
+
+squeue -u $USER
+
+Watch the Slurm stdout log:
+
+tail -f all_models-123456.out
+
+Watch the Slurm stderr log:
+
+tail -f all_models-123456.err
+
+Cancel the job if needed:
+
+scancel 123456
+
+
+==================================================
+5. WHERE OUTPUTS AND CHECKPOINTS GO
+==================================================
+
+The Slurm logs are written in the repo root:
+
+- all_models-<jobid>.out
+- all_models-<jobid>.err
+
+The pipeline itself writes outputs inside:
+
+output/
+
+Important files created by PyScripts/Models/All.py:
+
+- output/all_pipeline.log
+- output/all_pipeline_state.json
+- output/model_*.log
+- output/*.tex
+- output/*.png
+- output/*.csv
+
+Useful commands:
+
+ls output
+tail -f output/all_pipeline.log
+cat output/all_pipeline_state.json
+
+To inspect more files and checkpoint directories:
+
+find output -maxdepth 3 | sort
+
+
+==================================================
+5B. HOW TO ACCESS NEWLY CREATED OUTPUT FILES
+==================================================
+
+After the Slurm job finishes, log into ORCA and go to the repo:
+
+ssh your_username@orca
+cd ~/projects/STAT-587-Final-Project
+
+List everything currently in output/:
+
+ls output
+
+List all files recursively in sorted order:
+
+find output -type f | sort
+
+See the newest files first:
+
+ls -lt output
+
+Check the pipeline status:
+
+cat output/all_pipeline_state.json
+
+Check the pipeline log:
+
+tail -n 50 output/all_pipeline.log
+
+If you want to search for a specific kind of result:
+
+find output -name "*.png" | sort
+find output -name "*.tex" | sort
+find output -name "*.csv" | sort
+find output -name "*.log" | sort
+
+To copy the whole output folder from ORCA to your local machine, run this
+from your LOCAL terminal, not from inside ORCA:
+
+scp -r your_username@orca:~/projects/STAT-587-Final-Project/output .
+
+To copy a single file from ORCA to your local machine:
+
+scp your_username@orca:~/projects/STAT-587-Final-Project/output/all_pipeline_state.json .
+
+To copy one specific result file:
+
+scp your_username@orca:~/projects/STAT-587-Final-Project/output/<filename> .
+
+
+==================================================
+6. RESUME / CHECKPOINT BEHAVIOR
+==================================================
+
+run_all.slurm runs All.py with:
+
+python PyScripts/Models/All.py --resume --n-jobs ...
+
+This means rerunning the Slurm job should skip completed stages based on
+the saved pipeline state and stage checkpoints in output/.
+
+To inspect current pipeline progress:
+
+cat output/all_pipeline_state.json
+
+
+==================================================
+7. LATER RERUNS AFTER YOU UPDATE THE REPO
+==================================================
+
+SSH into ORCA:
+
+ssh your_username@orca
+
+Go to the repo:
+
+cd ~/projects/STAT-587-Final-Project
+
+Pull the latest changes:
+
+git pull
+
+Activate the environment:
+
+source .venv/bin/activate
+
+If requirements changed:
+
+pip install -r requirements.txt
+
+Submit again:
+
+sbatch run_all.slurm
+
+Or with uv mode:
+
+USE_UV=1 sbatch run_all.slurm
+
+
+==================================================
+8. SHORT VERSION
+==================================================
+
+If Python 3.11 is available:
+
+ssh your_username@orca
+cd ~/projects
+git clone <your-github-repo-url>
+cd STAT-587-Final-Project
+module load python/3.11
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+sbatch run_all.slurm
+squeue -u $USER
+tail -f all_models-<jobid>.out
+tail -f output/all_pipeline.log
+cat output/all_pipeline_state.json
+
+
+==================================================
+9. NOTES
+==================================================
+
+- "Python 3 supported" on ORCA does not automatically mean Python 3.11.
+- Check with:
+  python3 --version
+  module avail python
+- This project prefers Python 3.11 because of TensorFlow compatibility.
+- The repo and the virtual environment both live on ORCA after setup.
+- Slurm submits the job from ORCA; it does not copy your repo there for you.

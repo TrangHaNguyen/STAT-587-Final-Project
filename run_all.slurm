@@ -9,12 +9,11 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=48G
-#SBATCH --partition=medium
 #SBATCH --hint=nomultithread
 #SBATCH --requeue
 
 # If ORCA requires an allocation/account, uncomment and edit:
-#SBATCH --account=your_account
+##SBATCH --account=your_account
 
 # Toggle this to 1 if your ORCA setup needs uv to build/manage the local
 # Python 3.11 environment instead of using a directly available python module.

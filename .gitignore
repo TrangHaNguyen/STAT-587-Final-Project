@@ -6,6 +6,7 @@
 !/ORCA.txt
 !/LaTex/
 !/run_all.slurm
+!/run_nn.slurm
 !/output/
 !/requirements.txt
 !/LectureNotes/

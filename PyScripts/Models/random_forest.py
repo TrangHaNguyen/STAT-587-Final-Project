@@ -356,11 +356,11 @@ if __name__=="__main__":
     print("\n========== PCA + RF Refit (retuned PCA, fixed RF params) ==========")
     fixed_pca_rf_refit = clone(fixed_pca_rf)
     fixed_pca_rf_refit.fit(X_train_pca, y_train)
-    grid_search_PCA = SimpleNamespace(
+    pca_refit_result = SimpleNamespace(
         best_estimator_=fixed_pca_rf_refit,
         best_params_=grid_search_PCA.best_params_,
     )
-    print(f"Fixed params (PCA RF retuned): {grid_search_PCA.best_params_}")
+    print(f"Fixed params (PCA RF retuned): {pca_refit_result.best_params_}")
 
     optimized_PCA_ = fixed_pca_rf_refit
 

@@ -210,6 +210,11 @@ def _effective_rf_max_features(value, n_features: int) -> float:
     return numeric_value
 
 
+def _format_rf_max_features_label(value, n_features: int) -> str:
+    effective = int(_effective_rf_max_features(value, n_features))
+    return f"{value} ({effective})"
+
+
 def _effective_svm_gamma(value, n_features: int) -> float:
     n_features = max(1, int(n_features))
     if value in {"scale", "auto"}:
@@ -277,6 +282,7 @@ def gridsearch_curve_data(search, x_param: str) -> dict:
     """Extract a one-parameter CV curve from GridSearchCV at best fixed settings."""
     df = pd.DataFrame(search.cv_results_).copy()
     best_params = search.best_params_
+    n_features = int(getattr(search, "n_features_in_", 1))
 
     for param_name, param_value in best_params.items():
         if param_name == x_param:
@@ -291,28 +297,38 @@ def gridsearch_curve_data(search, x_param: str) -> dict:
 
     x_raw = df[f"param_{x_param}"].to_list()
     x_complexity = pd.Series([_complexity_sort_value(search, x_param, value) for value in x_raw], dtype=float)
-    x_num = pd.to_numeric(pd.Series(x_raw), errors="coerce")
-    if x_num.notna().all():
-        order_vals = x_complexity.to_numpy(dtype=float)
-        axis_mode = _choose_numeric_axis_mode(x_param, order_vals)
-        if axis_mode == "categorical":
-            df = df.assign(
-                _x_order=order_vals,
-                _x_label=pd.Series(x_raw).astype(str).to_numpy(),
-            )
-            df = df.sort_values("_x_order").reset_index(drop=True)
-            df = df.assign(_x_numeric=np.arange(len(df), dtype=float))
-        else:
-            df = df.assign(_x_numeric=order_vals, _x_label=pd.Series(x_raw).astype(str).to_numpy())
-            df = df.sort_values("_x_numeric")
-    else:
+    if x_param.endswith("max_features"):
+        x_labels = [_format_rf_max_features_label(value, n_features) for value in x_raw]
         axis_mode = "categorical"
-        if np.isfinite(x_complexity).any():
-            df = df.assign(_x_order=x_complexity.to_numpy(dtype=float), _x_label=pd.Series(x_raw).astype(str).to_numpy())
-            df = df.sort_values(["_x_order", "_x_label"]).reset_index(drop=True)
-        else:
-            df = df.assign(_x_label=pd.Series(x_raw).astype(str).to_numpy())
+        df = df.assign(
+            _x_order=x_complexity.to_numpy(dtype=float),
+            _x_label=pd.Series(x_labels, dtype=str).to_numpy(),
+        )
+        df = df.sort_values(["_x_order", "_x_label"]).reset_index(drop=True)
         df = df.assign(_x_numeric=np.arange(len(df), dtype=float))
+    else:
+        x_num = pd.to_numeric(pd.Series(x_raw), errors="coerce")
+        if x_num.notna().all():
+            order_vals = x_complexity.to_numpy(dtype=float)
+            axis_mode = _choose_numeric_axis_mode(x_param, order_vals)
+            if axis_mode == "categorical":
+                df = df.assign(
+                    _x_order=order_vals,
+                    _x_label=pd.Series(x_raw).astype(str).to_numpy(),
+                )
+                df = df.sort_values("_x_order").reset_index(drop=True)
+                df = df.assign(_x_numeric=np.arange(len(df), dtype=float))
+            else:
+                df = df.assign(_x_numeric=order_vals, _x_label=pd.Series(x_raw).astype(str).to_numpy())
+                df = df.sort_values("_x_numeric")
+        else:
+            axis_mode = "categorical"
+            if np.isfinite(x_complexity).any():
+                df = df.assign(_x_order=x_complexity.to_numpy(dtype=float), _x_label=pd.Series(x_raw).astype(str).to_numpy())
+                df = df.sort_values(["_x_order", "_x_label"]).reset_index(drop=True)
+            else:
+                df = df.assign(_x_label=pd.Series(x_raw).astype(str).to_numpy())
+            df = df.assign(_x_numeric=np.arange(len(df), dtype=float))
 
     return {
         "x_raw": df[f"param_{x_param}"].to_list(),

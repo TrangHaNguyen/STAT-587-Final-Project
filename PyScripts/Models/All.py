@@ -113,9 +113,12 @@ def run_stage(
 
 def build_model_stages(models: list[str], grid_version: str) -> list[tuple[str, list[str]]]:
     model_to_script = {
-        "svm": "SVM.py",
+        "base": "base.py",
+        "base_rf": "base_random_forest.py",
+        "base_svm": "base_SVM.py",
         "logreg": "logistic_regression.py",
-        "rf": "random_forest.py"
+        "rf": "random_forest.py",
+        "svm": "SVM.py",
     }
     stages: list[tuple[str, list[str]]] = []
     for model in models:
@@ -163,7 +166,11 @@ def plot_input_available(model: str, model_name: str, grid_version: str, x_param
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run all model searches safely with checkpoint/resume and optional plotting.")
-    parser.add_argument("--models", default="svm,logreg,rf", help="Comma list: svm,logreg,rf")
+    parser.add_argument(
+        "--models",
+        default="base,base_rf,base_svm,logreg,rf,svm",
+        help="Comma list: base,base_rf,base_svm,logreg,rf,svm",
+    )
     parser.add_argument("--grid-version", default="v1", help="Grid version label (e.g., v3).")
     parser.add_argument("--n-jobs", type=int, default=4, help="MODEL_N_JOBS passed to model scripts.")
     parser.add_argument("--resume", action="store_true", help="Skip completed stages from checkpoint.")
@@ -176,7 +183,7 @@ def main() -> None:
     args = parser.parse_args()
 
     models = parse_list(args.models)
-    allowed_models = {"svm", "logreg", "rf"}
+    allowed_models = {"base", "base_rf", "base_svm", "svm", "logreg", "rf"}
 
     unknown_models = [m for m in models if m not in allowed_models]
     if unknown_models:
@@ -230,7 +237,6 @@ def main() -> None:
             plot_specs.extend([
                 ("rf_base_depth", ["--model", "rf", "--x-param", "param_classifier__max_depth", "--model-name", "RF_base"]),
                 ("rf_base_nest", ["--model", "rf", "--x-param", "param_classifier__n_estimators", "--model-name", "RF_base"]),
-                ("rf_pca_ncomp", ["--model", "rf", "--x-param", "param_reducer__n_components", "--model-name", "RF_pca"]),
                 ("rf_lasso_c", ["--model", "rf", "--x-param", "param_feature_selector__estimator__C", "--model-name", "RF_lasso"]),
                 ("rf_ridge_c", ["--model", "rf", "--x-param", "param_feature_selector__estimator__C", "--model-name", "RF_ridge"]),
             ])

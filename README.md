@@ -51,4 +51,69 @@ They can be found in difference.csv and ticker_largest_difference. Potential exp
 - If you do not want to retrain the models, keep those `.pkl` files and inspect them later using the commented helper examples at the end of [base.py]
 - The model `.pkl` files store fitted estimators; the diagnostics `.pkl` files store the cached bias-variance and train/test curve values used for the figures.
 
+### Model file inventory
+Naming convention used in the active model scripts:
+- `Base` is reserved for logistic models without regularization.
+- `Raw` refers to the no-DOW / no-additional-feature branch used in the raw-feature family scripts such as `base.py`, `base_SVM.py`, and `base_random_forest.py`.
 
+`PyScripts/Models/base.py`
+- `Base+PCA`
+- `Raw Ridge`
+- `Raw LASSO`
+- `Raw Ridge+PCA`
+- `Raw LASSO+PCA`
+- `Base+DOW+PCA`
+- `Ridge+DOW`
+- `LASSO+DOW`
+- `Ridge+PCA+DOW`
+- `LASSO+PCA+DOW`
+
+`PyScripts/Models/logistic_regression.py`
+- `PCA Base`
+- `Ridge Log. Reg.`
+- `LASSO Log. Reg.`
+- `PCA Ridge(int.) Log. Reg.`
+- `PCA LASSO(int.) Log. Reg.`
+- `Elastic Net Log. Reg.` is currently present but commented out
+
+`PyScripts/Models/random_forest.py`
+- `Base RF`
+- `PCA RF`
+- `LASSO RF`
+- `Ridge RF`
+- `Stepwise RF` exists only in a disabled block
+
+`PyScripts/Models/SVM.py`
+- `Linear SVM`
+- `RBF SVM`
+- `Poly SVM`
+
+`PyScripts/Models/base_random_forest.py`
+- `Raw RF`
+- `PCA RF`
+- `RF+DOW`
+- `PCA RF+DOW`
+
+`PyScripts/Models/base_SVM.py`
+- `Raw Linear SVM`
+- `Raw RBF SVM`
+- `Raw Poly SVM`
+
+### Model comparison rule
+- Within each model script, the final "best model" is chosen by comparing all tuned candidate models produced in that script.
+- The shared ranking helper uses weighted average rank on holdout test metrics.
+- `test_split_accuracy` has double weight relative to `test_roc_auc_macro`, `test_sensitivity_macro`, and `test_specificity_macro`.
+- Any global leaderboard written to `output/*global_model_leaderboard*.csv` is informational only and does not override the plotted/exported winner chosen within each script.
+
+### Estimated runtime for the 8-year dataset
+- The estimates below are based on saved run history in `output/8yrs_search_runs.csv` and `output/OLD/results/search_runs.csv`, together with the currently active search grids in `PyScripts/Models/`.
+- No rerun was performed to produce these estimates.
+- Main tuned pipeline in `PyScripts/Models/All.py` (`SVM.py`, `logistic_regression.py`, `random_forest.py`): approximately 10 to 15 minutes in a typical run, with a wider observed range of about 2 to 14 minutes depending mainly on random-forest search time and available CPU parallelism.
+- If running all active model scripts in this repository (`base.py`, `base_SVM.py`, `base_random_forest.py`, `logistic_regression.py`, `SVM.py`, `random_forest.py`), a practical budget is about 20 to 30 minutes.
+- Approximate per-script runtime on the 8-year daily dataset:
+  - `PyScripts/Models/logistic_regression.py`: about 4 to 10 seconds
+  - `PyScripts/Models/SVM.py`: about 10 to 70 seconds
+  - `PyScripts/Models/random_forest.py`: about 2 to 12 minutes
+  - `PyScripts/Models/base.py`: about 1 to 5 minutes
+  - `PyScripts/Models/base_SVM.py`: about 30 to 90 seconds
+  - `PyScripts/Models/base_random_forest.py`: about 2 to 10 minutes

@@ -10,7 +10,8 @@ import numpy as np
 
 from H_prep import clean_data, import_data
 from H_eval import RollingWindowBacktest, get_final_metrics
-from H_helpers import log_result, append_params_to_dict, append_grid_params_to_dict, get_cwd
+from H_helpers import get_cwd
+from legacy_helpers import log_result, append_params_to_dict, append_grid_params_to_dict
 
 '''No need for hyperparameter tuning for Logistic Regression via GridSearchCV since LogisticRegressionCV performs internal CV to select the best C value. We will just use the default 10 values of C that LogisticRegressionCV tests.'''
 

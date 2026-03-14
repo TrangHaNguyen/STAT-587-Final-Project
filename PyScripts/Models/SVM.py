@@ -5,126 +5,140 @@ from typing import Any, cast
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 import os
-import pandas as pd
-import pyarrow.parquet as pq
 import time
+import pandas as pd
+
+MPLCONFIGDIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '.mplconfig')
+os.makedirs(MPLCONFIGDIR, exist_ok=True)
+os.environ.setdefault("MPLCONFIGDIR", os.path.abspath(MPLCONFIGDIR))
 
 from H_prep import clean_data, import_data, data_clean_param_selection
+from H_modeling import fit_or_load_search, load_input_data, make_one_se_refit
 from H_eval import (
-    RollingWindowBacktest,
     get_final_metrics,
-    utility_score,
     rank_models_by_metrics,
-    save_best_model_plots_from_gridsearch,
+    select_non_degenerate_plot_model,
+    save_best_model_plots_from_gridsearch_all_params,
     comparison_row_from_metrics,
     build_base_style_comparison_df,
+    register_global_model_candidates,
     write_base_style_latex_table,
 )
-from H_helpers import log_result, get_cwd, append_params_to_dict
-from H_search_history import append_search_history, append_search_run, get_git_commit, now_iso
+from H_helpers import get_cwd
+from H_search_history import (
+    append_search_run,
+    get_checkpoint_dir,
+    get_git_commit,
+    now_iso,
+)
 from model_grids import (
     SVM_LINEAR_C_GRID_OPTIONS,
     SVM_GAMMA_GRID_OPTIONS,
     SVM_DEGREE_GRID_OPTIONS,
     SVM_TOL,
+    TEST_SIZE,
+    TIME_SERIES_CV_SPLITS,
+    TRAIN_TEST_SHUFFLE,
 )
 
-cwd=get_cwd("STAT-587-Final-Project")
-MODEL_N_JOBS=int(os.getenv("MODEL_N_JOBS", "-1"))
-GRID_VERSION=os.getenv("GRID_VERSION", "v1")
-SEARCH_NOTES=os.getenv("SEARCH_NOTES", "")
+cwd = get_cwd("STAT-587-Final-Project")
+MODEL_N_JOBS = int(os.getenv("MODEL_N_JOBS", "-1"))
+GRID_VERSION = os.getenv("GRID_VERSION", "v1")
+SEARCH_NOTES = os.getenv("SEARCH_NOTES", "")
 USE_SAMPLE_PARQUET = os.getenv("USE_SAMPLE_PARQUET", "0") == "1"
+GRIDSEARCH_VERBOSE = int(os.getenv("GRIDSEARCH_VERBOSE", "0"))
+# RollingWindowBacktest controls kept here as comments for possible later reuse.
+# RUN_BACKTEST = os.getenv("RUN_BACKTEST", "0") == "1"
+# BACKTEST_VERBOSE = int(os.getenv("BACKTEST_VERBOSE", "0"))
+# SHOW_BACKTEST_PLOT = os.getenv("SHOW_BACKTEST_PLOT", "0") == "1"
 SAMPLE_PARQUET_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
     '..', 'Data', 'sample.parquet'
 )
-def _as_sortable_numeric(value):
-    try:
-        return float(value)
-    except Exception:
-        return float("inf")
+
+CV_SELECTION_CRITERIA = {
+    'validation_avg_accuracy': {'ascending': False, 'weight': 0.5},
+    'validation_avg_precision': {'ascending': False, 'weight': 1.0},
+    'validation_avg_sensitivity': {'ascending': False, 'weight': 1.0},
+    'validation_avg_specificity': {'ascending': False, 'weight': 1.0},
+    'validation_std_accuracy': {'ascending': True, 'weight': 0.5},
+}
+
+FINAL_METHOD_GROUPS = {
+    "Logistic Regression": ["base.py", "logistic_regression.py"],
+    "Random Forest": ["base_random_forest.py", "random_forest.py"],
+    "SVM": ["base_SVM.py", "SVM.py"],
+}
 
 
-def make_one_se_refit(complexity_cols: list[str]):
-    """Return a GridSearchCV refit callable implementing the 1-SE rule."""
-    import numpy as np
-    def _pick_index(cv_results):
-        mean = np.asarray(cv_results["mean_test_score"], dtype=float)
-        std = np.asarray(cv_results["std_test_score"], dtype=float)
-        se = std / np.sqrt(5)
-        best_idx = int(np.argmax(mean))
-        threshold = float(mean[best_idx] - se[best_idx])
-        candidate_idx = np.where(mean >= threshold)[0]
-        if len(candidate_idx) == 0:
-            return best_idx
+def write_final_method_comparison_from_leaderboard(output_dir, output_prefix: str) -> None:
+    leaderboard_path = output_dir / f"{output_prefix}_global_model_leaderboard.csv"
+    if not leaderboard_path.exists():
+        print(f"Skipping final methods table: missing leaderboard at {leaderboard_path}")
+        return
 
-        def key_fn(i: int):
-            complexity = []
-            for col in complexity_cols:
-                val = cv_results[f"param_{col}"][i]
-                complexity.append(_as_sortable_numeric(val))
-            # Prefer simplest model; if tie, prefer higher score.
-            return tuple(complexity + [-float(mean[i])])
+    leaderboard_df = pd.read_csv(leaderboard_path)
+    finalists_df = leaderboard_df.loc[
+        (leaderboard_df["dataset_label"] == output_prefix)
+        & (leaderboard_df["comparison_scope"] == "tuned_candidates")
+        & (leaderboard_df["source_script"].isin({
+            script_name
+            for script_names in FINAL_METHOD_GROUPS.values()
+            for script_name in script_names
+        }))
+    ].copy()
+    if finalists_df.empty:
+        print("Skipping final methods table: no tuned-candidate rows found for the target scripts.")
+        return
 
-        return int(min(candidate_idx, key=key_fn))
+    finalist_rows = []
+    for method_label, source_scripts in FINAL_METHOD_GROUPS.items():
+        script_df = finalists_df.loc[finalists_df["source_script"].isin(source_scripts)].copy()
+        if script_df.empty:
+            print(f"Skipping {method_label} in final methods table: no registered candidates found.")
+            continue
+        ranked_script_df = rank_models_by_metrics(script_df, criteria=CV_SELECTION_CRITERIA)
+        winner = ranked_script_df.iloc[0]
+        finalist_rows.append(
+            comparison_row_from_metrics(
+                f"{method_label}: {winner['candidate_model']}",
+                winner,
+            )
+        )
 
-    return _pick_index
+    if not finalist_rows:
+        print("Skipping final methods table: no finalists were available after per-script filtering.")
+        return
+
+    final_comparison_df = build_base_style_comparison_df(finalist_rows)
+    final_comparison_csv = output_dir / f"{output_prefix}_3methods_comparison.csv"
+    final_comparison_tex = output_dir / f"{output_prefix}_3methods_comparison.tex"
+    final_comparison_df.to_csv(final_comparison_csv, float_format='%.3f')
+    write_base_style_latex_table(
+        final_comparison_df,
+        final_comparison_tex,
+        f'{output_prefix} 3-method comparison',
+        f'tab:{output_prefix}_3methods_comparison',
+        'Each row is the single winner for one method family across its feature-set variants. Winners are selected using training-only time-series CV metrics, and the table reports the final hold-out test metrics for those pre-selected winners.'
+    )
+    print("\n===== Final Cross-Family Comparison (CV-selected finalists, test-reported) =====")
+    print(final_comparison_df.to_string())
 
 
 def load_svm_input_data():
-    if not USE_SAMPLE_PARQUET:
-        return import_data(extra_features=True, testing=False, cluster=False, n_clusters=100, corr_threshold=0.95, corr_level=0)
-
-    print(f"USE_SAMPLE_PARQUET=1 -> loading sample parquet from {os.path.abspath(SAMPLE_PARQUET_PATH)}")
-    idx = pd.IndexSlice
-    table = pq.read_table(SAMPLE_PARQUET_PATH)
-    data = table.to_pandas()
-    print("Finished Downloading Data -------")
-    print("Initial shape:", data.shape[0], "rows,", data.shape[1], "columns.")
-
-    print("------- Cleaning data")
-    for data_type in ['Stocks']:
-        temp_data = data.loc[:, idx[:, data_type, :]].dropna(how="all", axis=0)
-        missing_one = (temp_data.isna().sum() == 1)
-        cols = missing_one[missing_one == 1].index
-        temp_data[cols] = temp_data[cols].ffill()
-        temp_data = temp_data.dropna(how="any", axis=1)
-        data = data.drop(columns=data_type, level=1).join(temp_data)
-
-    stocks = data.loc[:, idx[:, 'Stocks', :]]
-    to_drop = stocks.index[stocks.isna().all(axis=1)]
-    data = data.drop(index=to_drop)
-    print("Finished Cleaning Data -------")
-    print("Current shape:", data.shape[0], "rows,", data.shape[1], "columns.")
-
-    data = pd.concat([
-        data,
-        data.loc[:, idx[['Close', 'Open', 'High', 'Low'], 'Stocks', :]]
-        .copy()
-        .pct_change()
-        .rename(columns={metric: f"{metric} PC" for metric in ['Close', 'Open', 'High', 'Low']}, level=0)
-    ], axis=1)
-    print("Created Percent Changes.")
-
-    y_regression = (
-        (data.loc[:, idx['Close', 'Index', '^SPX']] - data.loc[:, idx['Open', 'Index', '^SPX']])
-        / data.loc[:, idx['Open', 'Index', '^SPX']]
-    ).rename("Target Regression").shift(-1)
-    print("Created Target (Regression).")
-
-    data[("Day of Week", "Calendar", "All")] = data.index.dayofweek
-    print("---EXTRA---: Created Day of Week.")
-
-    high_ = data.loc[:, idx['High', :, :]]
-    low_ = data.loc[:, idx['Low', :, :]]
-    data = pd.concat([
-        data,
-        pd.DataFrame(high_.values - low_.values, index=high_.index, columns=high_.columns)
-        .rename(columns={'High': 'Daily Range'}, level=0)
-    ], axis=1)
-    print("---EXTRA---: Created Daily Range.")
-
-    return data, y_regression
+    return load_input_data(
+        use_sample_parquet=USE_SAMPLE_PARQUET,
+        sample_parquet_path=SAMPLE_PARQUET_PATH,
+        import_data_fn=import_data,
+        import_data_kwargs={
+            "extra_features": True,
+            "testing": False,
+            "cluster": False,
+            "n_clusters": 100,
+            "corr_threshold": 0.95,
+            "corr_level": 0,
+        },
+    )
 
 
 if __name__ == "__main__":
@@ -132,8 +146,6 @@ if __name__ == "__main__":
     run_time = now_iso()
     WINDOW_SIZE=200
     HORIZON=40
-    EXPORT=True
-    TEST_SIZE=0.2
     # testing: bool =False, extra_features: bool =True, cluster: bool =False, n_clusters: int =100, corr_threshold: float =0.95, corr_level: int =0
     DATA=load_svm_input_data()
     # Keep feature-engineering configuration fixed for consistency across models.
@@ -144,7 +156,7 @@ if __name__ == "__main__":
     output_prefix = "sample" if USE_SAMPLE_PARQUET else "8yrs"
     history_path = cwd / "output" / f"{output_prefix}_search_history_svm.csv"
     runs_path = cwd / "output" / f"{output_prefix}_search_runs.csv"
-    results_file = f"{output_prefix}_results.csv"
+    checkpoint_dir = get_checkpoint_dir(cwd / "output", "SVM", f"{output_prefix}_{grid_label}")
     dataset_version = (
         "sample_parquet=PyScripts/Data/sample.parquet,extra_features=True,cluster=False,corr_threshold=0.95,corr_level=0"
         if USE_SAMPLE_PARQUET
@@ -181,16 +193,16 @@ if __name__ == "__main__":
         print(f"Best Utility Score {best_score}")
         print(f"Optimal parameter {parameters_}")
 
-    download_params = {f"clean_data__{k}=": v for k, v in parameters_.items()}
-
     X, y_regression=cast(Any, clean_data(*DATA, **parameters_))
     def to_binary_class(y):
         return (y>=0).astype(int)
     y_classification=to_binary_class(y_regression)
-    X_train, X_test, y_train, y_test=train_test_split(X, y_classification, test_size=TEST_SIZE, random_state=1, shuffle=False)
+    X_train, X_test, y_train, y_test=train_test_split(X, y_classification, test_size=TEST_SIZE, random_state=1, shuffle=TRAIN_TEST_SHUFFLE)
 
+    # This script does not define a PCA-based SVM branch, so there is no
+    # shared PCA object to reuse from logistic_regression.py here.
     # Previous temporary change used `KFold(n_splits=5, shuffle=False)`.
-    tscv = TimeSeriesSplit(n_splits=5)
+    tscv = TimeSeriesSplit(n_splits=TIME_SERIES_CV_SPLITS)
     # ------- Linear SVM -------
     print("\n\n------- Linear SVM Model -------")
     SVM_linear=SVC(kernel="linear", cache_size=1000, class_weight='balanced', gamma='scale', random_state=1, tol=SVM_TOL)
@@ -204,38 +216,33 @@ if __name__ == "__main__":
     
     grid_search_linear = GridSearchCV(
         SVM_linear_pipeline, param_grid, cv=tscv, scoring='balanced_accuracy',
-        n_jobs=MODEL_N_JOBS, verbose=1, return_train_score=True,
-        refit=make_one_se_refit(['classifier__C'])
+        n_jobs=MODEL_N_JOBS, verbose=GRIDSEARCH_VERBOSE, return_train_score=True,
+        refit=make_one_se_refit(['classifier__C'], n_splits=TIME_SERIES_CV_SPLITS)
     )
-    grid_search_linear.fit(X_train, y_train)
-    append_search_history(
+    grid_search_linear = fit_or_load_search(
+        checkpoint_dir=checkpoint_dir,
+        stage_name="svm_linear",
+        search_obj=grid_search_linear,
+        X_train=X_train,
+        y_train=y_train,
         history_path=history_path,
-        cv_results=grid_search_linear.cv_results_,
         run_time=run_time,
         model_name="SVM_linear",
-        search_type="grid",
-        grid_version=grid_label,
+        grid_label=grid_label,
         notes=SEARCH_NOTES,
-        best_params=grid_search_linear.best_params_
     )
-
-    rwb_obj=RollingWindowBacktest(clone(grid_search_linear.best_estimator_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
-    rwb_obj.rolling_window_backtest(verbose=1)
-    rwb_obj.display_wfv_results()
 
     optimized_linear_ = grid_search_linear.best_estimator_
 
     results=get_final_metrics(optimized_linear_, X_train, y_train, X_test, y_test, label="Linear Ker. SVM")
     linear_results = results.copy()
-    util_score=utility_score(results, rwb_obj)
-    print(f"Utility Score {util_score:.4}")
-    if (EXPORT):
-        results.update({'utility_score': round(util_score, 3)})
-        results=append_params_to_dict(results, grid_search_linear.best_estimator_)
-        results.update(rwb_obj.results[2])
-        results.update(download_params)
-        log_result(results, cwd / 'output', results_file)
-
+    # RollingWindowBacktest disabled to save runtime. Restore this block if needed later.
+    # rwb_obj=RollingWindowBacktest(clone(grid_search_linear.best_estimator_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
+    # rwb_obj.rolling_window_backtest(verbose=BACKTEST_VERBOSE)
+    # if SHOW_BACKTEST_PLOT:
+    #     rwb_obj.display_wfv_results()
+    # util_score=utility_score(results, rwb_obj)
+    # print(f"Utility Score {util_score:.4}")
     # ------- RBF SVM -------
     print("\n\n------- RBF SVM Model -------")
     SVM_rbf=SVC(kernel="rbf", cache_size=1000, class_weight='balanced', gamma='scale', random_state=1, tol=SVM_TOL)
@@ -250,38 +257,33 @@ if __name__ == "__main__":
     
     grid_search_rbf = GridSearchCV(
         SVM_rbf_pipeline, param_grid, cv=tscv, scoring='balanced_accuracy',
-        n_jobs=MODEL_N_JOBS, verbose=1, return_train_score=True,
-        refit=make_one_se_refit(['classifier__C', 'classifier__gamma'])
+        n_jobs=MODEL_N_JOBS, verbose=GRIDSEARCH_VERBOSE, return_train_score=True,
+        refit=make_one_se_refit(['classifier__C', 'classifier__gamma'], n_splits=TIME_SERIES_CV_SPLITS)
     )
-    grid_search_rbf.fit(X_train, y_train)
-    append_search_history(
+    grid_search_rbf = fit_or_load_search(
+        checkpoint_dir=checkpoint_dir,
+        stage_name="svm_rbf",
+        search_obj=grid_search_rbf,
+        X_train=X_train,
+        y_train=y_train,
         history_path=history_path,
-        cv_results=grid_search_rbf.cv_results_,
         run_time=run_time,
         model_name="SVM_rbf",
-        search_type="grid",
-        grid_version=grid_label,
+        grid_label=grid_label,
         notes=SEARCH_NOTES,
-        best_params=grid_search_rbf.best_params_
     )
-
-    rwb_obj=RollingWindowBacktest(clone(grid_search_rbf.best_estimator_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
-    rwb_obj.rolling_window_backtest(verbose=1)
-    rwb_obj.display_wfv_results()
 
     optimized_rbf_ = grid_search_rbf.best_estimator_
 
     results=get_final_metrics(optimized_rbf_, X_train, y_train, X_test, y_test, label="RBF Ker. SVM")
     rbf_results = results.copy()
-    util_score=utility_score(results, rwb_obj)
-    print(f"Utility Score {util_score:.4}")
-    if (EXPORT):
-        results.update({'utility_score': round(util_score, 3)})
-        results=append_params_to_dict(results, grid_search_rbf.best_estimator_)
-        results.update(rwb_obj.results[2])
-        results.update(download_params)
-        log_result(results, cwd / 'output', results_file)
-
+    # RollingWindowBacktest disabled to save runtime. Restore this block if needed later.
+    # rwb_obj=RollingWindowBacktest(clone(grid_search_rbf.best_estimator_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
+    # rwb_obj.rolling_window_backtest(verbose=BACKTEST_VERBOSE)
+    # if SHOW_BACKTEST_PLOT:
+    #     rwb_obj.display_wfv_results()
+    # util_score=utility_score(results, rwb_obj)
+    # print(f"Utility Score {util_score:.4}")
     # ------- Polynomial SVM -------
     print("\n\n------- Polynomial SVM Model -------")
     SVM_poly=SVC(kernel="poly", cache_size=1000, class_weight='balanced', gamma='scale', random_state=1, tol=SVM_TOL)
@@ -297,57 +299,55 @@ if __name__ == "__main__":
     
     grid_search_poly = GridSearchCV(
         SVM_poly_pipeline, param_grid, cv=tscv, scoring='balanced_accuracy',
-        n_jobs=MODEL_N_JOBS, verbose=1, return_train_score=True,
-        refit=make_one_se_refit(['classifier__C', 'classifier__degree', 'classifier__gamma'])
+        n_jobs=MODEL_N_JOBS, verbose=GRIDSEARCH_VERBOSE, return_train_score=True,
+        refit=make_one_se_refit(
+            ['classifier__C', 'classifier__degree', 'classifier__gamma'],
+            n_splits=TIME_SERIES_CV_SPLITS,
+        )
     )
-    grid_search_poly.fit(X_train, y_train)
-    append_search_history(
+    grid_search_poly = fit_or_load_search(
+        checkpoint_dir=checkpoint_dir,
+        stage_name="svm_poly",
+        search_obj=grid_search_poly,
+        X_train=X_train,
+        y_train=y_train,
         history_path=history_path,
-        cv_results=grid_search_poly.cv_results_,
         run_time=run_time,
         model_name="SVM_poly",
-        search_type="grid",
-        grid_version=grid_label,
+        grid_label=grid_label,
         notes=SEARCH_NOTES,
-        best_params=grid_search_poly.best_params_
     )
-
-    rwb_obj=RollingWindowBacktest(clone(grid_search_poly.best_estimator_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
-    rwb_obj.rolling_window_backtest(verbose=1)
-    rwb_obj.display_wfv_results()
 
     optimized_poly_ = grid_search_poly.best_estimator_
 
     results=get_final_metrics(optimized_poly_, X_train, y_train, X_test, y_test, label="Poly. Ker. SVM")
     poly_results = results.copy()
-    util_score=utility_score(results, rwb_obj)
-    print(f"Utility Score {util_score:.4}")
-    if (EXPORT):
-        results.update({'utility_score': round(util_score, 3)})
-        results=append_params_to_dict(results, grid_search_poly.best_estimator_)
-        results.update(rwb_obj.results[2])
-        results.update(download_params)
-        log_result(results, cwd / 'output', results_file)
-
+    # RollingWindowBacktest disabled to save runtime. Restore this block if needed later.
+    # rwb_obj=RollingWindowBacktest(clone(grid_search_poly.best_estimator_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
+    # rwb_obj.rolling_window_backtest(verbose=BACKTEST_VERBOSE)
+    # if SHOW_BACKTEST_PLOT:
+    #     rwb_obj.display_wfv_results()
+    # util_score=utility_score(results, rwb_obj)
+    # print(f"Utility Score {util_score:.4}")
     ranking_df = pd.DataFrame([
         {"Model": "Linear SVM", **linear_results},
         {"Model": "RBF SVM", **rbf_results},
         {"Model": "Poly SVM", **poly_results},
     ])
-    ranked_df = rank_models_by_metrics(ranking_df)
+    ranked_df = rank_models_by_metrics(ranking_df, criteria=CV_SELECTION_CRITERIA)
     best_model_name = str(ranked_df.iloc[0]["Model"])
+    plot_model_name = select_non_degenerate_plot_model(ranked_df)
     best_plot_config = {
-        "Linear SVM": (grid_search_linear, "classifier__C", "C"),
-        "RBF SVM": (grid_search_rbf, "classifier__C", "C"),
-        "Poly SVM": (grid_search_poly, "classifier__degree", "degree"),
-    }[best_model_name]
+        "Linear SVM": (grid_search_linear, [("classifier__C", "C")]),
+        "RBF SVM": (grid_search_rbf, [("classifier__C", "C"), ("classifier__gamma", "gamma")]),
+        "Poly SVM": (grid_search_poly, [("classifier__degree", "degree"), ("classifier__C", "C"), ("classifier__gamma", "gamma")]),
+    }[plot_model_name]
     output_dir = cwd / "output"
     output_dir.mkdir(parents=True, exist_ok=True)
-    save_best_model_plots_from_gridsearch(
+    save_best_model_plots_from_gridsearch_all_params(
         best_plot_config[0],
         best_plot_config[1],
-        best_plot_config[2],
-        best_model_name,
+        plot_model_name,
         output_dir / f"{output_prefix}_svm_best_bias_variance.png",
         output_dir / f"{output_prefix}_svm_best_train_test.png",
         X_train,
@@ -356,6 +356,8 @@ if __name__ == "__main__":
         y_test,
     )
     print(f"\nBest SVM model by average rank: {best_model_name}")
+    if plot_model_name != best_model_name:
+        print(f"Plotting fallback (non-degenerate): {plot_model_name}")
     comparison_df = build_base_style_comparison_df([
         comparison_row_from_metrics("Linear SVM", linear_results),
         comparison_row_from_metrics("RBF SVM", rbf_results),
@@ -373,6 +375,17 @@ if __name__ == "__main__":
         'tab:svm_comparison',
         'Test Acc = plain hold-out accuracy on the final 20% test split. All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. Recall = positive-class sensitivity.'
     )
+    print(f"Local ranked/exported winner in SVM.py: {best_model_name}")
+    print(f"Local plot winner in SVM.py: {plot_model_name}")
+    global_ranked_df = register_global_model_candidates(
+        ranked_df,
+        cwd / "output" / f"{output_prefix}_global_model_leaderboard.csv",
+        source_script="SVM.py",
+        dataset_label=output_prefix,
+        comparison_scope="tuned_candidates",
+    )
+    write_final_method_comparison_from_leaderboard(output_dir, output_prefix)
+    print(f"Current global best model across registered scripts (informational only): {global_ranked_df.iloc[0]['Model']}")
 
     append_search_run(
         runs_path=runs_path,

@@ -1,8 +1,15 @@
 #!/usr/bin/env python3
 import os
+import time
+from pathlib import Path
 import pandas as pd
 import numpy as np
 import pyarrow.parquet as pq
+
+MPLCONFIGDIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '.mplconfig')
+os.makedirs(MPLCONFIGDIR, exist_ok=True)
+os.environ.setdefault("MPLCONFIGDIR", os.path.abspath(MPLCONFIGDIR))
+
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -12,6 +19,7 @@ from sklearn.decomposition import PCA
 from sklearn.model_selection import (train_test_split, TimeSeriesSplit,
                                      GridSearchCV, cross_validate)
 from sklearn.pipeline import Pipeline
+from sklearn.base import clone
 from sklearn.metrics import (
     accuracy_score,
     balanced_accuracy_score,
@@ -22,18 +30,41 @@ from sklearn.metrics import (
 )
 
 from H_prep import clean_data, import_data
+from H_modeling import (
+    fit_or_load_baseline_logistic_pca_search,
+    fit_or_load_fixed_classifier_pca_search,
+    transform_with_fitted_scaler_pca,
+)
 from H_eval import (
-    RollingWindowBacktest,
     get_final_metrics,
     rank_models_by_metrics,
-    save_best_model_plots_from_gridsearch,
+    select_non_degenerate_plot_model,
+    save_best_model_plots_from_gridsearch_all_params,
+    register_global_model_candidates,
+    build_compact_export_table,
+    write_grouped_latex_table,
 )
-from model_grids import BASE_RF_PARAM_GRID, PCA_RF_PARAM_GRID
+from H_search_history import (
+    append_search_run,
+    get_checkpoint_dir,
+    get_git_commit,
+    load_search_checkpoint,
+    now_iso,
+    save_search_checkpoint,
+    search_checkpoint_exists,
+)
+from model_grids import BASE_RF_PARAM_GRID, PCA_RF_PARAM_GRID, TEST_SIZE, TIME_SERIES_CV_SPLITS, TRAIN_TEST_SHUFFLE
 
 MODEL_N_JOBS = int(os.getenv("MODEL_N_JOBS", "-1"))
+GRID_VERSION = os.getenv("GRID_VERSION", "v1")
+SEARCH_NOTES = os.getenv("SEARCH_NOTES", "")
 # Keep the outer GridSearchCV/cross-validation parallel, but make each
 # RandomForest fit single-threaded to avoid nested parallel oversubscription.
 RF_FIT_N_JOBS = 1
+GRIDSEARCH_VERBOSE = int(os.getenv("GRIDSEARCH_VERBOSE", "0"))
+# RollingWindowBacktest controls kept here as comments for possible later reuse.
+# RUN_BACKTEST = os.getenv("RUN_BACKTEST", "0") == "1"
+# BACKTEST_VERBOSE = int(os.getenv("BACKTEST_VERBOSE", "0"))
 BACKTEST_WINDOW_SIZE = 100
 BACKTEST_HORIZON = 30
 USE_SAMPLE_PARQUET = os.getenv("USE_SAMPLE_PARQUET", "0") == "1"
@@ -50,6 +81,13 @@ def _keep_raw_stock_ohlcv(X: pd.DataFrame) -> pd.DataFrame:
     idx = pd.IndexSlice
     metrics = ['Open', 'Close', 'High', 'Low', 'Volume']
     return X.loc[:, idx[metrics, 'Stocks', :]].copy()
+
+
+def _assert_no_lag_features(X: pd.DataFrame) -> None:
+    lag_like_cols = [col for col in X.columns if "_lag" in str(col).lower() or " lag " in str(col).lower()]
+    if lag_like_cols:
+        sample = lag_like_cols[:5]
+        raise ValueError(f"Raw RF should not include lag features. Found lag-like columns: {sample}")
 
 def _as_sortable_numeric(value):
     try:
@@ -73,7 +111,7 @@ def make_one_se_refit(complexity_cols: list[str], fixed_cols: list[str] | None =
     def _pick_index(cv_results):
         mean = np.asarray(cv_results["mean_test_score"], dtype=float)
         std = np.asarray(cv_results["std_test_score"], dtype=float)
-        se = std / np.sqrt(5)
+        se = std / np.sqrt(TIME_SERIES_CV_SPLITS)
         best_idx = int(np.argmax(mean))
         threshold = float(mean[best_idx] - se[best_idx])
         candidate_idx = np.where(mean >= threshold)[0]
@@ -102,76 +140,6 @@ def make_one_se_refit(complexity_cols: list[str], fixed_cols: list[str] | None =
         return int(min(candidate_idx, key=key_fn))
 
     return _pick_index
-
-def _latex_escape(text: str) -> str:
-    """Escape minimal LaTeX special characters for table text."""
-    return (str(text)
-            .replace("\\", r"\textbackslash{}")
-            .replace("&", r"\&")
-            .replace("%", r"\%")
-            .replace("_", r"\_")
-            .replace("#", r"\#")
-            .replace("$", r"\$")
-            .replace("{", r"\{")
-            .replace("}", r"\}"))
-
-def write_latex_table(df: pd.DataFrame, path: str, caption: str, label: str, note: str | None =None) -> None:
-    """Write DataFrame to LaTeX, with a no-jinja fallback."""
-    try:
-        latex = df.to_latex(float_format='%.3f', caption=caption, label=label)
-        if note:
-            latex = latex.replace(
-                "\\end{table}\n",
-                "\\par\\smallskip\n" + f"\\footnotesize {_latex_escape(note)}\n" + "\\end{table}\n"
-            )
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(latex)
-        return
-    except ImportError:
-        pass
-
-    col_count = len(df.columns) + 1
-    align = "l" + "c" * (col_count - 1)
-    idx_name = df.index.name if df.index.name else "Model"
-    with open(path, "w", encoding="utf-8") as f:
-        f.write("\\begin{table}[htbp]\n\\centering\n")
-        f.write(f"\\caption{{{_latex_escape(caption)}}}\n")
-        f.write(f"\\label{{{_latex_escape(label)}}}\n")
-        f.write(f"\\begin{{tabular}}{{{align}}}\n\\hline\n")
-        header = [_latex_escape(idx_name)] + [_latex_escape(c) for c in df.columns]
-        f.write(" & ".join(header) + " \\\\\n\\hline\n")
-        for idx, row in df.iterrows():
-            values = [_latex_escape(idx)]
-            for val in row.values:
-                if isinstance(val, (float, np.floating)):
-                    values.append(f"{float(val):.3f}")
-                else:
-                    values.append(_latex_escape(val))
-            f.write(" & ".join(values) + " \\\\\n")
-        f.write("\\hline\n\\end{tabular}\n")
-        if note:
-            f.write("\\par\\smallskip\n")
-            f.write(f"\\footnotesize {_latex_escape(note)}\n")
-        f.write("\\end{table}\n")
-
-def build_export_table(df: pd.DataFrame) -> pd.DataFrame:
-    """Keep only compact metrics for reporting/export."""
-    out = df.copy()
-    keep_cols = ["Test Acc", "Precision", "Recall", "Specificity", "F1", "ROC-AUC", "CV Acc SD"]
-    return out[keep_cols]
-
-
-def build_latex_export_table(df: pd.DataFrame) -> pd.DataFrame:
-    """Apply export-only row labels without changing internal model keys."""
-    out = build_export_table(df).copy()
-    out = out.rename(
-        index={
-            'Base RF': 'Raw RF',
-            'Base RF+DOW': 'Raw RF+DOW',
-            'Base RF+Lags': 'Raw RF+Lags',
-        }
-    )
-    return out
 
 RECALL_NOTE = "Recall = positive-class sensitivity."
 
@@ -252,42 +220,85 @@ def _base_rf_pipeline():
 
 def _pca_rf_pipeline():
     return Pipeline([
-        ('scaler', StandardScaler()),
-        ('reducer', PCA()),
         ('classifier', RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))
     ])
 
-def _run_grid_search(pipeline, param_grid, X_train, y_train, tscv, refit, heading):
+def _run_grid_search(checkpoint_dir, stage_name, pipeline, param_grid, X_train, y_train, tscv, refit, heading):
     print(f"\n========== {heading} ==========")
+    if search_checkpoint_exists(checkpoint_dir, stage_name):
+        print(f"Loading checkpoint from {checkpoint_dir / stage_name}")
+        return load_search_checkpoint(checkpoint_dir, stage_name)
     grid_search = GridSearchCV(
         pipeline, param_grid, cv=tscv,
-        n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=1,
+        n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=GRIDSEARCH_VERBOSE,
         scoring='balanced_accuracy', refit=refit
     )
     grid_search.fit(X_train, y_train)
+    save_search_checkpoint(checkpoint_dir, stage_name, grid_search)
     return grid_search
 
 def _run_model_report_and_backtest(search_obj, X_full, y_full, X_train, y_train, X_test, y_test, label, n_splits):
     print("\n--- Model Report ---")
     shared = get_final_metrics(search_obj.best_estimator_, X_train, y_train, X_test, y_test, n_splits=n_splits, label=label)
-    print("\n--- Rolling Window Backtest ---")
-    rwb_obj = RollingWindowBacktest(
-        clone(search_obj.best_estimator_),
-        X_full,
-        y_full,
-        X_train,
-        window_size=BACKTEST_WINDOW_SIZE,
-        horizon=BACKTEST_HORIZON,
-    )
-    rwb_obj.rolling_window_backtest(verbose=1)
+    # RollingWindowBacktest disabled to save runtime. Restore this block if needed later.
+    # print("\n--- Rolling Window Backtest ---")
+    # rwb_obj = RollingWindowBacktest(
+    #     clone(search_obj.best_estimator_),
+    #     X_full,
+    #     y_full,
+    #     X_train,
+    #     window_size=BACKTEST_WINDOW_SIZE,
+    #     horizon=BACKTEST_HORIZON,
+    # )
+    # rwb_obj.rolling_window_backtest(verbose=BACKTEST_VERBOSE)
     return shared
 
-def _run_rf_suite(X_full, y_full, X_train, y_train, X_test, y_test, tscv, dataset_suffix="", variant_label=""):
+def _run_rf_suite(
+    checkpoint_dir,
+    X_full,
+    y_full,
+    X_train,
+    y_train,
+    X_test,
+    y_test,
+    tscv,
+    *,
+    history_path,
+    run_time,
+    grid_label,
+    dataset_suffix="",
+    variant_label="",
+    search_notes="",
+):
     heading_suffix = f" {variant_label}" if variant_label else ""
+    pca_stage_name = f"{dataset_suffix.strip('_') or 'raw'}_shared_logreg_pca_base"
+    pca_model_name = f"LogReg_PCA_Base_for_base_rf{dataset_suffix or '_raw'}"
+    pca_search = fit_or_load_baseline_logistic_pca_search(
+        checkpoint_dir=checkpoint_dir,
+        stage_name=pca_stage_name,
+        X_train=X_train,
+        y_train=y_train,
+        history_path=history_path,
+        run_time=run_time,
+        model_name=pca_model_name,
+        grid_label=grid_label,
+        n_splits=TIME_SERIES_CV_SPLITS,
+        notes=search_notes,
+    )
+    X_train_pca, X_test_pca, _, _ = transform_with_fitted_scaler_pca(
+        pca_search,
+        X_train,
+        X_test,
+    )
+    initial_pca_n_components = pca_search.best_params_['pca__n_components']
+    print(
+        f"Initial PCA from 1SE no-regularization logistic regression in base.py{heading_suffix}: "
+        f"n_components={initial_pca_n_components} ({X_train_pca.shape[1]} components)."
+    )
     specs = [
         {
-            'name': 'Base RF',
-            'heading': 'RF GridSearch (20 combinations)' if not variant_label else f'Base RF{heading_suffix} GridSearch',
+            'name': 'Raw RF',
+            'heading': 'RF GridSearch (20 combinations)' if not variant_label else f'Raw RF{heading_suffix} GridSearch',
             'pipeline': _base_rf_pipeline(),
             'param_grid': BASE_RF_PARAM_GRID,
             'refit': make_one_se_refit(['classifier__max_depth', 'classifier__n_estimators', 'classifier__max_features']),
@@ -296,31 +307,110 @@ def _run_rf_suite(X_full, y_full, X_train, y_train, X_test, y_test, tscv, datase
             'name': 'PCA RF',
             'heading': 'PCA + RF GridSearch' if not variant_label else f'PCA RF{heading_suffix} GridSearch',
             'pipeline': _pca_rf_pipeline(),
-            'param_grid': PCA_RF_PARAM_GRID,
-            'refit': make_one_se_refit(['classifier__max_depth', 'classifier__n_estimators', 'classifier__max_features'], fixed_cols=['reducer__n_components']),
+            'param_grid': {
+                'classifier__max_depth': PCA_RF_PARAM_GRID['classifier__max_depth'],
+                'classifier__n_estimators': PCA_RF_PARAM_GRID['classifier__n_estimators'],
+                'classifier__max_features': PCA_RF_PARAM_GRID['classifier__max_features'],
+            },
+            'refit': make_one_se_refit(['classifier__max_depth', 'classifier__n_estimators', 'classifier__max_features']),
+            'X_train_fit': X_train_pca,
+            'X_test_eval': X_test_pca,
         },
     ]
 
     searches = {}
     metric_rows = {}
     for spec in specs:
+        stage_name = f"{dataset_suffix.strip('_') or 'raw'}_{spec['name'].lower().replace(' ', '_')}"
         search_obj = _run_grid_search(
+            checkpoint_dir,
+            stage_name,
             spec['pipeline'],
             spec['param_grid'],
-            X_train,
+            spec.get('X_train_fit', X_train),
             y_train,
             tscv,
             spec['refit'],
             spec['heading']
         )
-        best_prefix = "Best params" if spec['name'] == 'Base RF' and not variant_label else f"Best params ({spec['name']}{heading_suffix})"
+        best_prefix = "Best params" if spec['name'] == 'Raw RF' and not variant_label else f"Best params ({spec['name']}{heading_suffix})"
         print(f"{best_prefix}: {search_obj.best_params_}")
         report_label = f"{spec['name']}{heading_suffix}"
+        X_test_eval = spec.get('X_test_eval', X_test)
+        X_train_eval = spec.get('X_train_fit', X_train)
         metric_rows[spec['name']] = _run_model_report_and_backtest(
-            search_obj, X_full, y_full, X_train, y_train, X_test, y_test, report_label, tscv.n_splits
+            search_obj, X_full, y_full, X_train_eval, y_train, X_test_eval, y_test, report_label, tscv.n_splits
         )
         searches[spec['name']] = search_obj
-    return searches, metric_rows
+    pca_rf_search = searches['PCA RF']
+    fixed_pca_rf = RandomForestClassifier(
+        random_state=1,
+        n_jobs=RF_FIT_N_JOBS,
+        class_weight='balanced',
+        max_depth=pca_rf_search.best_params_['classifier__max_depth'],
+        n_estimators=pca_rf_search.best_params_['classifier__n_estimators'],
+        max_features=pca_rf_search.best_params_['classifier__max_features'],
+    )
+    pca_retune_stage = f"{dataset_suffix.strip('_') or 'raw'}_pca_rf_retuned_n_components"
+    pca_retune_model_name = f"PCA_RF_retuned_n_components{dataset_suffix or '_raw'}"
+    pca_search = fit_or_load_fixed_classifier_pca_search(
+        checkpoint_dir=checkpoint_dir,
+        stage_name=pca_retune_stage,
+        X_train=X_train,
+        y_train=y_train,
+        history_path=history_path,
+        run_time=run_time,
+        model_name=pca_retune_model_name,
+        grid_label=grid_label,
+        n_splits=TIME_SERIES_CV_SPLITS,
+        classifier=fixed_pca_rf,
+        notes=search_notes,
+    )
+    X_train_pca, X_test_pca, _, _ = transform_with_fitted_scaler_pca(
+        pca_search,
+        X_train,
+        X_test,
+    )
+    selected_pca_n_components = pca_search.best_params_['pca__n_components']
+    print(
+        f"Retuned PCA for PCA RF after RF model selection{heading_suffix}: "
+        f"n_components={selected_pca_n_components} ({X_train_pca.shape[1]} components)."
+    )
+    stage_name = f"{dataset_suffix.strip('_') or 'raw'}_pca_rf_refit"
+    pca_search_obj = _run_grid_search(
+        checkpoint_dir,
+        stage_name,
+        _pca_rf_pipeline(),
+        {
+            'classifier__max_depth': PCA_RF_PARAM_GRID['classifier__max_depth'],
+            'classifier__n_estimators': PCA_RF_PARAM_GRID['classifier__n_estimators'],
+            'classifier__max_features': PCA_RF_PARAM_GRID['classifier__max_features'],
+        },
+        X_train_pca,
+        y_train,
+        tscv,
+        make_one_se_refit(['classifier__max_depth', 'classifier__n_estimators', 'classifier__max_features']),
+        'PCA + RF GridSearch (retuned PCA)' if not variant_label else f'PCA RF{heading_suffix} GridSearch (retuned PCA)',
+    )
+    print(f"Best params (PCA RF retuned{heading_suffix}): {pca_search_obj.best_params_}")
+    metric_rows['PCA RF'] = _run_model_report_and_backtest(
+        pca_search_obj,
+        X_full,
+        y_full,
+        X_train_pca,
+        y_train,
+        X_test_pca,
+        y_test,
+        f"PCA RF{heading_suffix}",
+        tscv.n_splits,
+    )
+    searches['PCA RF'] = pca_search_obj
+    return searches, metric_rows, {
+        'pca_search': pca_search,
+        'X_train_pca': X_train_pca,
+        'X_test_pca': X_test_pca,
+        'selected_pca_n_components': selected_pca_n_components,
+    }
 
 def _rf_metrics_payload(name, shared):
     display_row = {
@@ -330,6 +420,7 @@ def _rf_metrics_payload(name, shared):
         'Avg CV Validation Plain Acc': shared['validation_avg_accuracy'],
         'CV Acc SD':                   shared['validation_std_accuracy'],
         'Test Acc':                    shared['test_split_accuracy'],
+        'MCC':               shared['test_matthew_corr_coef'],
         'Precision':         shared['test_precision'],
         'Recall':            shared['test_recall'],
         'Specificity':       shared['test_specificity'],
@@ -342,9 +433,12 @@ def _rf_metrics_payload(name, shared):
 def _build_comparison_df(metric_rows, suffix=""):
     display_rows = []
     ranking_rows = []
-    for model_name in ['Base RF', 'PCA RF']:
+    for model_name in ['Raw RF', 'PCA RF']:
+        display_name = f'{model_name}{suffix}'
+        if suffix == "+DOW" and model_name == 'Raw RF':
+            display_name = 'RF+DOW'
         display_row, ranking_row = _rf_metrics_payload(
-            f'{model_name}{suffix}',
+            display_name,
             metric_rows[model_name],
         )
         display_rows.append(display_row)
@@ -352,10 +446,13 @@ def _build_comparison_df(metric_rows, suffix=""):
     return pd.DataFrame(display_rows).set_index('Model'), ranking_rows
 
 if __name__ == "__main__":
+    run_start = time.time()
+    run_time = now_iso()
     # ------- Load raw data (no extra clean_data feature engineering) -------
     TESTING = False
     output_prefix = "sample" if USE_SAMPLE_PARQUET else "8yrs"
     print(f"MODEL_N_JOBS={MODEL_N_JOBS} (set env MODEL_N_JOBS to override)")
+    print(f"GRID_VERSION={GRID_VERSION}")
     if USE_SAMPLE_PARQUET:
         print(f"USE_SAMPLE_PARQUET=1 -> loading sample parquet from {os.path.abspath(SAMPLE_PARQUET_PATH)}")
         sample_table = pq.read_table(SAMPLE_PARQUET_PATH)
@@ -392,9 +489,16 @@ if __name__ == "__main__":
             / raw_data.loc[:, idx['Open', 'Index', '^SPX']]
         ).rename("Target Regression").shift(-1)
         DATA = raw_data, y_regression
-    X, y_regression = clean_data(*DATA, raw=True, extra_features=False)
+    X, y_regression = clean_data(
+        *DATA,
+        raw=True,
+        extra_features=False,
+        lag_period=[1],
+        lookback_period=0,
+    )
     X = _keep_raw_stock_ohlcv(X)
     X.columns = [f"{metric}_{ticker}" for metric, _, ticker in X.columns]
+    _assert_no_lag_features(X)
     print(f"Feature matrix shape: {X.shape[0]} rows, {X.shape[1]} columns.")
 
     y_classification = to_binary_class(y_regression)
@@ -402,13 +506,31 @@ if __name__ == "__main__":
 
     # ------- Train/test split (80/20, no shuffle to preserve time order) -------
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y_classification, test_size=0.2, shuffle=False
+        X, y_classification, test_size=TEST_SIZE, random_state=1, shuffle=TRAIN_TEST_SHUFFLE
     )
     # Previous temporary change used `KFold(n_splits=5, shuffle=False)`.
-    tscv = TimeSeriesSplit(n_splits=5)
+    tscv = TimeSeriesSplit(n_splits=TIME_SERIES_CV_SPLITS)
+    checkpoint_dir = get_checkpoint_dir(
+        Path(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'output')),
+        "base_random_forest",
+        f"{output_prefix}_{GRID_VERSION}",
+    )
 
-    raw_searches, raw_metric_rows = _run_rf_suite(X, y_classification, X_train, y_train, X_test, y_test, tscv)
-    grid_search_rf = raw_searches['Base RF']
+    raw_searches, raw_metric_rows, raw_pca_context = _run_rf_suite(
+        checkpoint_dir,
+        X,
+        y_classification,
+        X_train,
+        y_train,
+        X_test,
+        y_test,
+        tscv,
+        history_path=Path(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'output', f"{output_prefix}_search_history_rf.csv")),
+        run_time=run_time,
+        grid_label=GRID_VERSION,
+        search_notes=SEARCH_NOTES,
+    )
+    grid_search_rf = raw_searches['Raw RF']
     grid_search_pca = raw_searches['PCA RF']
 
     param_grid = BASE_RF_PARAM_GRID
@@ -606,11 +728,26 @@ if __name__ == "__main__":
 
     X_dow = pd.concat([X, dow_dummies], axis=1)
     X_train_dow, X_test_dow, y_train_dow, y_test_dow = train_test_split(
-        X_dow, y_classification, test_size=0.2, shuffle=False
+        X_dow, y_classification, test_size=TEST_SIZE, random_state=1, shuffle=TRAIN_TEST_SHUFFLE
     )
     print(f"Feature matrix with DOW: {X_dow.shape[1]} columns")
 
-    dow_searches, dow_metric_rows = _run_rf_suite(X_dow, y_classification, X_train_dow, y_train_dow, X_test_dow, y_test_dow, tscv, dataset_suffix="_dow", variant_label="+ DOW")
+    dow_searches, dow_metric_rows, dow_pca_context = _run_rf_suite(
+        checkpoint_dir,
+        X_dow,
+        y_classification,
+        X_train_dow,
+        y_train_dow,
+        X_test_dow,
+        y_test_dow,
+        tscv,
+        history_path=Path(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'output', f"{output_prefix}_search_history_rf.csv")),
+        run_time=run_time,
+        grid_label=GRID_VERSION,
+        dataset_suffix="_dow",
+        variant_label="+ DOW",
+        search_notes=SEARCH_NOTES,
+    )
 
     # ===================================================================
     # COMBINED COMPARISON TABLE (raw OHLCV vs raw OHLCV + DOW)
@@ -618,76 +755,48 @@ if __name__ == "__main__":
     dow_df, dow_ranking_rows = _build_comparison_df(dow_metric_rows, suffix="+DOW")
 
     combined_df = pd.concat([comparison_df, dow_df])
-    print("\n===== Combined Comparison Table =====")
-    print(combined_df.to_string())
-
-    combined_export_df = build_latex_export_table(combined_df)
-    combined_csv = os.path.join(output_dir, f'{output_prefix}_base_rf_comparison.csv')
-    combined_export_df.to_csv(combined_csv, float_format='%.3f')
-    print(f"\nCombined comparison table saved to: {os.path.abspath(combined_csv)}")
-
-    tex_path = os.path.join(tex_output_dir, f'{output_prefix}_1SE_base_random_forest.tex')
-    write_latex_table(
-        combined_export_df,
-        tex_path,
-        'Random Forest Model Comparison: Raw OHLCV vs Raw OHLCV + Day-of-Week',
-        'tab:base_rf_comparison',
-        note=f'Test Acc = plain hold-out accuracy on the final 20% test split. All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. {RECALL_NOTE}'
-    )
-    print(f"LaTeX table saved to:               {os.path.abspath(tex_path)}")
 
     # ===================================================================
     # LAG1–LAG7 EXTENSION
-    # Generate lag1..lag7 of raw OHLCV features (no DOW), then re-run
-    # the remaining RF model variants
+    # Disabled to reduce runtime for the baseline RF script.
+    # Restore this block if lag-feature comparisons are needed again.
     # ===================================================================
-    print("\n========== Adding Lag1–Lag7 of Raw OHLCV Features ==========")
+    print("\n========== Lag1–Lag7 RF extension skipped to save runtime ==========")
 
-    lag_frames = [X]
-    for lag in range(1, 8):
-        lagged = X.shift(lag).add_suffix(f'_lag{lag}')
-        lag_frames.append(lagged)
-    X_lag = pd.concat(lag_frames, axis=1).dropna()
-
-    # Re-align target to the rows that survived the lag dropna
-    y_lag = y_classification.loc[X_lag.index]
-
-    X_train_lag, X_test_lag, y_train_lag, y_test_lag = train_test_split(
-        X_lag, y_lag, test_size=0.2, shuffle=False
-    )
-    print(f"Feature matrix with lags: {X_lag.shape[1]} columns, {X_lag.shape[0]} rows")
-
-    lag_searches, lag_metric_rows = _run_rf_suite(X_lag, y_lag, X_train_lag, y_train_lag, X_test_lag, y_test_lag, tscv, dataset_suffix="_lag", variant_label="+ Lags")
-
-    # ===================================================================
-    # FULL COMPARISON TABLE (raw + DOW + Lags)
-    # ===================================================================
-    lag_df, lag_ranking_rows = _build_comparison_df(lag_metric_rows, suffix="+Lags")
-
-    full_df = pd.concat([comparison_df, dow_df, lag_df])
+    full_df = combined_df
     print("\n===== Full Comparison Table =====")
     print(full_df.to_string())
 
-    full_export_df = build_latex_export_table(full_df)
+    full_export_df = build_compact_export_table(
+        full_df,
+        index_renames={
+            'Raw RF': 'Raw RF',
+            'RF+DOW': 'RF+DOW',
+            'RF+Lags': 'RF+Lags',
+        },
+    )
     full_csv = os.path.join(output_dir, f'{output_prefix}_base_rf_comparison.csv')
     full_export_df.to_csv(full_csv, float_format='%.3f')
     print(f"\nFull comparison table saved to: {os.path.abspath(full_csv)}")
 
     tex_path = os.path.join(tex_output_dir, f'{output_prefix}_1SE_base_random_forest.tex')
-    write_latex_table(
+    write_grouped_latex_table(
         full_export_df,
         tex_path,
-        'Random Forest Model Comparison: Raw OHLCV vs +Day-of-Week vs +Lag1--7',
+        'Random Forest Model Comparison: Raw OHLCV vs +Day-of-Week',
         'tab:base_rf_comparison',
-        note=f'Test Acc = plain hold-out accuracy on the final 20% test split. All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. {RECALL_NOTE}'
+        note=f'Test Acc = plain hold-out accuracy on the final 20% test split. All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. {RECALL_NOTE}',
+        groups=[
+            ['Raw RF', 'PCA RF'],
+            ['RF+DOW', 'PCA RF+DOW'],
+        ],
     )
     print(f"LaTeX table saved to:           {os.path.abspath(tex_path)}")
 
     plot_candidates = {
-        'Base RF': {
-            'search': raw_searches['Base RF'],
-            'x_param': 'classifier__max_depth',
-            'x_label': 'max_depth',
+        'Raw RF': {
+            'search': raw_searches['Raw RF'],
+            'param_specs': [('classifier__max_depth', 'max_depth'), ('classifier__n_estimators', 'n_estimators'), ('classifier__max_features', 'max_features')],
             'X_train': X_train,
             'y_train': y_train,
             'X_test': X_test,
@@ -695,17 +804,15 @@ if __name__ == "__main__":
         },
         'PCA RF': {
             'search': raw_searches['PCA RF'],
-            'x_param': 'reducer__n_components',
-            'x_label': 'PCA n_components',
-            'X_train': X_train,
+            'param_specs': [('classifier__max_depth', 'max_depth'), ('classifier__n_estimators', 'n_estimators'), ('classifier__max_features', 'max_features')],
+            'X_train': raw_pca_context['X_train_pca'],
             'y_train': y_train,
-            'X_test': X_test,
+            'X_test': raw_pca_context['X_test_pca'],
             'y_test': y_test,
         },
-        'Base RF+DOW': {
-            'search': dow_searches['Base RF'],
-            'x_param': 'classifier__max_depth',
-            'x_label': 'max_depth',
+        'RF+DOW': {
+            'search': dow_searches['Raw RF'],
+            'param_specs': [('classifier__max_depth', 'max_depth'), ('classifier__n_estimators', 'n_estimators'), ('classifier__max_features', 'max_features')],
             'X_train': X_train_dow,
             'y_train': y_train_dow,
             'X_test': X_test_dow,
@@ -713,41 +820,29 @@ if __name__ == "__main__":
         },
         'PCA RF+DOW': {
             'search': dow_searches['PCA RF'],
-            'x_param': 'reducer__n_components',
-            'x_label': 'PCA n_components',
-            'X_train': X_train_dow,
+            'param_specs': [('classifier__max_depth', 'max_depth'), ('classifier__n_estimators', 'n_estimators'), ('classifier__max_features', 'max_features')],
+            'X_train': dow_pca_context['X_train_pca'],
             'y_train': y_train_dow,
-            'X_test': X_test_dow,
+            'X_test': dow_pca_context['X_test_pca'],
             'y_test': y_test_dow,
         },
-        'Base RF+Lags': {
-            'search': lag_searches['Base RF'],
-            'x_param': 'classifier__max_depth',
-            'x_label': 'max_depth',
-            'X_train': X_train_lag,
-            'y_train': y_train_lag,
-            'X_test': X_test_lag,
-            'y_test': y_test_lag,
-        },
-        'PCA RF+Lags': {
-            'search': lag_searches['PCA RF'],
-            'x_param': 'reducer__n_components',
-            'x_label': 'PCA n_components',
-            'X_train': X_train_lag,
-            'y_train': y_train_lag,
-            'X_test': X_test_lag,
-            'y_test': y_test_lag,
-        },
     }
-    ranking_rows = raw_ranking_rows + dow_ranking_rows + lag_ranking_rows
+    ranking_rows = raw_ranking_rows + dow_ranking_rows
     ranked_df = rank_models_by_metrics(pd.DataFrame(ranking_rows))
     best_model_name = str(ranked_df.iloc[0]["Model"])
-    best_candidate = plot_candidates[best_model_name]
-    save_best_model_plots_from_gridsearch(
+    plot_model_name = select_non_degenerate_plot_model(ranked_df, available_models=plot_candidates)
+    best_candidate = plot_candidates[plot_model_name]
+    global_ranked_df = register_global_model_candidates(
+        ranked_df,
+        Path(output_dir) / f"{output_prefix}_global_model_leaderboard.csv",
+        source_script="base_random_forest.py",
+        dataset_label=output_prefix,
+        comparison_scope="raw_vs_dow",
+    )
+    save_best_model_plots_from_gridsearch_all_params(
         best_candidate['search'],
-        best_candidate['x_param'],
-        best_candidate['x_label'],
-        best_model_name,
+        best_candidate['param_specs'],
+        plot_model_name,
         os.path.join(output_dir, f'{output_prefix}_base_rf_best_model_bias_variance.png'),
         os.path.join(output_dir, f'{output_prefix}_base_rf_best_model_train_test.png'),
         best_candidate['X_train'],
@@ -755,4 +850,20 @@ if __name__ == "__main__":
         best_candidate['X_test'],
         best_candidate['y_test'],
     )
-    print(f"\nBest baseline RF-family model by average rank: {best_model_name}")
+    print(f"\nBest raw/DOW RF-family model by average rank: {best_model_name}")
+    if plot_model_name != best_model_name:
+        print(f"Plotting fallback (non-degenerate): {plot_model_name}")
+    print(f"Local ranked/exported winner in base_random_forest.py: {best_model_name}")
+    print(f"Local plot winner in base_random_forest.py: {plot_model_name}")
+    print(f"Current global best model across registered scripts (informational only): {global_ranked_df.iloc[0]['Model']}")
+    append_search_run(
+        runs_path=Path(output_dir) / f"{output_prefix}_search_runs.csv",
+        model_name="base_rf",
+        run_time=run_time,
+        run_duration_sec=(time.time() - run_start),
+        grid_version=GRID_VERSION,
+        n_jobs=MODEL_N_JOBS,
+        dataset_version="testing=False,extra_features=False,cluster=False,corr_threshold=0.95,corr_level=0",
+        code_commit=get_git_commit(Path(output_dir).resolve().parents[0]),
+        notes=SEARCH_NOTES,
+    )

@@ -13,6 +13,15 @@ from __future__ import annotations
 
 import numpy as np
 
+# Single source of truth for time-series CV folds across the active model scripts.
+TIME_SERIES_CV_SPLITS = 5
+
+# Single source of truth for the final chronological train/test split.
+TEST_SIZE = 0.2
+
+# Keep chronological order in holdout splits for time-series modeling.
+TRAIN_TEST_SHUFFLE = False
+
 
 def choose_grid_variant(variant: str, left_values, center_values, right_values):
     """Select one of three grid presets by variant name."""
@@ -40,34 +49,32 @@ RIDGE_GRID = np.logspace(-6, 4, 10)
 # including RF feature selectors built from logistic regression.
 LOGISTIC_TOL = 1e-3
 
+# Used by: `base.py`, `logistic_regression.py`, `random_forest.py`
+# Purpose: shared iteration cap for all logistic-regression-based models.
+LOGISTIC_MAX_ITER = 1000
+
+# Used by: `base.py`, `logistic_regression.py`
+# Purpose: baseline/no-regularization logistic solver chosen for fast,
+# stable binary fits without regularization.
+LOGISTIC_BASELINE_SOLVER = "lbfgs"
+
+# Used by: `base.py`, `logistic_regression.py`
+# Purpose: shared fast solver for ridge-style (L2) binary logistic models.
+LOGISTIC_RIDGE_SOLVER = "liblinear"
+
+# Used by: `base.py`, `logistic_regression.py`
+# Purpose: shared fast solver for lasso-style (L1) binary logistic models.
+LOGISTIC_LASSO_SOLVER = "liblinear"
+
 # Used by: `base.py`, `logistic_regression.py`
 # Purpose: shared lasso-logistic regularization grid for tuning `C`
 # in both raw and PCA logistic-regression workflows.
 LASSO_GRID = np.logspace(-6, 4, 10)
 
-# Used by: `logistic_regression.py`
-# Purpose: elastic-net logistic regularization grid for tuning `C`
-# in the no-PCA elastic-net workflow.
-ELASTIC_NET_GRID = np.logspace(-6, 4, 10)
-
-# Used by: `logistic_regression.py`
-# Purpose: candidate l1 mixing weights for elastic-net logistic regression.
-ELASTIC_NET_L1_RATIO_GRID = [0.1, 0.5, 0.9]
-
 
 # ---------------------------------------------------------------------------
 # Used in: base_random_forest.py
 # ---------------------------------------------------------------------------
-
-# Used by: `base_random_forest.py`
-# Purpose: fixed PCA variance-retention grid for baseline RF PCA runs,
-# used to choose `reducer__n_components`.
-BASE_RF_PCA_GRID = [0.85]
-
-# Used by: `base_random_forest.py`, `random_forest.py`
-# Purpose: shared fixed RF feature-subsampling candidates for tuning
-# `classifier__max_features`.
-RF_MAX_FEATURES_GRID = ['sqrt', 'log2', 0.5]
 
 # Used by: `base_random_forest.py`
 # Purpose: baseline RF hyperparameter grid for tuning tree depth and
@@ -76,18 +83,17 @@ RF_MAX_FEATURES_GRID = ['sqrt', 'log2', 0.5]
 BASE_RF_PARAM_GRID = {
     'classifier__max_depth': [2, 4, 8, 16],
     'classifier__n_estimators': [100],
-    'classifier__max_features': RF_MAX_FEATURES_GRID,
+    'classifier__max_features': ['sqrt', 'log2', 0.5],
 }
 
 # Used by: `base_random_forest.py`
-# Purpose: baseline RF-with-PCA hyperparameter grid for jointly tuning
-# `reducer__n_components`, `classifier__max_depth`,
-# `classifier__n_estimators`, and `classifier__max_features`.
+# Purpose: baseline RF-with-PCA hyperparameter grid for tuning tree depth,
+# forest size, and `classifier__max_features` after PCA has already been
+# selected in a separate stage.
 PCA_RF_PARAM_GRID = {
-    'reducer__n_components': BASE_RF_PCA_GRID,
     'classifier__max_depth': [2, 4, 8, 16],
     'classifier__n_estimators': [100],
-    'classifier__max_features': RF_MAX_FEATURES_GRID,
+    'classifier__max_features': ['sqrt', 'log2', 0.5],
 }
 
 # Used by: `base_random_forest.py`
@@ -98,7 +104,7 @@ SEL_RF_PARAM_GRID = {
     'feature_selector__estimator__C': [0.001, 0.01, 0.1],
     'classifier__max_depth': [2, 4, 8, 16],
     'classifier__n_estimators': [100],
-    'classifier__max_features': RF_MAX_FEATURES_GRID,
+    'classifier__max_features': ['sqrt', 'log2', 0.5],
 }
 
 

@@ -12,7 +12,8 @@ from sklearn.pipeline import Pipeline
 from H_reduce import step_wise_reg_wfv
 from H_prep import clean_data, data_clean_param_selection, import_data
 from H_eval import RollingWindowBacktest, get_final_metrics, utility_score
-from H_helpers import log_result, get_cwd, append_params_to_dict
+from H_helpers import get_cwd
+from legacy_helpers import log_result, append_params_to_dict
 
 VERBOSE=0
 WINDOW_SIZE=220

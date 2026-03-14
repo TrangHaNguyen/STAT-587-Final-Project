@@ -3,8 +3,9 @@ import pandas as pd
 import numpy as np
 from mlxtend.feature_selection import SequentialFeatureSelector as MFS
 from sklearn.model_selection import TimeSeriesSplit
+from model_grids import TIME_SERIES_CV_SPLITS
 
-def step_wise_reg_wfv(model, X_train: pd.DataFrame, y_train: pd.DataFrame, X_test: pd.DataFrame, n_splits: int =3, verbose: int =2) -> tuple[pd.DataFrame, pd.DataFrame]:
+def step_wise_reg_wfv(model, X_train: pd.DataFrame, y_train: pd.DataFrame, X_test: pd.DataFrame, n_splits: int =TIME_SERIES_CV_SPLITS, verbose: int =2) -> tuple[pd.DataFrame, pd.DataFrame]:
     print("------- Applying Step-Wise Regression (WFV)")
     # Previous temporary change used `KFold(n_splits=5, shuffle=False)`.
     tscv = TimeSeriesSplit(n_splits=n_splits)

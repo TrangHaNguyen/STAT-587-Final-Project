@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from model_grids import TIME_SERIES_CV_SPLITS
+
 
 def default_history_path(project_root: Path, model: str) -> Path:
     mapping = {
@@ -18,6 +20,38 @@ def default_history_path(project_root: Path, model: str) -> Path:
     return project_root / "output" / mapping[model]
 
 
+def has_crowded_numeric_spacing(x_vals: np.ndarray) -> bool:
+    x_vals = np.asarray(x_vals, dtype=float)
+    if x_vals.size < 4:
+        return False
+    diffs = np.diff(np.sort(x_vals))
+    positive_diffs = diffs[diffs > 0]
+    if positive_diffs.size < 2:
+        return False
+    return float(np.max(positive_diffs) / np.min(positive_diffs)) >= 8.0
+
+
+def looks_log_spaced(x_vals: np.ndarray) -> bool:
+    x_vals = np.asarray(x_vals, dtype=float)
+    if x_vals.size < 4 or np.any(x_vals <= 0):
+        return False
+    log_diffs = np.diff(np.log10(np.sort(x_vals)))
+    positive_log_diffs = log_diffs[log_diffs > 0]
+    if positive_log_diffs.size < 2:
+        return False
+    return float(np.max(positive_log_diffs) / np.min(positive_log_diffs)) <= 2.5
+
+
+def choose_numeric_axis_mode(x_col: str, x_vals: np.ndarray) -> str:
+    if is_pca_n_components_param(x_col):
+        return "categorical"
+    if looks_log_spaced(x_vals):
+        return "log"
+    if has_crowded_numeric_spacing(x_vals):
+        return "categorical"
+    return "linear"
+
+
 def sort_by_complexity(df: pd.DataFrame, x_col: str, ordered: list[str] | None =None) -> pd.DataFrame:
     out = df.copy()
     if ordered:
@@ -26,23 +60,37 @@ def sort_by_complexity(df: pd.DataFrame, x_col: str, ordered: list[str] | None =
         out = out.dropna(subset=["_x"]).sort_values("_x")
         out["_x_numeric"] = np.arange(len(out))
         out["_x_tick"] = out[x_col].astype(str)
+        out["_x_axis_mode"] = "categorical"
         return out
     x_num = pd.to_numeric(out[x_col], errors="coerce")
     if x_num.notna().all():
-        out["_x_numeric"] = x_num
-        out = out.sort_values("_x_numeric")
-        out["_x_tick"] = out[x_col].astype(str)
+        axis_mode = choose_numeric_axis_mode(x_col, x_num.to_numpy(dtype=float))
+        if axis_mode == "categorical":
+            out["_x_order"] = x_num
+            out = out.sort_values("_x_order").reset_index(drop=True)
+            out["_x_numeric"] = np.arange(len(out), dtype=float)
+            out["_x_tick"] = out[x_col].astype(str)
+        else:
+            out["_x_numeric"] = x_num
+            out = out.sort_values("_x_numeric")
+            out["_x_tick"] = out[x_col].astype(str)
+        out["_x_axis_mode"] = axis_mode
     else:
         out[x_col] = out[x_col].astype(str)
         codes = pd.Categorical(out[x_col]).codes
         out["_x_numeric"] = codes
         out = out.sort_values("_x_numeric")
         out["_x_tick"] = out[x_col]
+        out["_x_axis_mode"] = "categorical"
     return out
 
 def metric_prefers_lower(metric_label: str) -> bool:
     label = metric_label.lower()
     return any(token in label for token in ("error", "loss", "misclassification"))
+
+
+def is_pca_n_components_param(x_col: str) -> bool:
+    return "n_components" in x_col and any(token in x_col for token in ("pca", "reducer"))
 
 def select_1se_row(df: pd.DataFrame, lower_is_better: bool =False) -> pd.Series | None:
     if "std_test_score" not in df.columns:
@@ -52,8 +100,8 @@ def select_1se_row(df: pd.DataFrame, lower_is_better: bool =False) -> pd.Series 
         return None
     best_idx = tmp["mean_test_score"].idxmin() if lower_is_better else tmp["mean_test_score"].idxmax()
     best_mean = float(tmp.loc[best_idx, "mean_test_score"])
-    best_std = float(tmp.loc[best_idx, "std_test_score"])
-    threshold = best_mean + best_std if lower_is_better else best_mean - best_std
+    best_se = float(tmp.loc[best_idx, "std_test_score"]) / np.sqrt(TIME_SERIES_CV_SPLITS)
+    threshold = best_mean + best_se if lower_is_better else best_mean - best_se
     if lower_is_better:
         candidates = tmp[tmp["mean_test_score"] <= threshold].copy()
     else:
@@ -110,13 +158,17 @@ def main() -> None:
     lower_is_better = metric_prefers_lower(args.score_label)
 
     x = df["_x_numeric"].to_numpy()
+    x_axis_mode = str(df["_x_axis_mode"].iloc[0])
     y_test = df["mean_test_score"].to_numpy()
     y_train = df["mean_train_score"].to_numpy() if "mean_train_score" in df.columns else np.full_like(y_test, np.nan, dtype=float)
     y_train_std = df["std_train_score"].to_numpy() if "std_train_score" in df.columns else np.full_like(y_test, np.nan, dtype=float)
     y_test_std = df["std_test_score"].to_numpy() if "std_test_score" in df.columns else np.full_like(y_test, np.nan, dtype=float)
 
     plt.figure(figsize=(10, 6))
-    plt.plot(x, y_test, linewidth=1.6, alpha=0.9, label=f"CV Test {args.score_label}")
+    if x_axis_mode == "log":
+        plt.semilogx(x, y_test, linewidth=1.6, alpha=0.9, label=f"CV Test {args.score_label}")
+    else:
+        plt.plot(x, y_test, linewidth=1.6, alpha=0.9, label=f"CV Test {args.score_label}")
     plt.scatter(x, y_test, s=16, alpha=0.55)
     if not np.isnan(y_test_std).all():
         lower = np.clip(y_test - y_test_std, 0.0, 1.0)
@@ -132,10 +184,16 @@ def main() -> None:
     win = max(2, args.trend_window)
     if len(df) >= win:
         trend_test = pd.Series(y_test).rolling(win, min_periods=2).mean()
-        plt.plot(x, trend_test, linewidth=2, label=f"Test Trend (w={win})")
+        if x_axis_mode == "log":
+            plt.semilogx(x, trend_test, linewidth=2, label=f"Test Trend (w={win})")
+        else:
+            plt.plot(x, trend_test, linewidth=2, label=f"Test Trend (w={win})")
         if not np.isnan(y_train).all():
             trend_train = pd.Series(y_train).rolling(win, min_periods=2).mean()
-            plt.plot(x, trend_train, linewidth=2, label=f"Train Trend (w={win})")
+            if x_axis_mode == "log":
+                plt.semilogx(x, trend_train, linewidth=2, label=f"Train Trend (w={win})")
+            else:
+                plt.plot(x, trend_train, linewidth=2, label=f"Train Trend (w={win})")
 
     one_se_row = select_1se_row(df, lower_is_better=lower_is_better)
     best_idx = int(np.argmin(y_test)) if lower_is_better else int(np.argmax(y_test))
@@ -161,7 +219,7 @@ def main() -> None:
     plt.grid(alpha=0.3)
     plt.legend()
 
-    if ordered or (not pd.to_numeric(df[args.x_param], errors="coerce").notna().all()):
+    if ordered or x_axis_mode == "categorical" or (not pd.to_numeric(df[args.x_param], errors="coerce").notna().all()):
         ticks = df["_x_tick"].to_list()
         plt.xticks(x, ticks, rotation=45, ha="right")
 

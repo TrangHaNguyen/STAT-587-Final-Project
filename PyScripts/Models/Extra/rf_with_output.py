@@ -12,7 +12,8 @@ from sklearn.pipeline import Pipeline
 from H_reduce import step_wise_reg_wfv
 from H_prep import clean_data, import_data
 from H_eval import get_final_metrics, RollingWindowBacktest
-from H_helpers import log_result, append_grid_params_to_dict, append_params_to_dict, get_cwd
+from H_helpers import get_cwd
+from legacy_helpers import log_result, append_grid_params_to_dict, append_params_to_dict
 
 cwd=get_cwd("STAT-587-Final-Project")
 

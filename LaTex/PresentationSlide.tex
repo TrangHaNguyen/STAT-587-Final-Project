@@ -428,12 +428,15 @@
 \begin{block}{Model Tuning and Selection} (Mainly Ch. 7, ESL)
 \begin{itemize}
     \item Validation methods: \textbf{Time series} cross-validation
-    \item Parameters. For stat models: selected by 1SE rule. For PCA: best CV metric 
+    \item Parameters tuning: selected by 1SE rule
     \item Evaluation metrics:
     \begin{itemize}
       \item Balanced accuracy in parameter tunning (reduced degenerated one)
-      \item Mainly Test accuracy for model comparison
-      \item Other metrics: ROC-AUC, Specificity, Sensitivity (recall)
+      \item Between different models: 
+      \begin{itemize}
+        \item Mainly ROC-AUC for better differentiation between up and down
+        \item Other metrics: MCC, Test accuracy,  Specificity, Sensitivity (recall)
+      \end{itemize}
     \end{itemize}
 \end{itemize}
 \end{block}
@@ -463,19 +466,19 @@
 \begin{frame}{Results}
 \begin{itemize}
   \item Overall accuracy around 50-55\%, slightly better than random guessing
-  \item Best test accuracy: Baseline (noregularization)+ PCA (197 comps), Test Acc = 0.5572
+  \item Best test accuracy: Base+PCA, Test Acc = 0.5572
   \item Best ROC-AUC: Ridge CV (PCA-197)
   \item Several LASSO models are degenerated
-  \item PCA lead to loss of some information 
+  \item PCA leads to some information loss
   \item Regularization techniques do not significantly improve test accuracy, but might reduce predictive variance
 \end{itemize}
 \end{frame}
 
-\begin{frame}{Logistic - base with optimal PCA}
+\begin{frame}{Logistic - Base+PCA}
 \begin{figure}[h]
     \centering
     \includegraphics[width=\linewidth]{../output/8yrs_1SE_base_logistic_bias_variance.png}
-    \caption{Bias Variance trade off in tuning parameter of Base Logistic Regression with Optimal PCA - Also over and under fitting analysis}
+    \caption{Bias-variance tradeoff for the Base+PCA logistic model, with over/underfitting analysis}
     \label{fig:vb_log_base}
 \end{figure}
 \end{frame}
@@ -490,19 +493,19 @@
 
 \begin{frame}{Results}
 \begin{itemize}
-  \item The random forest using raw features outperforms logistic regression
+  \item Raw RF outperforms logistic regression
   \item Applying PCA and LASSO before the random forest does not improve performance. 
-  \item Ridge application in filtering out noises give the best performance. 
-  \item Models with DOW and Lag is not competitive compared to raw features.
+  \item Ridge-based filtering gives the best performance.
+  \item Models with DOW and lag are not competitive compared to the raw-feature branch.
   \item The standard deviation of both train and test cross validation accuracy is higher $\to$ sensitive method. 
 \end{itemize}
 \end{frame}
 
-\begin{frame}{RF - base with optimal Ridge}
+\begin{frame}{RF - Ridge Filtered}
 \begin{figure}[h]
     \centering
     \includegraphics[width=\linewidth]{../output/8yrs_1SE_base_rf_ridge_bias_variance.png}
-    \caption{Bias Variance trade off in tuning parameter of Base Logistic Regression with Optimal PCA - Also over and under fitting analysis}
+    \caption{Bias-variance tradeoff for the ridge-filtered random forest model}
     \label{fig:vb_rf_base_ridge}
 \end{figure}
 \end{frame}
@@ -539,8 +542,8 @@
 
 \begin{frame}{Results}
 \begin{itemize}
-  \item Random Forest models (especially Base RF) achieve the highest test accuracy but CV bias up
-  \item Other models is just better than random guess
+  \item Random forest models, especially Raw RF, achieve the highest test accuracy but show upward CV bias
+  \item Other models perform only slightly better than random guessing
   \item RF variants using dimensionality reduction have lower test accuracy and higher variability.
   \item SVM with polynomial kernel has the highest F1 score and second in accuracy. Also bias "Up".
   \item Logistic Regression (Ridge and LASSO) provides balanced performance, with moderate accuracy and F1, and low standard deviation.
@@ -616,7 +619,7 @@
     \item Data: 8 years rather than longer, causing mild response bias
     \item Models: Limited grid-search lists in main models, too simple neural net architectures in experiment one.
     \item Evaluation: Hard to use multiple metrics when they are not available for all models
-    \item Time constraints: limited time for extensive hyperparameter tuning 
+    \item Time constraints: limited time for extensive hyperparameter tuning and model decision threshold
     \item Computational resources: limited in training more complex models
     \end{itemize}
 \end{frame}
@@ -624,7 +627,8 @@
 \begin{frame}{Next steps}
 
 \begin{itemize}
-  \item Conduct more extensive hyperparameter tuning, widen grid search list
+  \item More extensive list for hyperparameter tuning and various choices of model decision threshold
+  \item Possibly experiment with cSE rule rather than 1SE rule.
   \item Include longer time series, shorter time window
   \item Explore more sophisticated models (more complicated deep learning architectures)
   \item Potential of combination with economic method of time series forecasting (e.g., ARIMA, GARCH)

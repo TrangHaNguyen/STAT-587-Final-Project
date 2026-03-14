@@ -7,7 +7,8 @@ from sklearn.preprocessing import StandardScaler
 
 from H_prep import clean_data, import_data, data_clean_param_selection
 from H_eval import RollingWindowBacktest, get_final_metrics, utility_score
-from H_helpers import log_result, get_cwd, append_params_to_dict
+from H_helpers import get_cwd
+from legacy_helpers import log_result, append_params_to_dict
 
 cwd=get_cwd("STAT-587-Final-Project")
 

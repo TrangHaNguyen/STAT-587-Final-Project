@@ -55,7 +55,15 @@ from H_search_history import (
     save_search_checkpoint,
     search_checkpoint_exists,
 )
-from model_grids import BASE_RF_PARAM_GRID, PCA_RF_PARAM_GRID, TEST_SIZE, TIME_SERIES_CV_SPLITS, TRAIN_TEST_SHUFFLE
+from model_grids import (
+    BASE_RF_PARAM_GRID,
+    PCA_RF_PARAM_GRID,
+    RANDOM_SEED,
+    RF_CLASS_WEIGHT,
+    TEST_SIZE,
+    TIME_SERIES_CV_SPLITS,
+    TRAIN_TEST_SHUFFLE,
+)
 
 MODEL_N_JOBS = int(os.getenv("MODEL_N_JOBS", "-1"))
 GRID_VERSION = os.getenv("GRID_VERSION", "v1")
@@ -226,12 +234,12 @@ def _compute_cv_metric_curves(model_factory, X_train, y_train, cv):
 def _base_rf_pipeline():
     return Pipeline([
         ('scaler', StandardScaler()),
-        ('classifier', RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))
+        ('classifier', RandomForestClassifier(random_state=RANDOM_SEED, n_jobs=RF_FIT_N_JOBS, class_weight=RF_CLASS_WEIGHT))
     ])
 
 def _pca_rf_pipeline():
     return Pipeline([
-        ('classifier', RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))
+        ('classifier', RandomForestClassifier(random_state=RANDOM_SEED, n_jobs=RF_FIT_N_JOBS, class_weight=RF_CLASS_WEIGHT))
     ])
 
 def _run_grid_search(checkpoint_dir, stage_name, pipeline, param_grid, X_train, y_train, tscv, refit, heading):
@@ -363,9 +371,9 @@ def _run_rf_suite(
         searches[spec['name']] = search_obj
     pca_rf_search = searches['PCA RF']
     fixed_pca_rf = RandomForestClassifier(
-        random_state=1,
+        random_state=RANDOM_SEED,
         n_jobs=RF_FIT_N_JOBS,
-        class_weight='balanced',
+        class_weight=RF_CLASS_WEIGHT,
         max_depth=pca_rf_search.best_params_['classifier__max_depth'],
         n_estimators=pca_rf_search.best_params_['classifier__n_estimators'],
         max_features=pca_rf_search.best_params_['classifier__max_features'],
@@ -518,7 +526,7 @@ if __name__ == "__main__":
 
     # ------- Train/test split (80/20, no shuffle to preserve time order) -------
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y_classification, test_size=TEST_SIZE, random_state=1, shuffle=TRAIN_TEST_SHUFFLE
+        X, y_classification, test_size=TEST_SIZE, random_state=RANDOM_SEED, shuffle=TRAIN_TEST_SHUFFLE
     )
     # Previous temporary change used `KFold(n_splits=5, shuffle=False)`.
     tscv = TimeSeriesSplit(n_splits=TIME_SERIES_CV_SPLITS)
@@ -638,7 +646,7 @@ if __name__ == "__main__":
 
     X_dow = pd.concat([X, dow_dummies], axis=1)
     X_train_dow, X_test_dow, y_train_dow, y_test_dow = train_test_split(
-        X_dow, y_classification, test_size=TEST_SIZE, random_state=1, shuffle=TRAIN_TEST_SHUFFLE
+        X_dow, y_classification, test_size=TEST_SIZE, random_state=RANDOM_SEED, shuffle=TRAIN_TEST_SHUFFLE
     )
     print(f"Feature matrix with DOW: {X_dow.shape[1]} columns")
 

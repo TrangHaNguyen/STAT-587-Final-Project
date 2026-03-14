@@ -49,11 +49,13 @@ from sklearn.metrics import roc_auc_score, accuracy_score, balanced_accuracy_sco
 from model_grids import (
     BASELINE_PCA_GRID,
     LOGISTIC_BASELINE_SOLVER,
+    LOGISTIC_CLASS_WEIGHT,
     LOGISTIC_LASSO_SOLVER,
     LOGISTIC_MAX_ITER,
     LOGISTIC_RIDGE_SOLVER,
     LOGISTIC_TOL,
     LASSO_GRID,
+    RANDOM_SEED,
     RIDGE_GRID,
     TEST_SIZE,
     TIME_SERIES_CV_SPLITS,
@@ -99,7 +101,7 @@ def clear_output_checkpoints() -> None:
 def _build_logistic_kwargs(*, solver: str, l1_ratio=None, c_value=None):
     kwargs = {
         'solver': solver,
-        'class_weight': 'balanced',
+        'class_weight': LOGISTIC_CLASS_WEIGHT,
         'random_state': 1,
         'max_iter': LOGISTIC_MAX_ITER,
         'tol': LOGISTIC_TOL,
@@ -116,7 +118,7 @@ def _build_logistic_cv_kwargs(*, solver: str, cs, cv, l1_ratio, scoring: str):
         'Cs': cs,
         'cv': cv,
         'solver': solver,
-        'class_weight': 'balanced',
+        'class_weight': LOGISTIC_CLASS_WEIGHT,
         'random_state': 1,
         'n_jobs': MODEL_N_JOBS,
         'max_iter': LOGISTIC_MAX_ITER,
@@ -751,7 +753,7 @@ if __name__ == "__main__":
 
     # ------- Train/test split (80/20, no shuffle — time series order must be preserved) -------
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y_classification, test_size=TEST_SIZE, random_state=1, shuffle=TRAIN_TEST_SHUFFLE
+        X, y_classification, test_size=TEST_SIZE, random_state=RANDOM_SEED, shuffle=TRAIN_TEST_SHUFFLE
     )
 
     # Previous temporary change used `KFold(n_splits=5, shuffle=False)`.
@@ -1313,7 +1315,7 @@ if __name__ == "__main__":
 
     X_dow = pd.concat([X, dow_dummies], axis=1)
     X_train_dow, X_test_dow, _, _ = train_test_split(
-        X_dow, y_classification, test_size=TEST_SIZE, random_state=1, shuffle=TRAIN_TEST_SHUFFLE
+        X_dow, y_classification, test_size=TEST_SIZE, random_state=RANDOM_SEED, shuffle=TRAIN_TEST_SHUFFLE
     )
     print(f"Feature matrix with DOW: {X_dow.shape[1]} columns")
 

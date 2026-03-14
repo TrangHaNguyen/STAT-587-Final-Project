@@ -8,6 +8,7 @@ import warnings
 import time
 from datetime import datetime
 from pathlib import Path
+import sys
 
 import numpy as np
 import pandas as pd
@@ -29,8 +30,14 @@ from sklearn.metrics import (
 )
 from sklearn.pipeline import Pipeline
 
+MODELS_DIR = Path(__file__).resolve().parents[1]
+if str(MODELS_DIR) not in sys.path:
+    sys.path.append(str(MODELS_DIR))
+
+from model_grids import RANDOM_SEED
+
 warnings.filterwarnings('ignore')
-np.random.seed(42)
+np.random.seed(RANDOM_SEED)
 
 LAG_STEPS = [1, 3, 6, 12, 24]
 EMA_WINDOWS = [6, 12, 24]
@@ -336,7 +343,7 @@ def main():
 
     print("\nSplitting data (80% train, 20% test)...")
     X_train, X_test, y_train, y_test = train_test_split(
-        X_lagged, y_lagged, test_size=0.2, random_state=42, stratify=y_lagged
+        X_lagged, y_lagged, test_size=0.2, random_state=RANDOM_SEED, stratify=y_lagged
     )
 
     print(f"Train set: {X_train.shape[0]} samples")
@@ -344,7 +351,7 @@ def main():
     print(f"Train target distribution: Down={np.sum(y_train==0)}, Up={np.sum(y_train==1)}")
     print(f"Test target distribution: Down={np.sum(y_test==0)}, Up={np.sum(y_test==1)}\n")
 
-    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=RANDOM_SEED)
 
     print("=" * 80)
     print("Training L2 LogisticRegressionCV")
@@ -357,7 +364,7 @@ def main():
             cv=cv,
             penalty='l2',
             solver='lbfgs',
-            random_state=42,
+            random_state=RANDOM_SEED,
             max_iter=1000,
             verbose=1,
             n_jobs=-1
@@ -425,7 +432,7 @@ def main():
             cv=cv,
             penalty='l1',
             solver='liblinear',
-            random_state=42,
+            random_state=RANDOM_SEED,
             max_iter=1000,
             verbose=1,
             n_jobs=1

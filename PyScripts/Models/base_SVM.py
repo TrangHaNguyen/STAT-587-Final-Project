@@ -36,6 +36,8 @@ from model_grids import (
     SVM_LINEAR_C_GRID_OPTIONS,
     SVM_GAMMA_GRID_OPTIONS,
     SVM_DEGREE_GRID_OPTIONS,
+    RANDOM_SEED,
+    SVM_CLASS_WEIGHT,
     SVM_TOL,
     TEST_SIZE,
     TIME_SERIES_CV_SPLITS,
@@ -167,7 +169,7 @@ if __name__ == "__main__":
     y_classification = to_binary_class(y_regression)
     print(f"Final shape - X: {X.shape}, y: {y_classification.shape}")
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y_classification, test_size=TEST_SIZE, random_state=1, shuffle=TRAIN_TEST_SHUFFLE
+        X, y_classification, test_size=TEST_SIZE, random_state=RANDOM_SEED, shuffle=TRAIN_TEST_SHUFFLE
     )
     gamma_sort = lambda value: _effective_svm_gamma(value, X_train.shape[1])
 
@@ -176,7 +178,7 @@ if __name__ == "__main__":
     tscv = TimeSeriesSplit(n_splits=TIME_SERIES_CV_SPLITS)
 
     print("\n\n------- Raw Linear SVM Model -------")
-    svm_linear = SVC(kernel="linear", cache_size=1000, class_weight="balanced", gamma="scale", random_state=1, tol=SVM_TOL)
+    svm_linear = SVC(kernel="linear", cache_size=1000, class_weight=SVM_CLASS_WEIGHT, gamma="scale", random_state=RANDOM_SEED, tol=SVM_TOL)
     svm_linear_pipeline = Pipeline([("scaler", StandardScaler()), ("classifier", svm_linear)])
     param_grid = {"classifier__C": SVM_LINEAR_C_GRID_OPTIONS}
     grid_search_linear = GridSearchCV(
@@ -206,7 +208,7 @@ if __name__ == "__main__":
     # util_score = utility_score(results, rwb_obj)
     # print(f"Utility Score {util_score:.4}")
     print("\n\n------- Raw RBF SVM Model -------")
-    svm_rbf = SVC(kernel="rbf", cache_size=1000, class_weight="balanced", gamma="scale", random_state=1, tol=SVM_TOL)
+    svm_rbf = SVC(kernel="rbf", cache_size=1000, class_weight=SVM_CLASS_WEIGHT, gamma="scale", random_state=RANDOM_SEED, tol=SVM_TOL)
     svm_rbf_pipeline = Pipeline([("scaler", StandardScaler()), ("classifier", svm_rbf)])
     param_grid = {
         "classifier__C": SVM_LINEAR_C_GRID_OPTIONS,
@@ -242,7 +244,7 @@ if __name__ == "__main__":
     # util_score = utility_score(results, rwb_obj)
     # print(f"Utility Score {util_score:.4}")
     print("\n\n------- Raw Polynomial SVM Model -------")
-    svm_poly = SVC(kernel="poly", cache_size=1000, class_weight="balanced", gamma="scale", random_state=1, tol=SVM_TOL)
+    svm_poly = SVC(kernel="poly", cache_size=1000, class_weight=SVM_CLASS_WEIGHT, gamma="scale", random_state=RANDOM_SEED, tol=SVM_TOL)
     svm_poly_pipeline = Pipeline([("scaler", StandardScaler()), ("classifier", svm_poly)])
     param_grid = {
         "classifier__C": SVM_LINEAR_C_GRID_OPTIONS,

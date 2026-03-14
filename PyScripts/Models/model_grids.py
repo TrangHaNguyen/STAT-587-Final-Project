@@ -22,6 +22,74 @@ TEST_SIZE = 0.2
 # Keep chronological order in holdout splits for time-series modeling.
 TRAIN_TEST_SHUFFLE = False
 
+# Single source of truth for random seeds across model training, splitting,
+# plotting reducers, and neural-network initialization.
+RANDOM_SEED = 1
+
+# Shared lag configuration for the neural-network update scripts. The raw
+# baseline-style loading path does not create lagged feature columns, so these
+# values also define the rolling sequence window length used by those models.
+NN_LAG_PERIOD = [1, 2, 3, 4, 5, 6, 7]
+
+# Shared class-weight configuration used by the active model scripts.
+LOGISTIC_CLASS_WEIGHT = None
+RF_CLASS_WEIGHT = None
+SVM_CLASS_WEIGHT = None
+
+
+# ---------------------------------------------------------------------------
+# Used in: NN.py
+# ---------------------------------------------------------------------------
+
+# Used by: `NN.py`
+# Purpose: CV-ready hyperparameter grid for the LSTM wrapper. The current
+# script uses the first value from each list until a full NN tuning workflow
+# is added.
+NN_LSTM_PARAM_GRID = {
+    "units_1": [64],
+    "units_2": [32],
+    "dense_units": [16],
+    "dropout_1": [0.2],
+    "dropout_2": [0.2],
+    "activation": ["relu"],
+    "learning_rate": [0.001],
+    "epochs": [60],
+    "batch_size": [32],
+    "patience": [12],
+    "validation_split": [0.2],
+}
+
+# Used by: `NN.py`
+# Purpose: CV-ready hyperparameter grid for the SimpleRNN wrapper. The current
+# script uses the first value from each list until a full NN tuning workflow
+# is added.
+NN_RNN_PARAM_GRID = {
+    "units_1": [64],
+    "dropout_1": [0.3],
+    "activation": ["tanh"],
+    "learning_rate": [0.001],
+    "epochs": [50],
+    "batch_size": [32],
+    "patience": [10],
+    "validation_split": [0.2],
+}
+
+# Used by: `NN.py`
+# Purpose: CV-ready hyperparameter grid for the CNN-style MLP pipeline. These
+# keys already match sklearn `Pipeline` parameter naming for future GridSearchCV.
+NN_CNN_PARAM_GRID = {
+    "classifier__hidden_layer_sizes": [(128, 64)],
+    "classifier__activation": ["relu"],
+    "classifier__solver": ["adam"],
+    "classifier__batch_size": [32],
+    "classifier__learning_rate_init": [0.001],
+    "classifier__max_iter": [200],
+    "classifier__early_stopping": [True],
+    "classifier__validation_fraction": [0.2],
+    "classifier__n_iter_no_change": [15],
+    "classifier__alpha": [0.0001],
+}
+
 
 def choose_grid_variant(variant: str, left_values, center_values, right_values):
     """Select one of three grid presets by variant name."""

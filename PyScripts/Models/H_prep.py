@@ -14,7 +14,7 @@ import itertools
 
 from H_eval import RollingWindowBacktest, get_final_metrics, utility_score
 from H_helpers import get_cwd
-from model_grids import TRAIN_TEST_SHUFFLE
+from model_grids import RANDOM_SEED, TRAIN_TEST_SHUFFLE
 
 @contextmanager
 def silence_stdout():
@@ -84,7 +84,7 @@ def import_data(
     if cluster:
         X_stocks = DATA.xs('Close PC', level=0, axis=1).droplevel('Type', axis=1).dropna(axis=0, how='all').T
 
-        kmeans = KMeans(n_clusters=n_clusters, random_state=1, n_init=10)
+        kmeans = KMeans(n_clusters=n_clusters, random_state=RANDOM_SEED, n_init=10)
         clusters = kmeans.fit_predict(X_stocks)
 
         representative_stocks = []
@@ -327,7 +327,7 @@ def data_clean_param_selection(
                 )
             X, y = clean_data(DATA, y_regression, **config)
             y_classification = to_binary_class(y)
-            X_train, X_test, y_train, y_test=train_test_split(X, y_classification, test_size=test_size, shuffle=TRAIN_TEST_SHUFFLE, random_state=1)
+            X_train, X_test, y_train, y_test=train_test_split(X, y_classification, test_size=test_size, shuffle=TRAIN_TEST_SHUFFLE, random_state=RANDOM_SEED)
 
             pipeline_base_=Pipeline([('scaler', StandardScaler()), 
                                     ('classifier', clone(model))])

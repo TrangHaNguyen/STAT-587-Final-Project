@@ -48,11 +48,13 @@ from H_search_history import (
 from model_grids import (
     BASELINE_PCA_GRID,
     LOGISTIC_BASELINE_SOLVER,
+    LOGISTIC_CLASS_WEIGHT,
     LOGISTIC_LASSO_SOLVER,
     LOGISTIC_MAX_ITER,
     LOGISTIC_RIDGE_SOLVER,
     LASSO_GRID,
     LOGISTIC_TOL,
+    RANDOM_SEED,
     RIDGE_GRID,
     TEST_SIZE,
     TIME_SERIES_CV_SPLITS,
@@ -79,7 +81,7 @@ cwd = get_cwd("STAT-587-Final-Project")
 def _build_logistic_kwargs(*, solver: str, l1_ratio=None, c_value=None, verbose: int | None = None):
     kwargs = {
         'solver': solver,
-        'class_weight': 'balanced',
+        'class_weight': LOGISTIC_CLASS_WEIGHT,
         'random_state': 1,
         'max_iter': LOGISTIC_MAX_ITER,
         'tol': LOGISTIC_TOL,
@@ -181,7 +183,7 @@ if __name__=="__main__":
 
     X, y_regression=cast(Any, clean_data(*DATA, **parameters_))
     y_classification=to_binary_class(y_regression)
-    X_train, X_test, y_train, y_test=train_test_split(X, y_classification, test_size=TEST_SIZE, random_state=1, shuffle=TRAIN_TEST_SHUFFLE)
+    X_train, X_test, y_train, y_test=train_test_split(X, y_classification, test_size=TEST_SIZE, random_state=RANDOM_SEED, shuffle=TRAIN_TEST_SHUFFLE)
 
     # ------- PCA Base (No Logistic Regularization) -------
     print("\n\n------- PCA Base Logistic Model -------")

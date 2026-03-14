@@ -124,8 +124,8 @@ One motivation for using only historical data is that market prices may already 
 The raw data contains 2010 trading days and 2520 features. The sizable number of columns is explained by each stock (2010) and index (1) having their own price metrics for CP, OP, HP, LP and TV $([503+1] * 5)=2520$. The number of rows is explained by the exclusion of 19 holidays and 211 weekend days.
 
 The features are then modified to create additional engineered features that are commonly seen used in quantitative technical analysis and trading strategies. These features include lag values, day-to-day percent change, volatility, max/min channel position, rolling volume weighted average prices, rolling z-scores, daily range, and the day of the week. Details of formula for each variable generation is provided in the Subsection \ref{subsec:feature_engineering} of the Appendix.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% MAJOR REVISION COMPLETED UP TO HERE%%%%%% LATER INCLUDED NEW RESULT BUT IS MINIMALLY REVISED, like abbreviation, some citation.%%%%%%%%%%%%%%%%%%%%% 
+\todo{Major revision completed up to here; later results were added but this section is only minimally revised.}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% , like abbreviation, some citation.%%%%%%%%%%%%%%%%%%%%% 
 
 A little emphasis on lag is provided as follows: lag captures momentum, which allows the model to see if past data has any impact on future values. Unlike recurrent neural networks, all other base models, which are being considered in this paper, require lag values to be created before the training process since time-series isn't built directly into their architecture. Different lag periods will be used and the results will be compared to see if there is any significant difference in model performance. This feature is particularly important for statistical learning models that aren't traditional economic time-series analysis models, allowing us to capture the relationship between past and future values in a more flexible way.% Comment: this paragraph is also unclear. Fix this please.
 
@@ -232,7 +232,7 @@ The general selection of hyperparameter is mainly based on the model with highes
 \paragraph{Logistic Regression Models}
 
 
-\safeinput{../output/8yrs_base_logistic_comparison.tex}%Comment: improve on this presentation.
+\safeinput{../output/8yrs_1SE_base_logistic_comparison.tex}%Comment: improve on this presentation.
 \FloatBarrier
 
 Table~\ref{tab:base_logistic_comparison} presents the performance comparison of baseline logistic regression models with different regularization and dimensional reduction techniques. Overall the accuracy is just around 50\%, which is only slightly better than random guessing. This suggests that the raw OHLCV features may not contain strong predictive signals for the market direction, and that the relationship between these features and the target variable is likely complex and non-linear. The regularization techniques (Ridge and LASSO) do not seem to significantly improve performance compared to the unregularized logistic regression. The PCA-based model performs worse than the other models, which could be due to the loss of potential information when reducing dimensionality. Overall, these results suggest that more sophisticated models or additional feature engineering may be necessary to achieve better predictive performance.
@@ -254,10 +254,16 @@ Table~\ref{tab:base_logistic_comparison} presents the performance comparison of 
 
 
 
-\safeinput{../output/8yrs_base_rf_comparison.tex}
+\safeinput{../output/8yrs_1SE_base_random_forest.tex}
 \FloatBarrier
 
 Table~\ref{tab:base_rf_comparison} presents the performance comparison of different random forest models with predictors of raw features and of selected PCA components. The depth of the tree and number of estimators are selected based on grid search cross validation. The random forest using raw features outperforms the PCA-based logistic regression, and applying PCA before the random forest improves performance even further (accuracy in the test set increased to 54 \%). LASSO and Ridge application in feature selections for random forest does not improve performance compared to PCA. However, the standard deviation of both train and test cross validation accuracy is higher for the random forest compared to logistic regression, which suggests that the random forest may be more sensitive to the data set used to train. 
+
+
+
+
+
+
 
 
 \subsubsection{Extended Feature Models}

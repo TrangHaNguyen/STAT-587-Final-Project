@@ -114,9 +114,11 @@ def run_stage(
 def build_model_stages(models: list[str], grid_version: str) -> list[tuple[str, list[str]]]:
     model_to_script = {
         "base": "base.py",
+        "base_nn": "base_NN.py",
         "base_rf": "base_random_forest.py",
         "base_svm": "base_SVM.py",
         "logreg": "logistic_regression.py",
+        "nn": "NN.py",
         "rf": "random_forest.py",
         "svm": "SVM.py",
     }
@@ -168,8 +170,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Run all model searches safely with checkpoint/resume and optional plotting.")
     parser.add_argument(
         "--models",
-        default="base,base_rf,base_svm,logreg,rf,svm",
-        help="Comma list: base,base_rf,base_svm,logreg,rf,svm",
+        default="base,base_rf,base_svm,base_nn,logreg,rf,svm,nn",
+        help="Comma list: base,base_rf,base_svm,base_nn,logreg,rf,svm,nn",
     )
     parser.add_argument("--grid-version", default="v1", help="Grid version label (e.g., v3).")
     parser.add_argument("--n-jobs", type=int, default=4, help="MODEL_N_JOBS passed to model scripts.")
@@ -183,7 +185,7 @@ def main() -> None:
     args = parser.parse_args()
 
     models = parse_list(args.models)
-    allowed_models = {"base", "base_rf", "base_svm", "svm", "logreg", "rf"}
+    allowed_models = {"base", "base_rf", "base_svm", "base_nn", "svm", "logreg", "rf", "nn"}
 
     unknown_models = [m for m in models if m not in allowed_models]
     if unknown_models:

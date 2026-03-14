@@ -36,6 +36,8 @@ from model_grids import (
     SVM_LINEAR_C_GRID_OPTIONS,
     SVM_GAMMA_GRID_OPTIONS,
     SVM_DEGREE_GRID_OPTIONS,
+    RANDOM_SEED,
+    SVM_CLASS_WEIGHT,
     SVM_TOL,
     TEST_SIZE,
     TIME_SERIES_CV_SPLITS,
@@ -186,7 +188,7 @@ if __name__ == "__main__":
 
     if (FIND_OPTIMAL):
         # ------- Selection of Remaining data_clean() Parameters -------
-        base_SVM_rbf_model=SVC(kernel="rbf", cache_size=1000, class_weight='balanced', gamma='scale', random_state=1, tol=SVM_TOL)
+        base_SVM_rbf_model=SVC(kernel="rbf", cache_size=1000, class_weight=SVM_CLASS_WEIGHT, gamma='scale', random_state=RANDOM_SEED, tol=SVM_TOL)
         base_SVM_rbf_model_pipeline=Pipeline([('scaler', StandardScaler()), ('classifier', base_SVM_rbf_model)])
 
         # ------- Selection of Optimal data_clean() Parameters -------
@@ -206,7 +208,7 @@ if __name__ == "__main__":
 
     X, y_regression=cast(Any, clean_data(*DATA, **parameters_))
     y_classification=to_binary_class(y_regression)
-    X_train, X_test, y_train, y_test=train_test_split(X, y_classification, test_size=TEST_SIZE, random_state=1, shuffle=TRAIN_TEST_SHUFFLE)
+    X_train, X_test, y_train, y_test=train_test_split(X, y_classification, test_size=TEST_SIZE, random_state=RANDOM_SEED, shuffle=TRAIN_TEST_SHUFFLE)
     gamma_sort = lambda value: _effective_svm_gamma(value, X_train.shape[1])
 
     # This script does not define a PCA-based SVM branch, so there is no
@@ -215,7 +217,7 @@ if __name__ == "__main__":
     tscv = TimeSeriesSplit(n_splits=TIME_SERIES_CV_SPLITS)
     # ------- Linear SVM -------
     print("\n\n------- Linear SVM Model -------")
-    SVM_linear=SVC(kernel="linear", cache_size=1000, class_weight='balanced', gamma='scale', random_state=1, tol=SVM_TOL)
+    SVM_linear=SVC(kernel="linear", cache_size=1000, class_weight=SVM_CLASS_WEIGHT, gamma='scale', random_state=RANDOM_SEED, tol=SVM_TOL)
 
     SVM_linear_pipeline = Pipeline([('scaler', StandardScaler()),
                                     ('classifier', SVM_linear)])
@@ -255,7 +257,7 @@ if __name__ == "__main__":
     # print(f"Utility Score {util_score:.4}")
     # ------- RBF SVM -------
     print("\n\n------- RBF SVM Model -------")
-    SVM_rbf=SVC(kernel="rbf", cache_size=1000, class_weight='balanced', gamma='scale', random_state=1, tol=SVM_TOL)
+    SVM_rbf=SVC(kernel="rbf", cache_size=1000, class_weight=SVM_CLASS_WEIGHT, gamma='scale', random_state=RANDOM_SEED, tol=SVM_TOL)
 
     SVM_rbf_pipeline = Pipeline([('scaler', StandardScaler()),
                                  ('classifier', SVM_rbf)])
@@ -300,7 +302,7 @@ if __name__ == "__main__":
     # print(f"Utility Score {util_score:.4}")
     # ------- Polynomial SVM -------
     print("\n\n------- Polynomial SVM Model -------")
-    SVM_poly=SVC(kernel="poly", cache_size=1000, class_weight='balanced', gamma='scale', random_state=1, tol=SVM_TOL)
+    SVM_poly=SVC(kernel="poly", cache_size=1000, class_weight=SVM_CLASS_WEIGHT, gamma='scale', random_state=RANDOM_SEED, tol=SVM_TOL)
 
     SVM_poly_pipeline = Pipeline([('scaler', StandardScaler()),
                                   ('classifier', SVM_poly)])

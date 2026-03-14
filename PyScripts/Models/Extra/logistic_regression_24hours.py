@@ -9,6 +9,7 @@ import warnings
 import time
 from datetime import datetime
 from pathlib import Path
+import sys
 
 import numpy as np
 import pandas as pd
@@ -30,8 +31,14 @@ from sklearn.metrics import (
 )
 from sklearn.pipeline import Pipeline
 
+MODELS_DIR = Path(__file__).resolve().parents[1]
+if str(MODELS_DIR) not in sys.path:
+    sys.path.append(str(MODELS_DIR))
+
+from model_grids import RANDOM_SEED
+
 warnings.filterwarnings('ignore')
-np.random.seed(42)
+np.random.seed(RANDOM_SEED)
 
 
 def load_hourly_data(parquet_file="hourly_data.parquet"):
@@ -215,7 +222,7 @@ def main():
     # Train/test split (80/20)
     print("\nSplitting data (80% train, 20% test)...")
     X_train, X_test, y_train, y_test = train_test_split(
-        X_lagged, y_lagged, test_size=0.2, random_state=42, stratify=y_lagged
+        X_lagged, y_lagged, test_size=0.2, random_state=RANDOM_SEED, stratify=y_lagged
     )
 
     print(f"Train set: {X_train.shape[0]} samples")
@@ -228,7 +235,7 @@ def main():
     print("Building Logistic Regression with 5-fold CV")
     print("=" * 70 + "\n")
 
-    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=RANDOM_SEED)
 
     # LogisticRegressionCV with pipeline
     pipeline = Pipeline([
@@ -238,7 +245,7 @@ def main():
             cv=cv,
             penalty='l2',
             solver='lbfgs',
-            random_state=42,
+            random_state=RANDOM_SEED,
             max_iter=1000,
             verbose=1,
             n_jobs=-1
@@ -358,7 +365,7 @@ def main():
             cv=cv,
             penalty='l1',
             solver='liblinear',  # liblinear is required for L1
-            random_state=42,
+            random_state=RANDOM_SEED,
             max_iter=1000,
             verbose=1,
             n_jobs=1  # Use single-threaded to avoid memory issues with L1
@@ -529,7 +536,7 @@ def main():
             penalty='elasticnet',
             solver='saga',
             l1_ratios=[0.1, 0.5, 0.9],
-            random_state=42,
+            random_state=RANDOM_SEED,
             max_iter=2000,
             verbose=1,
             n_jobs=-1

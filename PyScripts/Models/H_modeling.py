@@ -22,8 +22,10 @@ from H_search_history import (
 from model_grids import (
     BASELINE_PCA_GRID,
     LOGISTIC_BASELINE_SOLVER,
+    LOGISTIC_CLASS_WEIGHT,
     LOGISTIC_MAX_ITER,
     LOGISTIC_TOL,
+    RANDOM_SEED,
 )
 
 
@@ -150,8 +152,8 @@ def fit_or_load_baseline_logistic_pca_search(
         ("pca", PCA()),
         ("classifier", LogisticRegression(
             solver=LOGISTIC_BASELINE_SOLVER,
-            class_weight="balanced",
-            random_state=1,
+            class_weight=LOGISTIC_CLASS_WEIGHT,
+            random_state=RANDOM_SEED,
             max_iter=LOGISTIC_MAX_ITER,
             tol=LOGISTIC_TOL,
             C=np.inf,

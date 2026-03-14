@@ -50,9 +50,12 @@ from H_search_history import (
 )
 from model_grids import (
     BASE_RF_PARAM_GRID,
+    LOGISTIC_CLASS_WEIGHT,
     LOGISTIC_MAX_ITER,
     LOGISTIC_TOL,
     PCA_RF_PARAM_GRID,
+    RANDOM_SEED,
+    RF_CLASS_WEIGHT,
     SEL_RF_PARAM_GRID,
     TEST_SIZE,
     TIME_SERIES_CV_SPLITS,
@@ -196,7 +199,7 @@ if __name__=="__main__":
 
     if (FIND_OPTIMAL):
         # ------- Selection of Remaining data_clean() Parameters -------
-        base_RF_model=RandomForestClassifier(max_depth=10, n_estimators=250, random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced')
+        base_RF_model=RandomForestClassifier(max_depth=10, n_estimators=250, random_state=RANDOM_SEED, n_jobs=RF_FIT_N_JOBS, class_weight=RF_CLASS_WEIGHT)
         base_RF_model_pipeline=Pipeline([('scaler', StandardScaler()), ('classifier', base_RF_model)])
 
         # ------- Selection of Optimal data_clean() Parameters -------
@@ -216,14 +219,14 @@ if __name__=="__main__":
 
     X, y_regression=cast(Any, clean_data(*DATA, **parameters_))
     y_classification=to_binary_class(y_regression)
-    X_train, X_test, y_train, y_test=train_test_split(X, y_classification, test_size=TEST_SIZE, random_state=1, shuffle=TRAIN_TEST_SHUFFLE)
+    X_train, X_test, y_train, y_test=train_test_split(X, y_classification, test_size=TEST_SIZE, random_state=RANDOM_SEED, shuffle=TRAIN_TEST_SHUFFLE)
 
     # Keep the train/validation fold count centralized in `model_grids.TIME_SERIES_CV_SPLITS`.
     tscv = TimeSeriesSplit(n_splits=TIME_SERIES_CV_SPLITS)
     
     # ------- BASE APPLICATION -------
     print("\n\n------- Base RF Model -------")
-    RFClassifier_base=RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced')
+    RFClassifier_base=RandomForestClassifier(random_state=RANDOM_SEED, n_jobs=RF_FIT_N_JOBS, class_weight=RF_CLASS_WEIGHT)
 
     RF_pipeline_base=Pipeline([('scaler', StandardScaler()), 
                                ('classifier', RFClassifier_base)])
@@ -292,7 +295,7 @@ if __name__=="__main__":
         f"n_components={initial_pca_n_components} ({X_train_pca.shape[1]} components)."
     )
 
-    RFClassifier_PCA=RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced')
+    RFClassifier_PCA=RandomForestClassifier(random_state=RANDOM_SEED, n_jobs=RF_FIT_N_JOBS, class_weight=RF_CLASS_WEIGHT)
     RF_pipeline_PCA=Pipeline([('classifier', RFClassifier_PCA)])
 
     param_grid={
@@ -323,9 +326,9 @@ if __name__=="__main__":
         notes=SEARCH_NOTES,
     )
     fixed_pca_rf = RandomForestClassifier(
-        random_state=1,
+        random_state=RANDOM_SEED,
         n_jobs=RF_FIT_N_JOBS,
-        class_weight='balanced',
+        class_weight=RF_CLASS_WEIGHT,
         max_depth=grid_search_PCA.best_params_['classifier__max_depth'],
         n_estimators=grid_search_PCA.best_params_['classifier__n_estimators'],
         max_features=grid_search_PCA.best_params_['classifier__max_features'],
@@ -377,12 +380,12 @@ if __name__=="__main__":
     print("\n\n------- LASSO RF Model -------")
     lasso_selector=SelectFromModel(
         LogisticRegression(
-            penalty='l1', solver='saga', random_state=1,
-            class_weight='balanced', max_iter=LOGISTIC_MAX_ITER, tol=LOGISTIC_TOL
+            penalty='l1', solver='saga', random_state=RANDOM_SEED,
+            class_weight=LOGISTIC_CLASS_WEIGHT, max_iter=LOGISTIC_MAX_ITER, tol=LOGISTIC_TOL
         ),
         threshold='mean'
     )
-    RFClassifier_red_lasso=RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced')
+    RFClassifier_red_lasso=RandomForestClassifier(random_state=RANDOM_SEED, n_jobs=RF_FIT_N_JOBS, class_weight=RF_CLASS_WEIGHT)
 
     RF_pipeline_lasso=Pipeline([('scaler', StandardScaler()), 
                               ('feature_selector', lasso_selector),
@@ -428,12 +431,12 @@ if __name__=="__main__":
     print("\n\n------- RIDGE RF Model -------")
     ridge_selector=SelectFromModel(
         LogisticRegression(
-            penalty='l2', solver="saga", random_state=1,
-            class_weight='balanced', max_iter=LOGISTIC_MAX_ITER, tol=LOGISTIC_TOL
+            penalty='l2', solver="saga", random_state=RANDOM_SEED,
+            class_weight=LOGISTIC_CLASS_WEIGHT, max_iter=LOGISTIC_MAX_ITER, tol=LOGISTIC_TOL
         ),
         threshold='mean'
     )
-    RFClassifier_red_ridge=RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced')
+    RFClassifier_red_ridge=RandomForestClassifier(random_state=RANDOM_SEED, n_jobs=RF_FIT_N_JOBS, class_weight=RF_CLASS_WEIGHT)
 
     RF_pipeline_ridge=Pipeline([('scaler', StandardScaler()), 
                               ('feature_selector', ridge_selector),
@@ -554,13 +557,13 @@ if __name__=="__main__":
         print("\n\n------- LASSO(internal) -> STEP-WISE REGRESSION RF Model -------")
         lasso_selector=SelectFromModel(
             LogisticRegression(
-                penalty='l1', solver='saga', random_state=1,
-                class_weight='balanced', max_iter=LOGISTIC_MAX_ITER, tol=LOGISTIC_TOL
+                penalty='l1', solver='saga', random_state=RANDOM_SEED,
+                class_weight=LOGISTIC_CLASS_WEIGHT, max_iter=LOGISTIC_MAX_ITER, tol=LOGISTIC_TOL
             ),
             max_features=100,
             threshold='mean'
         )
-        RFClassifier_red_lasso=RandomForestClassifier(random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced')
+        RFClassifier_red_lasso=RandomForestClassifier(random_state=RANDOM_SEED, n_jobs=RF_FIT_N_JOBS, class_weight=RF_CLASS_WEIGHT)
 
         RF_pipeline_lasso=Pipeline([('scaler', StandardScaler()), 
                                   ('feature_selector', lasso_selector),
@@ -603,7 +606,7 @@ if __name__=="__main__":
         X_test_red=X_test[lasso_coefficient_names]
 
         RFClassifier_red_sw_wfv_pipeline=Pipeline([('scaler', StandardScaler()),
-                                                   ('classifier', RandomForestClassifier(**RF_params, random_state=1, n_jobs=1, class_weight='balanced'))])
+                                                   ('classifier', RandomForestClassifier(**RF_params, random_state=RANDOM_SEED, n_jobs=1, class_weight=RF_CLASS_WEIGHT))])
 
         X_train_final, X_test_final=step_wise_reg_wfv(RFClassifier_red_sw_wfv_pipeline, X_train_red, y_train, X_test_red) 
 

@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
-"""
-CNN-style time series classifier using engineered features from H_prep.clean_data
-with lag features removed.
-"""
+"""CNN-style classifier aligned with the raw baseline data-loading pipeline."""
 
 import os
 import sys
 import warnings
-import argparse
 from pathlib import Path
 
 import numpy as np
@@ -23,9 +19,10 @@ from sklearn.metrics import (
 from sklearn.model_selection import train_test_split
 from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import StandardScaler
+from model_grids import NN_LAG_PERIOD, RANDOM_SEED, TEST_SIZE, TRAIN_TEST_SHUFFLE
 
 warnings.filterwarnings("ignore")
-np.random.seed(42)
+np.random.seed(RANDOM_SEED)
 
 cwd = Path.cwd()
 for _ in range(5):
@@ -37,7 +34,7 @@ else:
     raise FileNotFoundError("Could not find correct workspace folder.")
 
 sys.path.append(os.path.abspath(cwd / "PyScripts" / "Models"))
-from H_prep import clean_data, import_data
+from H_prep import clean_data, import_data, to_binary_class
 
 
 def reshape_for_cnn(X, sequence_length=5):
@@ -54,47 +51,40 @@ def reshape_for_cnn(X, sequence_length=5):
     return X_reshaped, np.array(indices)
 
 
-def drop_lag_columns(X: pd.DataFrame) -> pd.DataFrame:
-    """Remove any columns whose feature name contains 'Lag'."""
-    if not isinstance(X.columns, pd.MultiIndex):
-        return X.loc[:, [c for c in X.columns if "Lag" not in str(c)]]
-    keep_cols = [col for col in X.columns if "Lag" not in str(col[0])]
-    return X.loc[:, keep_cols]
+def _keep_raw_stock_ohlcv(X: pd.DataFrame) -> pd.DataFrame:
+    """Match the raw OHLCV feature subset used in the baseline models."""
+    idx = pd.IndexSlice
+    metrics = ["Open", "Close", "High", "Low", "Volume"]
+    return X.loc[:, idx[metrics, "Stocks", :]].copy()
 
 
 def main():
-    parser = argparse.ArgumentParser(description="CNN update with optional engineered features.")
-    parser.add_argument(
-        "--no_engineered_features",
-        action="store_true",
-        help="Use raw feature set from clean_data (no engineered features).",
-    )
-    args = parser.parse_args()
-    use_engineered = not args.no_engineered_features
-    mode_label = "ENGINEERED FEATURES (NO LAG VALUES)" if use_engineered else "RAW FEATURES (NO ENGINEERING)"
-    mode_tag = "engineered" if use_engineered else "raw"
-
     print("=" * 70)
-    print(f"CNN UPDATE: {mode_label}")
+    print("CNN UPDATE: RAW BASELINE-STYLE FEATURES")
     print("=" * 70)
 
     testing = False
     print("Loading and cleaning 8-year data via H_prep...")
-    DATA = import_data(testing=testing)
-    X, y_regression = clean_data(
-        DATA=DATA,
-        lookback_period=7,
-        lag_period=0,
-        extra_features=use_engineered,
-        raw=not use_engineered,
+    DATA = import_data(
+        testing=testing,
+        extra_features=False,
         cluster=False,
-        corr=False,
-        corr_level=1,
+        n_clusters=100,
+        corr_threshold=0.95,
+        corr_level=0,
+    )
+    X, y_regression = clean_data(
+        *DATA,
+        lookback_period=0,
+        lag_period=NN_LAG_PERIOD,
+        extra_features=False,
+        raw=True,
+        corr_threshold=0.95,
+        corr_level=0,
     )
 
-    # Extra safety: remove any lag-named columns (e.g., forward lag) from features.
-    X = drop_lag_columns(X)
-    y = (y_regression >= 0).astype(int).to_numpy()
+    X = _keep_raw_stock_ohlcv(X)
+    y = to_binary_class(y_regression).to_numpy()
     X_raw = X.to_numpy()
 
     print(f"\nFeature data shape: X={X_raw.shape}, y={y.shape}")
@@ -105,7 +95,7 @@ def main():
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X_raw)
 
-    sequence_length = 7
+    sequence_length = len(NN_LAG_PERIOD)
     print(f"Reshaping data for CNN with sequence_length={sequence_length}...")
     X_seq, seq_indices = reshape_for_cnn(X_scaled, sequence_length=sequence_length)
     y_seq = y[seq_indices]
@@ -115,11 +105,20 @@ def main():
     print(f"Sequence distribution: Down={sum(y_seq == 0)}, Up={sum(y_seq == 1)}\n")
 
     print("Splitting data into train/validation/test sets...")
+    holdout_size = TEST_SIZE + 0.1
     X_train, X_temp, y_train, y_temp = train_test_split(
-        X_seq, y_seq, test_size=0.3, random_state=42, stratify=y_seq
+        X_seq,
+        y_seq,
+        test_size=holdout_size,
+        random_state=RANDOM_SEED,
+        shuffle=TRAIN_TEST_SHUFFLE,
     )
     X_val, X_test, y_val, y_test = train_test_split(
-        X_temp, y_temp, test_size=0.5, random_state=42, stratify=y_temp
+        X_temp,
+        y_temp,
+        test_size=TEST_SIZE / holdout_size,
+        random_state=RANDOM_SEED,
+        shuffle=TRAIN_TEST_SHUFFLE,
     )
 
     print("=" * 70)
@@ -136,7 +135,7 @@ def main():
         early_stopping=True,
         validation_fraction=0.2,
         n_iter_no_change=15,
-        random_state=42,
+        random_state=RANDOM_SEED,
         verbose=0,
         alpha=0.0001,
     )
@@ -175,10 +174,10 @@ def main():
     output_dir = cwd / "output"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    output_path = output_dir / f"8yrs_cnn_update_{mode_tag}_result.txt"
+    output_path = output_dir / "8yrs_cnn_update_raw_result.txt"
     with open(output_path, "w") as f:
         f.write("=" * 70 + "\n")
-        f.write(f"CNN UPDATE RESULTS - {mode_label}\n")
+        f.write("CNN UPDATE RESULTS - RAW BASELINE-STYLE FEATURES\n")
         f.write("=" * 70 + "\n\n")
         f.write("DATA SUMMARY\n")
         f.write("-" * 70 + "\n")

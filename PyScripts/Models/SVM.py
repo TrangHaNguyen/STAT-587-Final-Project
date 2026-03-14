@@ -13,7 +13,7 @@ MPLCONFIGDIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '.
 os.makedirs(MPLCONFIGDIR, exist_ok=True)
 os.environ.setdefault("MPLCONFIGDIR", os.path.abspath(MPLCONFIGDIR))
 
-from H_prep import clean_data, import_data, data_clean_param_selection
+from H_prep import clean_data, import_data, data_clean_param_selection, to_binary_class
 from H_modeling import fit_or_load_search, load_input_data, make_one_se_refit
 from H_eval import (
     get_final_metrics,
@@ -205,8 +205,6 @@ if __name__ == "__main__":
         print(f"Optimal parameter {parameters_}")
 
     X, y_regression=cast(Any, clean_data(*DATA, **parameters_))
-    def to_binary_class(y):
-        return (y>=0).astype(int)
     y_classification=to_binary_class(y_regression)
     X_train, X_test, y_train, y_test=train_test_split(X, y_classification, test_size=TEST_SIZE, random_state=1, shuffle=TRAIN_TEST_SHUFFLE)
     gamma_sort = lambda value: _effective_svm_gamma(value, X_train.shape[1])

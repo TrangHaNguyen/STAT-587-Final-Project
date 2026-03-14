@@ -81,7 +81,7 @@ LASSO_GRID = np.logspace(-6, 4, 10)
 # forest size in the non-PCA RF model, plus feature subsampling via
 # `classifier__max_features`.
 BASE_RF_PARAM_GRID = {
-    'classifier__max_depth': [2, 4, 8, 16],
+    'classifier__max_depth': [2, 4, 8, 16, 32, 64],
     'classifier__n_estimators': [100],
     'classifier__max_features': ['sqrt', 'log2', 0.5],
 }
@@ -91,7 +91,7 @@ BASE_RF_PARAM_GRID = {
 # forest size, and `classifier__max_features` after PCA has already been
 # selected in a separate stage.
 PCA_RF_PARAM_GRID = {
-    'classifier__max_depth': [2, 4, 8, 16],
+    'classifier__max_depth': [2, 4, 8, 16, 32, 64],
     'classifier__n_estimators': [100],
     'classifier__max_features': ['sqrt', 'log2', 0.5],
 }
@@ -102,7 +102,7 @@ PCA_RF_PARAM_GRID = {
 # forest size, and `classifier__max_features`.
 SEL_RF_PARAM_GRID = {
     'feature_selector__estimator__C': [0.001, 0.01, 0.1],
-    'classifier__max_depth': [2, 4, 8, 16],
+    'classifier__max_depth': [2, 4, 8, 16, 32, 64],
     'classifier__n_estimators': [100],
     'classifier__max_features': ['sqrt', 'log2', 0.5],
 }

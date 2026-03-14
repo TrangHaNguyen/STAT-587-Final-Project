@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from types import SimpleNamespace
 from typing import Any, cast
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split, TimeSeriesSplit, GridSearchCV
@@ -21,7 +22,7 @@ matplotlib.use('Agg')
 import time
 
 from H_reduce import step_wise_reg_wfv
-from H_prep import clean_data, data_clean_param_selection, import_data
+from H_prep import clean_data, data_clean_param_selection, import_data, to_binary_class
 from H_modeling import (
     fit_or_load_baseline_logistic_pca_search,
     fit_or_load_fixed_classifier_pca_search,
@@ -214,8 +215,6 @@ if __name__=="__main__":
         print(f"Optimal parameter {parameters_}")
 
     X, y_regression=cast(Any, clean_data(*DATA, **parameters_))
-    def to_binary_class(y):
-        return (y>=0).astype(int)
     y_classification=to_binary_class(y_regression)
     X_train, X_test, y_train, y_test=train_test_split(X, y_classification, test_size=TEST_SIZE, random_state=1, shuffle=TRAIN_TEST_SHUFFLE)
 
@@ -354,28 +353,16 @@ if __name__=="__main__":
         "Retuned PCA for PCA RF after RF model selection: "
         f"n_components={selected_pca_n_components} ({X_train_pca.shape[1]} components)."
     )
-    grid_search_PCA = fit_or_load_search(
-        checkpoint_dir=checkpoint_dir,
-        stage_name="rf_pca_sequential_refit",
-        search_obj=GridSearchCV(
-            RF_pipeline_PCA, param_grid, cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=GRIDSEARCH_VERBOSE,
-            scoring='balanced_accuracy',
-            refit=make_one_se_refit(
-                ['classifier__max_depth', 'classifier__n_estimators', 'classifier__max_features'],
-                n_splits=TIME_SERIES_CV_SPLITS,
-                sort_value_map={'classifier__max_features': _make_rf_max_features_sort_value(X_train_pca.shape[1])},
-            )
-        ),
-        X_train=X_train_pca,
-        y_train=y_train,
-        history_path=history_path,
-        run_time=run_time,
-        model_name="RF_pca_sequential_refit",
-        grid_label=grid_label,
-        notes=SEARCH_NOTES,
+    print("\n========== PCA + RF Refit (retuned PCA, fixed RF params) ==========")
+    fixed_pca_rf_refit = clone(fixed_pca_rf)
+    fixed_pca_rf_refit.fit(X_train_pca, y_train)
+    grid_search_PCA = SimpleNamespace(
+        best_estimator_=fixed_pca_rf_refit,
+        best_params_=grid_search_PCA.best_params_,
     )
+    print(f"Fixed params (PCA RF retuned): {grid_search_PCA.best_params_}")
 
-    optimized_PCA_ = grid_search_PCA.best_estimator_
+    optimized_PCA_ = fixed_pca_rf_refit
 
     results=get_final_metrics(optimized_PCA_, X_train_pca, y_train, X_test_pca, y_test, label="PCA RF")
     pca_results = results.copy()

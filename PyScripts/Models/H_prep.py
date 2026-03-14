@@ -32,6 +32,11 @@ pd.set_option('display.max_columns', 8)
 
 cwd = get_cwd("STAT-587-Final-Project")
 
+
+def to_binary_class(y: pd.Series) -> pd.Series:
+    """Shared up/down target: 1 when next-day SPX open-to-close return is non-negative."""
+    return (y >= 0).astype(int)
+
 def import_data(
     testing: bool = False,
     extra_features: bool = True,
@@ -310,9 +315,6 @@ def data_clean_param_selection(
     combinations = [dict(zip(keys, v)) for v in itertools.product(*values)]
 
     print(f"Total Unique Cleaning Combinations to test: {len(combinations)}")
-
-    def to_binary_class(y):
-        return (y>=0).astype(int)
 
     scores = []
     for config in combinations:

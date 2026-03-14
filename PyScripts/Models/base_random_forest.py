@@ -2,6 +2,7 @@
 import os
 import time
 from pathlib import Path
+from types import SimpleNamespace
 import pandas as pd
 import numpy as np
 import pyarrow.parquet as pq
@@ -29,7 +30,7 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 
-from H_prep import clean_data, import_data
+from H_prep import clean_data, import_data, to_binary_class
 from H_modeling import (
     fit_or_load_baseline_logistic_pca_search,
     fit_or_load_fixed_classifier_pca_search,
@@ -39,6 +40,7 @@ from H_eval import (
     get_final_metrics,
     rank_models_by_metrics,
     select_non_degenerate_plot_model,
+    save_best_model_plots_from_gridsearch,
     save_best_model_plots_from_gridsearch_all_params,
     register_global_model_candidates,
     build_compact_export_table,
@@ -72,10 +74,6 @@ SAMPLE_PARQUET_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
     '..', 'Data', 'sample.parquet'
 )
-
-def to_binary_class(y):
-    return (y >= 0).astype(int)
-
 
 def _keep_raw_stock_ohlcv(X: pd.DataFrame) -> pd.DataFrame:
     idx = pd.IndexSlice
@@ -397,26 +395,16 @@ def _run_rf_suite(
         f"Retuned PCA for PCA RF after RF model selection{heading_suffix}: "
         f"n_components={selected_pca_n_components} ({X_train_pca.shape[1]} components)."
     )
-    stage_name = f"{dataset_suffix.strip('_') or 'raw'}_pca_rf_refit"
-    pca_search_obj = _run_grid_search(
-        checkpoint_dir,
-        stage_name,
-        _pca_rf_pipeline(),
-        {
-            'classifier__max_depth': PCA_RF_PARAM_GRID['classifier__max_depth'],
-            'classifier__n_estimators': PCA_RF_PARAM_GRID['classifier__n_estimators'],
-            'classifier__max_features': PCA_RF_PARAM_GRID['classifier__max_features'],
-        },
-        X_train_pca,
-        y_train,
-        tscv,
-        make_one_se_refit(
-            ['classifier__max_depth', 'classifier__n_estimators', 'classifier__max_features'],
-            sort_value_map={'classifier__max_features': _make_rf_max_features_sort_value(X_train_pca.shape[1])},
-        ),
-        'PCA + RF GridSearch (retuned PCA)' if not variant_label else f'PCA RF{heading_suffix} GridSearch (retuned PCA)',
+    print(
+        f"\n========== {'PCA + RF Refit (retuned PCA, fixed RF params)' if not variant_label else f'PCA RF{heading_suffix} Refit (retuned PCA, fixed RF params)'} =========="
     )
-    print(f"Best params (PCA RF retuned{heading_suffix}): {pca_search_obj.best_params_}")
+    fixed_pca_rf_refit = clone(fixed_pca_rf)
+    fixed_pca_rf_refit.fit(X_train_pca, y_train)
+    pca_search_obj = SimpleNamespace(
+        best_estimator_=fixed_pca_rf_refit,
+        best_params_=pca_rf_search.best_params_,
+    )
+    print(f"Fixed params (PCA RF retuned{heading_suffix}): {pca_search_obj.best_params_}")
     metric_rows['PCA RF'] = _run_model_report_and_backtest(
         pca_search_obj,
         X_full,
@@ -428,7 +416,7 @@ def _run_rf_suite(
         f"PCA RF{heading_suffix}",
         tscv.n_splits,
     )
-    searches['PCA RF'] = pca_search_obj
+    searches['PCA RF'] = pca_rf_search
     return searches, metric_rows, {
         'pca_search': pca_search,
         'X_train_pca': X_train_pca,
@@ -557,138 +545,36 @@ if __name__ == "__main__":
     grid_search_rf = raw_searches['Raw RF']
     grid_search_pca = raw_searches['PCA RF']
 
-    param_grid = BASE_RF_PARAM_GRID
-
     best_depth  = grid_search_rf.best_params_['classifier__max_depth']
     best_n_est  = grid_search_rf.best_params_['classifier__n_estimators']
     best_max_features = grid_search_rf.best_params_['classifier__max_features']
 
     # ===================================================================
-    # PLOT 1: Bias-Variance Tradeoff (CV train + CV test error ± std)
-    # Sweep the same max_depth grid used in GridSearchCV.
+    # PLOT 1 / 2: Baseline RF max_depth diagnostics
+    # Vary max_depth while holding the other tuned RF hyperparameters fixed.
     # ===================================================================
-    print("\n========== Generating Bias-Variance Tradeoff Plot (CV) ==========")
+    print("\n========== Generating Baseline RF max_depth Diagnostic Plots ==========")
 
-    depth_grid = list(param_grid['classifier__max_depth'])
-    def _depth_curve_models():
-        models = []
-        for depth in depth_grid:
-            models.append(Pipeline([
-                ('scaler', StandardScaler()),
-                ('classifier', RandomForestClassifier(
-                    max_depth=depth, n_estimators=best_n_est,
-                    max_features=best_max_features,
-                    random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced'))
-            ]))
-        return models
-
-    depth_curves = _compute_cv_metric_curves(_depth_curve_models, X_train, y_train, tscv)
-
-    fig1, ax1 = plt.subplots(figsize=(10, 5))
-    fig1.suptitle(
-        'Bias-Variance Tradeoff — RF, Raw OHLCV Features\n'
-        f'(Train vs CV Balanced Error, n_estimators={best_n_est}, max_features={best_max_features})',
-        fontsize=13, fontweight='bold'
-    )
-    ax1.plot(depth_grid, depth_curves['train_bal_err_mean'], marker='o', color='lightsteelblue',
-             linewidth=1.8, label='CV Train balanced error')
-    ax1.plot(depth_grid, depth_curves['cv_bal_err_mean'], marker='s', color='navajowhite',
-             linewidth=1.8, label='CV Test balanced error')
-    ax1.fill_between(
-        depth_grid,
-        np.clip(depth_curves['train_bal_err_mean'] - depth_curves['train_bal_err_std'], 0.0, 1.0),
-        np.clip(depth_curves['train_bal_err_mean'] + depth_curves['train_bal_err_std'], 0.0, 1.0),
-        alpha=0.15,
-        color='lightsteelblue',
-        label='CV Train balanced error ±1 SD'
-    )
-    ax1.fill_between(
-        depth_grid,
-        np.clip(depth_curves['cv_bal_err_mean'] - depth_curves['cv_bal_err_std'], 0.0, 1.0),
-        np.clip(depth_curves['cv_bal_err_mean'] + depth_curves['cv_bal_err_std'], 0.0, 1.0),
-        alpha=0.15,
-        color='navajowhite',
-        label='CV Test balanced error ±1 SD'
-    )
-    best_depth_idx = int(np.argmin(depth_curves['cv_bal_err_mean']))
-    _highlight_selected_value(
-        ax1, depth_grid, depth_curves['cv_bal_err_mean'], best_depth_idx,
-        label_prefix='Value at best CV balanced error'
-    )
-    ax1.axvline(best_depth, color='red', linestyle='--', linewidth=1.5,
-                label=f'1SE-selected max_depth = {best_depth}')
-    ax1.set_title('RF — Bias-Variance Tradeoff (Balanced Error)')
-    ax1.set_xlabel('max_depth\n'
-                   '← Low Depth, High Regularization, Simpler Model      '
-                   'High Depth, Low Regularization, More Complex →')
-    ax1.set_ylabel('Balanced Error (1 - balanced accuracy)')
-    ax1.set_ylim(0, 1.02)
-    ax1.set_xticks(depth_grid)
-    ax1.legend(fontsize=9)
-    ax1.grid(True, alpha=0.3)
-
-    plt.tight_layout()
     output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'output')
     os.makedirs(output_dir, exist_ok=True)
     tex_output_dir = output_dir
     os.makedirs(tex_output_dir, exist_ok=True)
     out_path1 = os.path.join(output_dir, f'{output_prefix}_base_rf_bias_variance.png')
-    plt.savefig(out_path1, dpi=150, bbox_inches='tight')
-    print(f"Figure saved to: {os.path.abspath(out_path1)}")
-    plt.close()
-
-    # ===================================================================
-    # PLOT 2: Direct Train vs Test Error (no CV averaging)
-    # Sweep the same max_depth grid used in GridSearchCV.
-    # ===================================================================
-    print("\n========== Generating Train vs Test Error Plot (Direct Split) ==========")
-
-    scaler_direct = StandardScaler()
-    X_tr_sc = scaler_direct.fit_transform(X_train)
-    X_te_sc = scaler_direct.transform(X_test)
-
-    train_errors, test_errors = [], []
-    for depth in depth_grid:
-        clf = RandomForestClassifier(
-            max_depth=depth, n_estimators=best_n_est,
-            max_features=best_max_features,
-            random_state=1, n_jobs=RF_FIT_N_JOBS, class_weight='balanced')
-        clf.fit(X_tr_sc, y_train)
-        train_errors.append(1 - clf.score(X_tr_sc, y_train))
-        test_errors.append(1 - clf.score(X_te_sc, y_test))
-
-    fig2, ax2 = plt.subplots(figsize=(10, 5))
-    fig2.suptitle(
-        'Over/Underfitting Analysis — RF, Raw OHLCV Features\n'
-        f'(Direct Train/Test Split, No CV, n_estimators={best_n_est}, max_features={best_max_features})',
-        fontsize=13, fontweight='bold'
-    )
-    ax2.plot(depth_grid, train_errors, marker='o', color='steelblue',
-             linewidth=2, label='Train error')
-    ax2.plot(depth_grid, test_errors, marker='s', color='darkorange',
-             linewidth=2, label='Test error')
-    best_depth_idx = int(np.argmin(depth_curves['cv_bal_err_mean']))
-    ax2.scatter(
-        [depth_grid[best_depth_idx]], [test_errors[best_depth_idx]],
-        color='gold', edgecolor='black', s=90, zorder=6,
-        label='Value at best CV balanced error'
-    )
-    ax2.axvline(best_depth, color='red', linestyle='--', linewidth=1.5,
-                label=f'1SE-selected max_depth = {best_depth}')
-    ax2.set_title('RF — Train vs Test Error (Plain Error)')
-    ax2.set_xlabel('max_depth\n'
-                   '← Low Depth, High Regularization, Simpler Model      '
-                   'High Depth, Low Regularization, More Complex →')
-    ax2.set_ylabel('Plain Error (1 - accuracy)')
-    ax2.set_xticks(depth_grid)
-    ax2.legend(fontsize=9)
-    ax2.grid(True, alpha=0.3)
-
-    plt.tight_layout()
     out_path2 = os.path.join(output_dir, f'{output_prefix}_base_rf_train_test.png')
-    plt.savefig(out_path2, dpi=150, bbox_inches='tight')
+    save_best_model_plots_from_gridsearch(
+        grid_search_rf,
+        'classifier__max_depth',
+        'max_depth',
+        f'RF, Raw OHLCV Features\n(n_estimators={best_n_est}, max_features={best_max_features})',
+        out_path1,
+        out_path2,
+        X_train,
+        y_train,
+        X_test,
+        y_test,
+    )
+    print(f"Figure saved to: {os.path.abspath(out_path1)}")
     print(f"Figure saved to: {os.path.abspath(out_path2)}")
-    plt.close()
 
     # ===================================================================
     # PLOT 3: Draw one representative tree from the optimal RF model

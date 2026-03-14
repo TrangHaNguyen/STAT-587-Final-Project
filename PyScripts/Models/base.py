@@ -29,7 +29,7 @@ import time
 import warnings
 from pathlib import Path
 import pandas as pd
-from H_prep import clean_data, import_data
+from H_prep import clean_data, import_data, to_binary_class
 import numpy as np
 
 MPLCONFIGDIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '.mplconfig')
@@ -94,10 +94,6 @@ def clear_output_checkpoints() -> None:
         print(f"Deleted checkpoint directory: {checkpoints_dir}")
     else:
         print(f"No checkpoint directory to delete: {checkpoints_dir}")
-
-
-def to_binary_class(y):
-    return (y >= 0).astype(int)
 
 
 def _build_logistic_kwargs(*, solver: str, l1_ratio=None, c_value=None):

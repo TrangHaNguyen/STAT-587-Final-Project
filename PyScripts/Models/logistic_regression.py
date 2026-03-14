@@ -19,7 +19,7 @@ import matplotlib
 matplotlib.use('Agg')
 # import matplotlib.pyplot as plt  # Unused in the active code path.
 
-from H_prep import clean_data, data_clean_param_selection, import_data
+from H_prep import clean_data, data_clean_param_selection, import_data, to_binary_class
 from H_modeling import (
     fit_or_load_baseline_logistic_pca_search,
     fit_or_load_fixed_classifier_pca_search,
@@ -180,8 +180,6 @@ if __name__=="__main__":
         print(f"Optimal parameter {parameters_}")
 
     X, y_regression=cast(Any, clean_data(*DATA, **parameters_))
-    def to_binary_class(y):
-        return (y>=0).astype(int)
     y_classification=to_binary_class(y_regression)
     X_train, X_test, y_train, y_test=train_test_split(X, y_classification, test_size=TEST_SIZE, random_state=1, shuffle=TRAIN_TEST_SHUFFLE)
 
@@ -329,7 +327,7 @@ if __name__=="__main__":
     # elastic_results = results.copy()
     # util_score=utility_score(results, rwb_obj)
     # print(f"Utility Score {util_score:.4}")
-    # ------- PCA to Ridge(Internal) APPLICATION -------
+    # ------- PCA -> Ridge -------
     Log_Reg_PCA_ridge = LogisticRegression(**_build_logistic_kwargs(
         solver=LOGISTIC_RIDGE_SOLVER, l1_ratio=0
     ))
@@ -337,10 +335,11 @@ if __name__=="__main__":
     param_grid={
         'C': RIDGE_GRID
     }
+    # Tune Ridge C on baseline-selected PCA features.
     grid_search_PCA_ridge=GridSearchCV(
         Log_Reg_PCA_ridge, param_grid, cv=tscv, return_train_score=True, verbose=GRIDSEARCH_VERBOSE,
         scoring='balanced_accuracy',
-        refit=make_one_se_refit(['classifier__C'], n_splits=TIME_SERIES_CV_SPLITS)
+        refit=make_one_se_refit(['C'], n_splits=TIME_SERIES_CV_SPLITS)
     )
     grid_search_PCA_ridge = fit_or_load_search(
         checkpoint_dir=checkpoint_dir,
@@ -360,6 +359,7 @@ if __name__=="__main__":
         l1_ratio=0,
         c_value=grid_search_PCA_ridge.best_params_['classifier__C'] if 'classifier__C' in grid_search_PCA_ridge.best_params_ else grid_search_PCA_ridge.best_params_['C'],
     ))
+    # Retune PCA with Ridge C fixed.
     pca_ridge_search = fit_or_load_fixed_classifier_pca_search(
         checkpoint_dir=checkpoint_dir,
         stage_name="logreg_pca_ridge_retuned_n_components",
@@ -384,6 +384,7 @@ if __name__=="__main__":
         "Retuned PCA for PCA Ridge(int.) after Ridge model selection: "
         f"n_components={selected_pca_ridge_n_components} ({X_train_pca_ridge.shape[1]} components)."
     )
+    # Refit Ridge on the retuned PCA features.
     grid_search_PCA_ridge = fit_or_load_search(
         checkpoint_dir=checkpoint_dir,
         stage_name="logreg_pca_ridge_refit",
@@ -413,7 +414,7 @@ if __name__=="__main__":
     #     rwb_obj.display_wfv_results()
     # util_score=utility_score(results, rwb_obj)
     # print(f"Utility Score {util_score:.4}")
-    # ------- PCA to LASSO(Internal) APPLICATION -------
+    # ------- PCA -> LASSO -------
     Log_Reg_PCA_lasso = LogisticRegression(**_build_logistic_kwargs(
         solver=LOGISTIC_LASSO_SOLVER, l1_ratio=1
     ))
@@ -421,10 +422,11 @@ if __name__=="__main__":
     param_grid={
         'C': LASSO_GRID
     }
+    # Tune LASSO C on baseline-selected PCA features.
     grid_search_PCA_lasso=GridSearchCV(
         Log_Reg_PCA_lasso, param_grid, cv=tscv, return_train_score=True, verbose=GRIDSEARCH_VERBOSE,
         scoring='balanced_accuracy',
-        refit=make_one_se_refit(['classifier__C'], n_splits=TIME_SERIES_CV_SPLITS)
+        refit=make_one_se_refit(['C'], n_splits=TIME_SERIES_CV_SPLITS)
     )
     grid_search_PCA_lasso = fit_or_load_search(
         checkpoint_dir=checkpoint_dir,
@@ -444,6 +446,7 @@ if __name__=="__main__":
         l1_ratio=1,
         c_value=grid_search_PCA_lasso.best_params_['classifier__C'] if 'classifier__C' in grid_search_PCA_lasso.best_params_ else grid_search_PCA_lasso.best_params_['C'],
     ))
+    # Retune PCA with LASSO C fixed.
     pca_lasso_search = fit_or_load_fixed_classifier_pca_search(
         checkpoint_dir=checkpoint_dir,
         stage_name="logreg_pca_lasso_retuned_n_components",
@@ -468,6 +471,7 @@ if __name__=="__main__":
         "Retuned PCA for PCA LASSO(int.) after LASSO model selection: "
         f"n_components={selected_pca_lasso_n_components} ({X_train_pca_lasso.shape[1]} components)."
     )
+    # Refit LASSO on the retuned PCA features.
     grid_search_PCA_lasso = fit_or_load_search(
         checkpoint_dir=checkpoint_dir,
         stage_name="logreg_pca_lasso_refit",

@@ -10,7 +10,7 @@ import pandas as pd
 import time
 import numpy as np
 
-from H_prep import clean_data, import_data
+from H_prep import clean_data, import_data, to_binary_class
 from H_eval import (
     get_final_metrics,
     rank_models_by_metrics,
@@ -163,9 +163,6 @@ if __name__ == "__main__":
     X.columns = [f"{metric}_{ticker}" for metric, _, ticker in X.columns]
     _assert_no_lag_features(X)
     print(f"Feature matrix shape: {X.shape[0]} rows, {X.shape[1]} columns.")
-
-    def to_binary_class(y):
-        return (y >= 0).astype(int)
 
     y_classification = to_binary_class(y_regression)
     print(f"Final shape - X: {X.shape}, y: {y_classification.shape}")

@@ -82,8 +82,8 @@ LASSO_GRID = np.logspace(-6, 4, 10)
 # `classifier__max_features`.
 BASE_RF_PARAM_GRID = {
     'classifier__max_depth': [2, 4, 8, 16, 32, 64],
-    'classifier__n_estimators': [100],
-    'classifier__max_features': ['sqrt', 'log2', 0.5],
+    'classifier__n_estimators': [100, 300, 500],
+    'classifier__max_features': ['log2', 'sqrt', 0.05, 0.1, 0.2],
 }
 
 # Used by: `base_random_forest.py`
@@ -92,8 +92,8 @@ BASE_RF_PARAM_GRID = {
 # selected in a separate stage.
 PCA_RF_PARAM_GRID = {
     'classifier__max_depth': [2, 4, 8, 16, 32, 64],
-    'classifier__n_estimators': [100],
-    'classifier__max_features': ['sqrt', 'log2', 0.5],
+    'classifier__n_estimators': [100, 300, 500],
+    'classifier__max_features': ['log2', 'sqrt', 0.05, 0.1, 0.2],
 }
 
 # Used by: `base_random_forest.py`
@@ -103,8 +103,8 @@ PCA_RF_PARAM_GRID = {
 SEL_RF_PARAM_GRID = {
     'feature_selector__estimator__C': [0.001, 0.01, 0.1],
     'classifier__max_depth': [2, 4, 8, 16, 32, 64],
-    'classifier__n_estimators': [100],
-    'classifier__max_features': ['sqrt', 'log2', 0.5],
+    'classifier__n_estimators': [100, 300, 500],
+    'classifier__max_features': ['log2', 'sqrt', 0.05, 0.1, 0.2],
 }
 
 

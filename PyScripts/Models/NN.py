@@ -224,12 +224,6 @@ def _first_pipeline_params(param_grid: dict[str, list], prefix: str) -> dict[str
     return selected
 
 
-def _keep_raw_stock_ohlcv(X: pd.DataFrame) -> pd.DataFrame:
-    idx = pd.IndexSlice
-    metrics = ["Open", "Close", "High", "Low", "Volume"]
-    return X.loc[:, idx[metrics, "Stocks", :]].copy()
-
-
 def _reshape_sequences(X: np.ndarray, sequence_length: int, *, flatten: bool) -> tuple[np.ndarray, np.ndarray]:
     n_samples, n_features = X.shape
     n_sequences = n_samples - sequence_length + 1
@@ -251,7 +245,7 @@ def _load_sequence_data() -> _SequenceData:
     print("Loading and cleaning 8-year data via H_prep...")
     data = import_data(
         testing=False,
-        extra_features=False,
+        extra_features=True,
         cluster=False,
         n_clusters=100,
         corr_threshold=0.95,
@@ -259,23 +253,23 @@ def _load_sequence_data() -> _SequenceData:
     )
     X, y_regression = clean_data(
         *data,
-        lookback_period=0,
+        lookback_period=30,
         lag_period=NN_LAG_PERIOD,
-        extra_features=False,
-        raw=True,
+        extra_features=True,
+        raw=False,
+        sector=False,
         corr_threshold=0.95,
         corr_level=0,
     )
-    X = _keep_raw_stock_ohlcv(X)
     y = to_binary_class(y_regression).to_numpy()
-    X_raw = X.to_numpy(dtype=np.float32)
+    X_engineered = X.to_numpy(dtype=np.float32)
 
     sequence_length = len(NN_LAG_PERIOD)
-    X_seq_3d, seq_indices = _reshape_sequences(X_raw, sequence_length, flatten=False)
-    X_seq_flat, _ = _reshape_sequences(X_raw, sequence_length, flatten=True)
+    X_seq_3d, seq_indices = _reshape_sequences(X_engineered, sequence_length, flatten=False)
+    X_seq_flat, _ = _reshape_sequences(X_engineered, sequence_length, flatten=True)
     y_seq = y[seq_indices]
 
-    print(f"Raw feature shape: {X.shape}")
+    print(f"Engineered feature shape: {X.shape}")
     print(f"Sequence length: {sequence_length}")
     print(f"3D sequence shape: {X_seq_3d.shape}")
     print(f"Flattened sequence shape: {X_seq_flat.shape}")
@@ -385,7 +379,7 @@ def main() -> None:
     write_base_style_latex_table(
         export_df,
         tex_path,
-        caption="Neural-network model comparison on raw baseline-style sequence features.",
+        caption="Neural-network model comparison on engineered sequence features.",
         label="tab:nn_comparison",
         note="Columns follow the base-model comparison format, excluding Precision, F1, and cross-validation columns because neural-network hyperparameters have not yet been tuned with cross-validation.",
     )

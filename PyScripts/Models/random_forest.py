@@ -9,6 +9,7 @@ from sklearn.decomposition import PCA
 from sklearn.feature_selection import SelectFromModel
 from sklearn.pipeline import Pipeline
 import os
+import numpy as np
 
 MPLCONFIGDIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '.mplconfig')
 os.makedirs(MPLCONFIGDIR, exist_ok=True)
@@ -79,15 +80,69 @@ SAMPLE_PARQUET_PATH = os.path.join(
 
 cwd = get_cwd("STAT-587-Final-Project")
 
-def _rf_max_features_sort_value(value):
-    if value == 'log2':
-        return 0.0
+def _rf_effective_max_features(value, n_features: int) -> float:
+    n_features = max(1, int(n_features))
     if value == 'sqrt':
-        return 1.0
+        return float(max(1, int(np.sqrt(n_features))))
+    if value == 'log2':
+        return float(max(1, int(np.log2(n_features))))
     try:
-        return 2.0 + float(value)
+        numeric_value = float(value)
     except Exception:
         return float("inf")
+    if 0.0 < numeric_value <= 1.0:
+        return float(max(1, int(numeric_value * n_features)))
+    return numeric_value
+
+
+def _make_rf_max_features_sort_value(n_features: int):
+    def _sort_value(value):
+        return _rf_effective_max_features(value, n_features)
+
+    return _sort_value
+
+
+def _make_rf_selector_one_se_refit(selector_pipeline, X_train, y_train):
+    selector_feature_count_cache: dict[str, int] = {}
+
+    def _selected_feature_count(selector_c) -> int:
+        cache_key = str(selector_c)
+        if cache_key not in selector_feature_count_cache:
+            fitted_pipeline = clone(selector_pipeline)
+            fitted_pipeline.set_params(feature_selector__estimator__C=float(selector_c))
+            fitted_pipeline.fit(X_train, y_train)
+            support = fitted_pipeline.named_steps["feature_selector"].get_support()
+            selector_feature_count_cache[cache_key] = int(np.sum(support))
+        return selector_feature_count_cache[cache_key]
+
+    def _pick_index(cv_results):
+        mean = np.asarray(cv_results["mean_test_score"], dtype=float)
+        std = np.asarray(cv_results["std_test_score"], dtype=float)
+        se = std / np.sqrt(TIME_SERIES_CV_SPLITS)
+        best_idx = int(np.argmax(mean))
+        threshold = float(mean[best_idx] - se[best_idx])
+        candidate_idx = np.where(mean >= threshold)[0]
+        if len(candidate_idx) == 0:
+            return best_idx
+
+        def key_fn(i: int):
+            selector_c = cv_results["param_feature_selector__estimator__C"][i]
+            selected_feature_count = _selected_feature_count(selector_c)
+            return (
+                selected_feature_count,
+                float(cv_results["param_classifier__max_depth"][i]),
+                float(cv_results["param_classifier__n_estimators"][i]),
+                _rf_effective_max_features(
+                    cv_results["param_classifier__max_features"][i],
+                    selected_feature_count,
+                ),
+                float(selector_c),
+                -float(mean[i]),
+            )
+
+        return int(min(candidate_idx, key=key_fn))
+
+    return _pick_index
 
 
 def load_rf_input_data():
@@ -179,13 +234,14 @@ if __name__=="__main__":
         'classifier__n_estimators': BASE_RF_PARAM_GRID['classifier__n_estimators'],
         'classifier__max_features': BASE_RF_PARAM_GRID['classifier__max_features'],
     }
+    raw_max_features_sort = _make_rf_max_features_sort_value(X_train.shape[1])
     grid_search_base=GridSearchCV(
         RF_pipeline_base, param_grid, cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=GRIDSEARCH_VERBOSE,
         scoring='balanced_accuracy',
         refit=make_one_se_refit(
             ['classifier__max_depth', 'classifier__n_estimators', 'classifier__max_features'],
             n_splits=TIME_SERIES_CV_SPLITS,
-            sort_value_map={'classifier__max_features': _rf_max_features_sort_value},
+            sort_value_map={'classifier__max_features': raw_max_features_sort},
         )
     )
     grid_search_base = fit_or_load_search(
@@ -245,13 +301,14 @@ if __name__=="__main__":
         'classifier__n_estimators': PCA_RF_PARAM_GRID['classifier__n_estimators'],
         'classifier__max_features': PCA_RF_PARAM_GRID['classifier__max_features'],
     }
+    pca_max_features_sort = _make_rf_max_features_sort_value(X_train_pca.shape[1])
     grid_search_PCA=GridSearchCV(
         RF_pipeline_PCA, param_grid, cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=GRIDSEARCH_VERBOSE,
         scoring='balanced_accuracy',
         refit=make_one_se_refit(
             ['classifier__max_depth', 'classifier__n_estimators', 'classifier__max_features'],
             n_splits=TIME_SERIES_CV_SPLITS,
-            sort_value_map={'classifier__max_features': _rf_max_features_sort_value},
+            sort_value_map={'classifier__max_features': pca_max_features_sort},
         )
     )
     grid_search_PCA = fit_or_load_search(
@@ -306,7 +363,7 @@ if __name__=="__main__":
             refit=make_one_se_refit(
                 ['classifier__max_depth', 'classifier__n_estimators', 'classifier__max_features'],
                 n_splits=TIME_SERIES_CV_SPLITS,
-                sort_value_map={'classifier__max_features': _rf_max_features_sort_value},
+                sort_value_map={'classifier__max_features': _make_rf_max_features_sort_value(X_train_pca.shape[1])},
             )
         ),
         X_train=X_train_pca,
@@ -350,14 +407,11 @@ if __name__=="__main__":
         'classifier__n_estimators': SEL_RF_PARAM_GRID['classifier__n_estimators'],
         'classifier__max_features': SEL_RF_PARAM_GRID['classifier__max_features'],
     }
+    lasso_selector_refit = _make_rf_selector_one_se_refit(RF_pipeline_lasso, X_train, y_train)
     grid_search_LASSO=GridSearchCV(
         RF_pipeline_lasso, param_grid, cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=GRIDSEARCH_VERBOSE,
         scoring='balanced_accuracy',
-        refit=make_one_se_refit(
-            ['feature_selector__estimator__C', 'classifier__max_depth', 'classifier__n_estimators', 'classifier__max_features'],
-            n_splits=TIME_SERIES_CV_SPLITS,
-            sort_value_map={'classifier__max_features': _rf_max_features_sort_value},
-        )
+        refit=lasso_selector_refit
     )
     grid_search_LASSO = fit_or_load_search(
         checkpoint_dir=checkpoint_dir,
@@ -407,11 +461,7 @@ if __name__=="__main__":
     grid_search_ridge=GridSearchCV(
         RF_pipeline_ridge, param_grid, cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=GRIDSEARCH_VERBOSE,
         scoring='balanced_accuracy',
-        refit=make_one_se_refit(
-            ['feature_selector__estimator__C', 'classifier__max_depth', 'classifier__n_estimators', 'classifier__max_features'],
-            n_splits=TIME_SERIES_CV_SPLITS,
-            sort_value_map={'classifier__max_features': _rf_max_features_sort_value},
-        )
+        refit=_make_rf_selector_one_se_refit(RF_pipeline_ridge, X_train, y_train)
     )
     grid_search_ridge = fit_or_load_search(
         checkpoint_dir=checkpoint_dir,
@@ -538,11 +588,7 @@ if __name__=="__main__":
         grid_search_LASSO=GridSearchCV(
             RF_pipeline_lasso, param_grid, cv=tscv, n_jobs=MODEL_N_JOBS, return_train_score=True, verbose=GRIDSEARCH_VERBOSE,
             scoring='balanced_accuracy',
-            refit=make_one_se_refit(
-                ['feature_selector__estimator__C', 'classifier__max_depth', 'classifier__n_estimators', 'classifier__max_features'],
-                n_splits=TIME_SERIES_CV_SPLITS,
-                sort_value_map={'classifier__max_features': _rf_max_features_sort_value},
-            )
+            refit=_make_rf_selector_one_se_refit(RF_pipeline_lasso, X_train, y_train)
         )
         grid_search_LASSO.fit(X_train, y_train) 
         append_search_history(

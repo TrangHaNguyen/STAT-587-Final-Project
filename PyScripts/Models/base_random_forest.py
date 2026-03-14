@@ -96,17 +96,32 @@ def _as_sortable_numeric(value):
         return float("inf")
 
 
-def _rf_max_features_sort_value(value):
-    if value == 'log2':
-        return 0.0
+def _rf_effective_max_features(value, n_features: int) -> float:
+    n_features = max(1, int(n_features))
     if value == 'sqrt':
-        return 1.0
+        return float(max(1, int(np.sqrt(n_features))))
+    if value == 'log2':
+        return float(max(1, int(np.log2(n_features))))
     try:
-        return 2.0 + float(value)
+        numeric_value = float(value)
     except Exception:
         return float("inf")
+    if 0.0 < numeric_value <= 1.0:
+        return float(max(1, int(numeric_value * n_features)))
+    return numeric_value
 
-def make_one_se_refit(complexity_cols: list[str], fixed_cols: list[str] | None = None):
+
+def _make_rf_max_features_sort_value(n_features: int):
+    def _sort_value(value):
+        return _rf_effective_max_features(value, n_features)
+
+    return _sort_value
+
+def make_one_se_refit(
+    complexity_cols: list[str],
+    fixed_cols: list[str] | None = None,
+    sort_value_map: dict[str, callable] | None = None,
+):
     """Return a GridSearchCV refit callable implementing the 1-SE rule."""
     def _pick_index(cv_results):
         mean = np.asarray(cv_results["mean_test_score"], dtype=float)
@@ -130,10 +145,8 @@ def make_one_se_refit(complexity_cols: list[str], fixed_cols: list[str] | None =
             for col in complexity_cols:
                 param_key = f"param_{col}"
                 val = cv_results[param_key][i]
-                if col == 'classifier__max_features':
-                    complexity.append(_rf_max_features_sort_value(val))
-                else:
-                    complexity.append(_as_sortable_numeric(val))
+                sort_fn = (sort_value_map or {}).get(col, _as_sortable_numeric)
+                complexity.append(sort_fn(val))
             # Prefer simplest model; if tie, prefer higher score.
             return tuple(complexity + [-float(mean[i])])
 
@@ -295,13 +308,18 @@ def _run_rf_suite(
         f"Initial PCA from 1SE no-regularization logistic regression in base.py{heading_suffix}: "
         f"n_components={initial_pca_n_components} ({X_train_pca.shape[1]} components)."
     )
+    raw_max_features_sort = _make_rf_max_features_sort_value(X_train.shape[1])
+    pca_max_features_sort = _make_rf_max_features_sort_value(X_train_pca.shape[1])
     specs = [
         {
             'name': 'Raw RF',
             'heading': 'RF GridSearch (20 combinations)' if not variant_label else f'Raw RF{heading_suffix} GridSearch',
             'pipeline': _base_rf_pipeline(),
             'param_grid': BASE_RF_PARAM_GRID,
-            'refit': make_one_se_refit(['classifier__max_depth', 'classifier__n_estimators', 'classifier__max_features']),
+            'refit': make_one_se_refit(
+                ['classifier__max_depth', 'classifier__n_estimators', 'classifier__max_features'],
+                sort_value_map={'classifier__max_features': raw_max_features_sort},
+            ),
         },
         {
             'name': 'PCA RF',
@@ -312,7 +330,10 @@ def _run_rf_suite(
                 'classifier__n_estimators': PCA_RF_PARAM_GRID['classifier__n_estimators'],
                 'classifier__max_features': PCA_RF_PARAM_GRID['classifier__max_features'],
             },
-            'refit': make_one_se_refit(['classifier__max_depth', 'classifier__n_estimators', 'classifier__max_features']),
+            'refit': make_one_se_refit(
+                ['classifier__max_depth', 'classifier__n_estimators', 'classifier__max_features'],
+                sort_value_map={'classifier__max_features': pca_max_features_sort},
+            ),
             'X_train_fit': X_train_pca,
             'X_test_eval': X_test_pca,
         },
@@ -389,7 +410,10 @@ def _run_rf_suite(
         X_train_pca,
         y_train,
         tscv,
-        make_one_se_refit(['classifier__max_depth', 'classifier__n_estimators', 'classifier__max_features']),
+        make_one_se_refit(
+            ['classifier__max_depth', 'classifier__n_estimators', 'classifier__max_features'],
+            sort_value_map={'classifier__max_features': _make_rf_max_features_sort_value(X_train_pca.shape[1])},
+        ),
         'PCA + RF GridSearch (retuned PCA)' if not variant_label else f'PCA RF{heading_suffix} GridSearch (retuned PCA)',
     )
     print(f"Best params (PCA RF retuned{heading_suffix}): {pca_search_obj.best_params_}")

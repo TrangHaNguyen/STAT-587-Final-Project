@@ -24,6 +24,43 @@
 \usepackage[english]{babel}
 \usepackage{microtype}
 \usepackage{apacite}
+\presetkeys{todonotes}{disable}{}
+
+\makeatletter
+
+\newcommand{\safeincludegraphics}[2][]{%
+  \IfFileExists{#2}{%
+    \includegraphics[#1]{#2}%
+  }{%
+    \fbox{%
+      \parbox[c][0.20\textheight][c]{0.9\linewidth}{%
+        \centering Missing graphic\\\texttt{\detokenize{#2}}%
+      }%
+    }%
+  }%
+}
+
+\makeatother
+
+\newcommand{\safeinput}[1]{%
+  \IfFileExists{#1}{%
+    \begin{center}
+    \fbox{%
+      \parbox{0.9\linewidth}{%
+        \centering External table omitted in compile-safe slide mode\\\texttt{\detokenize{#1}}%
+      }%
+    }
+    \end{center}
+  }{%
+    \begin{center}
+    \fbox{%
+      \parbox{0.9\linewidth}{%
+        \centering Missing input file\\\texttt{\detokenize{#1}}%
+      }%
+    }
+    \end{center}
+  }%
+}
 
 % --- Presentation info ---
 %\title[Forecasting S\&P 500 Direction]{Forecasting S\&P 500 Direction\\[0.3em]
@@ -233,8 +270,8 @@
 \begin{frame}{Exploratory Data Analysis}
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.45\linewidth]{../output/8yrs_sector_correlation.png}
-    \includegraphics[width=0.45\linewidth]{../output/8yrs_sector_sp500_correlation_mcap_weighted.png}
+    \safeincludegraphics[width=0.45\linewidth]{../output/8yrs_sector_correlation.png}
+    \safeincludegraphics[width=0.45\linewidth]{../output/8yrs_sector_sp500_correlation_mcap_weighted.png}
     \caption{Correlation across sectors and that of each sector with the S\&P 500 daily return. Highlighted are the top three sectors by absolute market-cap-weighted correlation with the S\&P 500: Healthcare ($|r|=0.1244$), Financial Services ($|r|=0.1198$), and Consumer Defensive ($|r|=0.1112$).}
     \label{fig:sector-correlation}
 \end{figure}
@@ -243,9 +280,9 @@
 \begin{frame}{Exploratory Data Analysis}
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.32\linewidth]{../output/8yrs_sector_Financial_Services_clustered.png}
-    \includegraphics[width=0.32\linewidth]{../output/8yrs_sector_Healthcare_clustered.png}
-    \includegraphics[width=0.32\linewidth]{../output/8yrs_sector_Consumer_Defensive_clustered.png}
+    \safeincludegraphics[width=0.32\linewidth]{../output/8yrs_sector_Financial_Services_clustered.png}
+    \safeincludegraphics[width=0.32\linewidth]{../output/8yrs_sector_Healthcare_clustered.png}
+    \safeincludegraphics[width=0.32\linewidth]{../output/8yrs_sector_Consumer_Defensive_clustered.png}
     \caption{Intra-sector correlation matrices for the top three sectors by absolute market-cap-weighted correlation with S\&P 500 returns. From left to right: Financial Services ($|r|=0.1198$), Healthcare ($|r|=0.1244$), and Consumer Defensive ($|r|=0.1112$). Hierarchical clustering groups stocks with similar return dynamics. Warm colours indicate strong positive co-movement while cool colours indicate divergence.}
     \label{fig:top-sectors}
 \end{figure}
@@ -254,16 +291,16 @@
 \begin{frame}{Exploratory Data Analysis}
   \begin{figure}[h]
     \centering
-    \includegraphics[width=0.45\linewidth]{../output/8yrs_sector_volatility_over_time.png}
-    \includegraphics[width=0.45\linewidth]{../output/8yrs_smoothed_sector_volatility.png}
+    \safeincludegraphics[width=0.45\linewidth]{../output/8yrs_sector_volatility_over_time.png}
+    \safeincludegraphics[width=0.45\linewidth]{../output/8yrs_smoothed_sector_volatility.png}
     \caption{Sector volatility. Left panel: 21-day-window average volatility. Right panel: its smoothed version by moving average over 40 days.}
     \label{fig:sector-vol}
 \end{figure}
 \end{frame}
 
-\begin{frame}[t,shrink=25]{Exploratory Data Analysis: Descriptive Statistics}
-  \scriptsize
-  \input{../output/8yrs_descriptive_stats.tex}
+\begin{frame}[t]{Exploratory Data Analysis: Descriptive Statistics}
+  \tiny
+  \safeinput{../output/8yrs_descriptive_stats.tex}
 \end{frame}
 
 \begin{frame}{Exploratory Data Analysis: Descriptive Stats Summary}
@@ -458,9 +495,9 @@
 \scriptsize
 \setlength{\tabcolsep}{2pt}
 \renewcommand{\arraystretch}{0.9}
-\input{../output/8yrs_1SE_base_logistic_comparison.tex}
+\safeinput{../output/8yrs_1SE_base_logistic_comparison.tex}
 \endgroup
-\FloatBarrier
+%\FloatBarrier
 \end{frame}
 
 \begin{frame}{Results}
@@ -477,7 +514,7 @@
 \begin{frame}{Logistic - Base+PCA}
 \begin{figure}[h]
     \centering
-    \includegraphics[width=\linewidth]{../output/8yrs_1SE_base_logistic_bias_variance.png}
+    \safeincludegraphics[width=\linewidth]{../output/8yrs_1SE_base_logistic_bias_variance.png}
     \caption{Bias-variance tradeoff for the Base+PCA logistic model, with over/underfitting analysis}
     \label{fig:vb_log_base}
 \end{figure}
@@ -487,8 +524,8 @@
 \subsubsection{Random Forest Models}
 \begin{frame}[t,shrink=25]{Results}
 \textbf{Random Forest Models}\\
-\input{../output/8yrs_1SE_base_rf_comparison.tex}
-\FloatBarrier
+\safeinput{../output/8yrs_1SE_base_rf_comparison.tex}
+%\FloatBarrier
 \end{frame}
 
 \begin{frame}{Results}
@@ -504,7 +541,7 @@
 \begin{frame}{RF - Ridge Filtered}
 \begin{figure}[h]
     \centering
-    \includegraphics[width=\linewidth]{../output/8yrs_1SE_base_rf_ridge_bias_variance.png}
+    \safeincludegraphics[width=\linewidth]{../output/8yrs_1SE_base_rf_ridge_bias_variance.png}
     \caption{Bias-variance tradeoff for the ridge-filtered random forest model}
     \label{fig:vb_rf_base_ridge}
 \end{figure}
@@ -513,7 +550,7 @@
 \begin{frame}{RF with raw features}
 \begin{figure}[h]
     \centering
-    \includegraphics[width=\linewidth]{../output/8yrs_base_rf_train_test.png}
+    \safeincludegraphics[width=\linewidth]{../output/8yrs_base_rf_train_test.png}
     \caption{RF Tree Classification}
     \label{fig:vb_rf_base_treedeepth}
 \end{figure}
@@ -523,7 +560,7 @@
 \begin{frame}{RF with raw features}
 \begin{figure}[h]
     \centering
-    \includegraphics[width=\linewidth]{../output/8yrs_base_rf_best_tree.png}
+    \safeincludegraphics[width=\linewidth]{../output/8yrs_base_rf_best_tree.png}
     \caption{RF Tree Classification}
     \label{fig:rf_base_besttree}
 \end{figure}
@@ -533,7 +570,7 @@
 
 \subsection{Extended Feature Models}
 \begin{frame}[t,shrink=25]{Results}
-\input{../output/8yrs_3methods_comparison.tex}
+\safeinput{../output/8yrs_3methods_comparison.tex}
 %The table compares Random Forest, SVM, and Logistic Regression models over an 8-year period, reporting accuracy, standard deviation, precision, recall, and F1 for the positive class ("Up").
 \end{frame}
 
@@ -552,7 +589,7 @@
 
 
 \begin{frame}[t,shrink=25]{Results}
-\input{model_comparison_table.tex}
+\safeinput{model_comparison_table.tex}
 \end{frame}
 
 %%%%%%%%%%%%%%%%%%%%NEW PLOT FOR OVER/UNDERFITTING IS HERE%%%%%%%%%%%%%%%%%%%%%%
@@ -590,9 +627,10 @@
 \end{frame}
 
 \subsection{Experiment with hourly data}
-\begin{frame}[t,shrink=25]{Experiment with hourly data}
-\input{../output/8yrs_logistic_regression_24hours_three_model_comparison.tex}
-\FloatBarrier
+\begin{frame}[t]{Experiment with hourly data}
+\tiny
+\safeinput{../output/8yrs_logistic_regression_24hours_three_model_comparison.tex}
+%\FloatBarrier
 \end{frame}
 
 \begin{frame}{Experiment with hourly data}
@@ -647,9 +685,10 @@
 \end{frame}
 
 
-
 % --- References ---
-\begin{frame}{References}
+\section{References}
+\begin{frame}[allowframebreaks]{References}
+\nocite{*}
 \bibliographystyle{apacite}
 \bibliography{Bibliography}
 \end{frame}

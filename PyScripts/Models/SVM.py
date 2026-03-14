@@ -7,6 +7,7 @@ from sklearn.preprocessing import StandardScaler
 import os
 import time
 import pandas as pd
+import numpy as np
 
 MPLCONFIGDIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '.mplconfig')
 os.makedirs(MPLCONFIGDIR, exist_ok=True)
@@ -69,6 +70,16 @@ FINAL_METHOD_GROUPS = {
     "Random Forest": ["base_random_forest.py", "random_forest.py"],
     "SVM": ["base_SVM.py", "SVM.py"],
 }
+
+
+def _effective_svm_gamma(value, n_features: int) -> float:
+    n_features = max(1, int(n_features))
+    if value in {"scale", "auto"}:
+        return 1.0 / float(n_features)
+    try:
+        return float(value)
+    except Exception:
+        return float("inf")
 
 
 def write_final_method_comparison_from_leaderboard(output_dir, output_prefix: str) -> None:
@@ -198,6 +209,7 @@ if __name__ == "__main__":
         return (y>=0).astype(int)
     y_classification=to_binary_class(y_regression)
     X_train, X_test, y_train, y_test=train_test_split(X, y_classification, test_size=TEST_SIZE, random_state=1, shuffle=TRAIN_TEST_SHUFFLE)
+    gamma_sort = lambda value: _effective_svm_gamma(value, X_train.shape[1])
 
     # This script does not define a PCA-based SVM branch, so there is no
     # shared PCA object to reuse from logistic_regression.py here.
@@ -258,7 +270,11 @@ if __name__ == "__main__":
     grid_search_rbf = GridSearchCV(
         SVM_rbf_pipeline, param_grid, cv=tscv, scoring='balanced_accuracy',
         n_jobs=MODEL_N_JOBS, verbose=GRIDSEARCH_VERBOSE, return_train_score=True,
-        refit=make_one_se_refit(['classifier__C', 'classifier__gamma'], n_splits=TIME_SERIES_CV_SPLITS)
+        refit=make_one_se_refit(
+            ['classifier__C', 'classifier__gamma'],
+            n_splits=TIME_SERIES_CV_SPLITS,
+            sort_value_map={'classifier__gamma': gamma_sort},
+        )
     )
     grid_search_rbf = fit_or_load_search(
         checkpoint_dir=checkpoint_dir,
@@ -303,6 +319,7 @@ if __name__ == "__main__":
         refit=make_one_se_refit(
             ['classifier__C', 'classifier__degree', 'classifier__gamma'],
             n_splits=TIME_SERIES_CV_SPLITS,
+            sort_value_map={'classifier__gamma': gamma_sort},
         )
     )
     grid_search_poly = fit_or_load_search(

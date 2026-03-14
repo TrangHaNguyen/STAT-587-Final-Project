@@ -2,7 +2,6 @@ This is BibTeX, Version 0.99d (TeX Live 2024)
 Capacity: max_strings=200000, hash_size=200000, hash_prime=170003
 The top-level auxiliary file: PresentationSlide.aux
 The style file: apacite.bst
-I found no \citation commands---while reading file PresentationSlide.aux
 Reallocated glb_str_ptr (elt_size=4) to 20 items from 10.
 Reallocated global_strs (elt_size=200001) to 20 items from 10.
 Reallocated glb_str_end (elt_size=4) to 20 items from 10.
@@ -14,45 +13,44 @@ Reallocated wiz_functions (elt_size=4) to 9000 items from 6000.
 Reallocated singl_function (elt_size=4) to 100 items from 50.
 Database file #1: Bibliography.bib
 apacite.bst [2013/07/21 v6.03 APA bibliography style]
-You've used 0 entries,
+You've used 6 entries,
             6951 wiz_defined-function locations,
-            1268 strings with 10672 characters,
-and the built_in function-call counts, 43 in all, are:
-= -- 0
-> -- 0
-< -- 0
-+ -- 0
-- -- 0
-* -- 1
-:= -- 32
-add.period$ -- 0
-call.type$ -- 0
-change.case$ -- 0
+            1307 strings with 12061 characters,
+and the built_in function-call counts, 10434 in all, are:
+= -- 1269
+> -- 98
+< -- 440
++ -- 467
+- -- 14
+* -- 639
+:= -- 1839
+add.period$ -- 27
+call.type$ -- 6
+change.case$ -- 102
 chr.to.int$ -- 0
-cite$ -- 0
-duplicate$ -- 0
-empty$ -- 1
-format.name$ -- 0
-if$ -- 1
+cite$ -- 12
+duplicate$ -- 299
+empty$ -- 451
+format.name$ -- 175
+if$ -- 2021
 int.to.chr$ -- 0
-int.to.str$ -- 0
+int.to.str$ -- 18
 missing$ -- 0
-newline$ -- 3
-num.names$ -- 0
-pop$ -- 0
+newline$ -- 163
+num.names$ -- 48
+pop$ -- 341
 preamble$ -- 1
-purify$ -- 0
+purify$ -- 24
 quote$ -- 0
-skip$ -- 1
+skip$ -- 564
 stack$ -- 0
-substring$ -- 0
-swap$ -- 0
-text.length$ -- 0
+substring$ -- 512
+swap$ -- 154
+text.length$ -- 13
 text.prefix$ -- 0
 top$ -- 1
-type$ -- 0
+type$ -- 480
 warning$ -- 0
-while$ -- 0
+while$ -- 57
 width$ -- 0
-write$ -- 2
-(There was 1 error message)
+write$ -- 199

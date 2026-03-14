@@ -195,6 +195,84 @@ def _choose_numeric_axis_mode(x_param: str, x_vals: np.ndarray) -> str:
     return "linear"
 
 
+def _effective_rf_max_features(value, n_features: int) -> float:
+    n_features = max(1, int(n_features))
+    if value == "sqrt":
+        return float(max(1, int(np.sqrt(n_features))))
+    if value == "log2":
+        return float(max(1, int(np.log2(n_features))))
+    try:
+        numeric_value = float(value)
+    except Exception:
+        return float("inf")
+    if 0.0 < numeric_value <= 1.0:
+        return float(max(1, int(numeric_value * n_features)))
+    return numeric_value
+
+
+def _effective_svm_gamma(value, n_features: int) -> float:
+    n_features = max(1, int(n_features))
+    if value in {"scale", "auto"}:
+        # With StandardScaler immediately before SVC, `scale` is approximately
+        # 1 / n_features, which matches `auto` for ordering purposes.
+        return 1.0 / float(n_features)
+    try:
+        return float(value)
+    except Exception:
+        return float("inf")
+
+
+def _complexity_sort_value(search, x_param: str, value) -> float:
+    n_features = int(getattr(search, "n_features_in_", 1))
+    if x_param.endswith("max_features"):
+        return _effective_rf_max_features(value, n_features)
+    if x_param.endswith("gamma"):
+        return _effective_svm_gamma(value, n_features)
+    try:
+        return float(value)
+    except Exception:
+        return float("inf")
+
+
+def _complexity_axis_label(x_param: str, fallback_label: str) -> str:
+    if x_param.endswith("__C") or x_param == "C":
+        return (
+            "C  (Inverse Regularization Strength)\n"
+            "<- High Regularization, Simpler Model      Low Regularization, More Complex ->"
+        )
+    if "n_components" in x_param:
+        return (
+            "PCA n_components from tuning grid\n"
+            "<- Lower retained variance, Simpler Model      Higher retained variance, More Complex ->"
+        )
+    if x_param.endswith("max_depth"):
+        return (
+            "max_depth\n"
+            "<- Low Depth, High Regularization, Simpler Model      High Depth, Low Regularization, More Complex ->"
+        )
+    if x_param.endswith("max_features"):
+        return (
+            "max_features  (Features considered per split)\n"
+            "<- Fewer candidate features, Simpler Model      More candidate features, More Complex ->"
+        )
+    if x_param.endswith("n_estimators"):
+        return (
+            "n_estimators\n"
+            "<- Smaller forest, Simpler Model      Larger forest, More Complex ->"
+        )
+    if x_param.endswith("gamma"):
+        return (
+            "gamma  (Kernel locality)\n"
+            "<- Smoother decision boundary, Simpler Model      More local boundary, More Complex ->"
+        )
+    if x_param.endswith("degree"):
+        return (
+            "Polynomial degree\n"
+            "<- Lower-order boundary, Simpler Model      Higher-order boundary, More Complex ->"
+        )
+    return fallback_label
+
+
 def gridsearch_curve_data(search, x_param: str) -> dict:
     """Extract a one-parameter CV curve from GridSearchCV at best fixed settings."""
     df = pd.DataFrame(search.cv_results_).copy()
@@ -212,23 +290,29 @@ def gridsearch_curve_data(search, x_param: str) -> dict:
         raise ValueError(f"No GridSearchCV rows left for x_param={x_param} after filtering best fixed params.")
 
     x_raw = df[f"param_{x_param}"].to_list()
+    x_complexity = pd.Series([_complexity_sort_value(search, x_param, value) for value in x_raw], dtype=float)
     x_num = pd.to_numeric(pd.Series(x_raw), errors="coerce")
     if x_num.notna().all():
-        axis_mode = _choose_numeric_axis_mode(x_param, x_num.to_numpy(dtype=float))
+        order_vals = x_complexity.to_numpy(dtype=float)
+        axis_mode = _choose_numeric_axis_mode(x_param, order_vals)
         if axis_mode == "categorical":
             df = df.assign(
-                _x_order=x_num.to_numpy(),
+                _x_order=order_vals,
                 _x_label=pd.Series(x_raw).astype(str).to_numpy(),
             )
             df = df.sort_values("_x_order").reset_index(drop=True)
             df = df.assign(_x_numeric=np.arange(len(df), dtype=float))
         else:
-            df = df.assign(_x_numeric=x_num.to_numpy(), _x_label=pd.Series(x_raw).astype(str).to_numpy())
+            df = df.assign(_x_numeric=order_vals, _x_label=pd.Series(x_raw).astype(str).to_numpy())
             df = df.sort_values("_x_numeric")
     else:
         axis_mode = "categorical"
-        df = df.assign(_x_numeric=np.arange(len(df)), _x_label=pd.Series(x_raw).astype(str).to_numpy())
-        df = df.sort_values("_x_numeric")
+        if np.isfinite(x_complexity).any():
+            df = df.assign(_x_order=x_complexity.to_numpy(dtype=float), _x_label=pd.Series(x_raw).astype(str).to_numpy())
+            df = df.sort_values(["_x_order", "_x_label"]).reset_index(drop=True)
+        else:
+            df = df.assign(_x_label=pd.Series(x_raw).astype(str).to_numpy())
+        df = df.assign(_x_numeric=np.arange(len(df), dtype=float))
 
     return {
         "x_raw": df[f"param_{x_param}"].to_list(),
@@ -273,6 +357,7 @@ def save_best_model_plots_from_gridsearch(
     """Save best-model plots for one tuned parameter from a GridSearchCV object."""
     curve = gridsearch_curve_data(search, x_param)
     direct = direct_errors_for_grid_param(search, x_param, X_train, y_train, X_test, y_test)
+    x_label = _complexity_axis_label(x_param, x_label)
     best_idx = int(np.argmin(curve["cv_bal_err_mean"]))
     one_se_value = search.best_params_[x_param]
     selected_idx = next(

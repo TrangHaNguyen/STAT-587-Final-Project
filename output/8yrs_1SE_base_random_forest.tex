@@ -1,23 +1,16 @@
-\begin{table}
-\caption{Random Forest Model Comparison: Raw OHLCV vs +Day-of-Week vs +Lag1--7}
-\label{tab:base_rf_comparison}
-\begin{tabular}{lrrrrr}
+\begin{table}[htbp]
+\centering
+\caption{Random Forest Model Comparison: Raw OHLCV vs +Day-of-Week}
+\label{tab:base\_rf\_comparison}
+\begin{tabular}{lrrrrrrrr}
 \toprule
- & Test Acc & Precision & Recall & F1 & ROC-AUC \\
-Model &  &  &  &  &  \\
+Model & Test Acc & MCC & Precision & Recall & Specificity & F1 & ROC-AUC & CV Acc SD \\
 \midrule
-Base RF & 0.500 & 0.600 & 0.529 & 0.562 & 0.465 \\
-PCA RF & 0.607 & 0.650 & 0.765 & 0.703 & 0.508 \\
-LASSO-sel RF & 0.429 & 0.538 & 0.412 & 0.467 & 0.428 \\
-Ridge-sel RF & 0.536 & 0.611 & 0.647 & 0.629 & 0.406 \\
-Base RF+DOW & 0.393 & 0.500 & 0.471 & 0.485 & 0.353 \\
-PCA RF+DOW & 0.571 & 0.647 & 0.647 & 0.647 & 0.551 \\
-LASSO-sel RF+DOW & 0.429 & 0.529 & 0.529 & 0.529 & 0.380 \\
-Ridge-sel RF+DOW & 0.500 & 0.588 & 0.588 & 0.588 & 0.460 \\
-Base RF+Lags & 0.423 & 0.500 & 0.667 & 0.571 & 0.345 \\
-PCA RF+Lags & 0.577 & 0.577 & 1.000 & 0.732 & 0.261 \\
-LASSO-sel RF+Lags & 0.423 & 0.500 & 0.667 & 0.571 & 0.345 \\
-Ridge-sel RF+Lags & 0.462 & 0.524 & 0.733 & 0.611 & 0.358 \\
+Raw RF & 0.545 & 0.071 & 0.567 & 0.664 & 0.405 & 0.611 & 0.513 & 0.016 \\
+PCA RF & 0.425 & -0.129 & 0.443 & 0.249 & 0.632 & 0.319 & 0.398 & 0.033 \\
+\midrule
+RF+DOW & 0.463 & 0.022 & 0.667 & 0.009 & 0.995 & 0.018 & 0.528 & 0.044 \\
+PCA RF+DOW & 0.473 & -0.137 & 0.508 & 0.770 & 0.124 & 0.612 & 0.378 & 0.027 \\
 \bottomrule
 \end{tabular}
 \par\smallskip

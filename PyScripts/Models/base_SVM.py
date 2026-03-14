@@ -8,6 +8,7 @@ from sklearn.preprocessing import StandardScaler
 import os
 import pandas as pd
 import time
+import numpy as np
 
 from H_prep import clean_data, import_data
 from H_eval import (
@@ -72,10 +73,18 @@ def _as_sortable_numeric(value):
         return float("inf")
 
 
-def make_one_se_refit(complexity_cols: list[str]):
-    """Return a GridSearchCV refit callable implementing the 1-SE rule."""
-    import numpy as np
+def _effective_svm_gamma(value, n_features: int) -> float:
+    n_features = max(1, int(n_features))
+    if value in {"scale", "auto"}:
+        return 1.0 / float(n_features)
+    try:
+        return float(value)
+    except Exception:
+        return float("inf")
 
+
+def make_one_se_refit(complexity_cols: list[str], sort_value_map: dict[str, callable] | None = None):
+    """Return a GridSearchCV refit callable implementing the 1-SE rule."""
     def _pick_index(cv_results):
         mean = np.asarray(cv_results["mean_test_score"], dtype=float)
         std = np.asarray(cv_results["std_test_score"], dtype=float)
@@ -90,7 +99,8 @@ def make_one_se_refit(complexity_cols: list[str]):
             complexity = []
             for col in complexity_cols:
                 val = cv_results[f"param_{col}"][i]
-                complexity.append(_as_sortable_numeric(val))
+                sort_fn = (sort_value_map or {}).get(col, _as_sortable_numeric)
+                complexity.append(sort_fn(val))
             return tuple(complexity + [-float(mean[i])])
 
         return int(min(candidate_idx, key=key_fn))
@@ -162,6 +172,7 @@ if __name__ == "__main__":
     X_train, X_test, y_train, y_test = train_test_split(
         X, y_classification, test_size=TEST_SIZE, random_state=1, shuffle=TRAIN_TEST_SHUFFLE
     )
+    gamma_sort = lambda value: _effective_svm_gamma(value, X_train.shape[1])
 
     # This script does not define a PCA-based SVM branch, so there is no
     # shared PCA object to reuse from base.py here.
@@ -207,7 +218,10 @@ if __name__ == "__main__":
     grid_search_rbf = GridSearchCV(
         svm_rbf_pipeline, param_grid, cv=tscv, scoring="balanced_accuracy",
         n_jobs=MODEL_N_JOBS, verbose=GRIDSEARCH_VERBOSE, return_train_score=True,
-        refit=make_one_se_refit(["classifier__C", "classifier__gamma"])
+        refit=make_one_se_refit(
+            ["classifier__C", "classifier__gamma"],
+            sort_value_map={"classifier__gamma": gamma_sort},
+        )
     )
     grid_search_rbf = _fit_or_load_search(
         checkpoint_dir,
@@ -241,7 +255,10 @@ if __name__ == "__main__":
     grid_search_poly = GridSearchCV(
         svm_poly_pipeline, param_grid, cv=tscv, scoring="balanced_accuracy",
         n_jobs=MODEL_N_JOBS, verbose=GRIDSEARCH_VERBOSE, return_train_score=True,
-        refit=make_one_se_refit(["classifier__C", "classifier__degree", "classifier__gamma"])
+        refit=make_one_se_refit(
+            ["classifier__C", "classifier__degree", "classifier__gamma"],
+            sort_value_map={"classifier__gamma": gamma_sort},
+        )
     )
     grid_search_poly = _fit_or_load_search(
         checkpoint_dir,

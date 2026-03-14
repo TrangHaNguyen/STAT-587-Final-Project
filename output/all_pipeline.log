@@ -1,0 +1,15 @@
+[2026-03-13 13:48:06] Pipeline start | models=['logreg', 'rf', 'svm'] grid_version=v1 n_jobs=4 resume=False skip_models=True skip_plots=False
+[2026-03-13 13:48:06] SKIP plot:svm_linear_c:v1 (history file missing: 8yrs_search_history_svm.csv)
+[2026-03-13 13:48:06] SKIP plot:svm_rbf_c:v1 (history file missing: 8yrs_search_history_svm.csv)
+[2026-03-13 13:48:06] SKIP plot:svm_rbf_gamma:v1 (history file missing: 8yrs_search_history_svm.csv)
+[2026-03-13 13:48:06] SKIP plot:svm_poly_degree:v1 (history file missing: 8yrs_search_history_svm.csv)
+[2026-03-13 13:48:06] SKIP plot:logreg_lasso_c:v1 (history file missing: 8yrs_search_history_logreg.csv)
+[2026-03-13 13:48:06] SKIP plot:logreg_ridge_c:v1 (history file missing: 8yrs_search_history_logreg.csv)
+[2026-03-13 13:48:06] SKIP plot:logreg_pca_c:v1 (history file missing: 8yrs_search_history_logreg.csv)
+[2026-03-13 13:48:06] SKIP plot:logreg_pca_ncomp:v1 (history file missing: 8yrs_search_history_logreg.csv)
+[2026-03-13 13:48:06] SKIP plot:rf_base_depth:v1 (history file missing: 8yrs_search_history_rf.csv)
+[2026-03-13 13:48:06] SKIP plot:rf_base_nest:v1 (history file missing: 8yrs_search_history_rf.csv)
+[2026-03-13 13:48:06] SKIP plot:rf_pca_ncomp:v1 (history file missing: 8yrs_search_history_rf.csv)
+[2026-03-13 13:48:06] SKIP plot:rf_lasso_c:v1 (history file missing: 8yrs_search_history_rf.csv)
+[2026-03-13 13:48:06] SKIP plot:rf_ridge_c:v1 (history file missing: 8yrs_search_history_rf.csv)
+[2026-03-13 13:48:06] Pipeline finished.

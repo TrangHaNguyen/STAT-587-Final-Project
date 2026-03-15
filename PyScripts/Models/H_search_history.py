@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import csv
 import datetime
 import json
 import subprocess
@@ -15,6 +16,17 @@ def _safe_value(value: Any) -> Any:
     if isinstance(value, (dict, list, tuple)):
         return json.dumps(value, sort_keys=True)
     return value
+
+
+def _read_csv_header(path: Path) -> list[str]:
+    if not path.exists():
+        return []
+    with path.open("r", encoding="utf-8", newline="") as f:
+        reader = csv.reader(f)
+        try:
+            return next(reader)
+        except StopIteration:
+            return []
 
 
 def append_search_history(
@@ -56,6 +68,18 @@ def append_search_history(
         out["std_cv_validation_balanced_accuracy"] = out["std_test_score"]
     out["best_params"] = _safe_value(best_params if best_params is not None else {})
     out["notes"] = notes
+
+    existing_cols = _read_csv_header(history_path)
+    if existing_cols:
+        union_cols = list(dict.fromkeys(existing_cols + out.columns.tolist()))
+        if union_cols != existing_cols:
+            existing = pd.read_csv(history_path, engine="python", on_bad_lines="skip")
+            existing = existing.reindex(columns=union_cols)
+            out = out.reindex(columns=union_cols)
+            combined = pd.concat([existing, out], ignore_index=True)
+            combined.to_csv(history_path, index=False, float_format='%.3f')
+            return
+        out = out.reindex(columns=existing_cols)
 
     out.to_csv(history_path, mode="a", header=not history_path.exists(), index=False, float_format='%.3f')
 

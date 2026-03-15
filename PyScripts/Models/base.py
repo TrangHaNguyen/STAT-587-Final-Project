@@ -1889,10 +1889,7 @@ if __name__ == "__main__":
     print("\n===== Full Comparison Table =====")
     print(full_df.to_string())
 
-    tex_output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'output')
-    os.makedirs(tex_output_dir, exist_ok=True)
-
-    tex_path = os.path.join(tex_output_dir, '8yrs_1SE_base_logistic_comparison.tex')
+    tex_path = os.path.join(output_dir, '8yrs_1SE_base_logistic_comparison.tex')
     baseline_note = (
         r'Base = baseline logistic regression without regularization. '
         r'Test Acc = plain hold-out accuracy on the final 20\% test split. '

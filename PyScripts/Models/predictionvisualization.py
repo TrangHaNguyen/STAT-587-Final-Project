@@ -626,7 +626,22 @@ def _plot_probability_distribution(
     out_path: Path,
 ) -> None:
     fig, ax = plt.subplots(figsize=(9, 5))
-    bins = np.linspace(0.0, 1.0, 81)
+    score_min = float(np.nanmin(y_score))
+    score_max = float(np.nanmax(y_score))
+
+    if np.isclose(score_min, score_max):
+        pad = max(0.05, abs(score_min) * 0.1 if score_min != 0 else 0.05)
+        plot_min = score_min - pad
+        plot_max = score_max + pad
+    else:
+        pad = max((score_max - score_min) * 0.05, 0.01)
+        plot_min = score_min - pad
+        plot_max = score_max + pad
+
+    # Use a coarser adaptive bin count so the density curves read more clearly.
+    sample_size = max(1, int(np.asarray(y_score).size))
+    n_bins = int(np.clip(np.sqrt(sample_size) / 2.0, 18, 32))
+    bins = np.linspace(plot_min, plot_max, n_bins + 1)
     ax.hist(
         y_score[y_true == 0],
         bins=bins,
@@ -643,7 +658,9 @@ def _plot_probability_distribution(
         label="True Up (1)",
         density=True,
     )
-    ax.axvline(0.5, color="gray", linestyle="--", linewidth=1.0)
+    if plot_min <= 0.5 <= plot_max:
+        ax.axvline(0.5, color="gray", linestyle="--", linewidth=1.0)
+    ax.set_xlim(plot_min, plot_max)
     ax.set_title(f"Predicted Probability Distribution by True Class\n{title}")
     ax.set_xlabel("Predicted P(Up)")
     ax.set_ylabel("Density")

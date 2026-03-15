@@ -278,6 +278,15 @@ def _complexity_axis_label(x_param: str, fallback_label: str) -> str:
     return fallback_label
 
 
+def _param_values_match(series: pd.Series, target_value) -> pd.Series:
+    """Match GridSearchCV parameter values robustly across numeric/string dtypes."""
+    target_numeric = pd.to_numeric(pd.Series([target_value]), errors="coerce").iloc[0]
+    series_numeric = pd.to_numeric(series, errors="coerce")
+    if pd.notna(target_numeric) and series_numeric.notna().all():
+        return np.isclose(series_numeric.to_numpy(dtype=float), float(target_numeric))
+    return series.astype(str) == str(target_value)
+
+
 def gridsearch_curve_data(search, x_param: str) -> dict:
     """Extract a one-parameter CV curve from GridSearchCV at best fixed settings."""
     df = pd.DataFrame(search.cv_results_).copy()
@@ -290,7 +299,7 @@ def gridsearch_curve_data(search, x_param: str) -> dict:
         col = f"param_{param_name}"
         if col not in df.columns:
             continue
-        df = df[df[col].astype(str) == str(param_value)]
+        df = df[_param_values_match(df[col], param_value)]
 
     if df.empty:
         raise ValueError(f"No GridSearchCV rows left for x_param={x_param} after filtering best fixed params.")

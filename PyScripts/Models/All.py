@@ -154,6 +154,31 @@ def plot_input_available(model: str, model_name: str, grid_version: str, x_param
     except Exception as exc:
         return False, f"failed reading {history_path.name}: {exc}"
 
+    if model == "logreg":
+        if x_param not in df.columns and "best_params" in df.columns:
+            key = x_param.removeprefix("param_")
+            parsed = df["best_params"].fillna("{}").apply(
+                lambda raw: json.loads(raw) if isinstance(raw, str) else (raw if isinstance(raw, dict) else {})
+            )
+            recovered = parsed.apply(lambda params: params.get(key) if isinstance(params, dict) else None)
+            if recovered.notna().any():
+                df[x_param] = recovered
+        if (
+            x_param in {"param_classifier__C", "param_C"}
+            and "param_pca__n_components" in df.columns
+            and model_name in {
+                "LogReg_Ridge",
+                "LogReg_LASSO",
+                "LogReg_PCA_Ridge",
+                "LogReg_PCA_Ridge_refit",
+                "LogReg_PCA_LASSO",
+                "LogReg_PCA_LASSO_refit",
+            }
+        ):
+            mask = df["model_name"] == model_name
+            existing = df[x_param] if x_param in df.columns else pd.Series(pd.NA, index=df.index)
+            df[x_param] = existing.where(~mask, df["param_pca__n_components"])
+
     required = {"model_name", "grid_version", "mean_test_score", x_param}
     missing = [c for c in required if c not in df.columns]
     if missing:
@@ -230,10 +255,10 @@ def main() -> None:
             ])
         if "logreg" in models:
             plot_specs.extend([
-                ("logreg_lasso_c", ["--model", "logreg", "--x-param", "param_classifier__C", "--model-name", "LogReg_LASSO_internal"]),
-                ("logreg_ridge_c", ["--model", "logreg", "--x-param", "param_classifier__C", "--model-name", "LogReg_Ridge_internal"]),
-                ("logreg_pca_c", ["--model", "logreg", "--x-param", "param_classifier__C", "--model-name", "LogReg_PCA_Ridge"]),
-                ("logreg_pca_ncomp", ["--model", "logreg", "--x-param", "param_pca__n_components", "--model-name", "LogReg_PCA_Ridge"]),
+                ("logreg_lasso_c", ["--model", "logreg", "--x-param", "param_classifier__C", "--model-name", "LogReg_LASSO"]),
+                ("logreg_ridge_c", ["--model", "logreg", "--x-param", "param_classifier__C", "--model-name", "LogReg_Ridge"]),
+                ("logreg_pca_c", ["--model", "logreg", "--x-param", "param_C", "--model-name", "LogReg_PCA_Ridge_refit"]),
+                ("logreg_pca_ncomp", ["--model", "logreg", "--x-param", "param_pca__n_components", "--model-name", "LogReg_PCA_Ridge_retuned_n_components"]),
             ])
         if "rf" in models:
             plot_specs.extend([

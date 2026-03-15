@@ -11,6 +11,7 @@ from sklearn.feature_selection import SelectFromModel
 from sklearn.pipeline import Pipeline
 import os
 import numpy as np
+import pandas as pd
 
 MPLCONFIGDIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '.mplconfig')
 os.makedirs(MPLCONFIGDIR, exist_ok=True)
@@ -20,6 +21,7 @@ import matplotlib
 matplotlib.use('Agg')
 # import matplotlib.pyplot as plt  # Unused in the active code path.
 import time
+import warnings
 
 from H_reduce import step_wise_reg_wfv
 from H_prep import clean_data, data_clean_param_selection, import_data, to_binary_class
@@ -147,6 +149,21 @@ def _make_rf_selector_one_se_refit(selector_pipeline, X_train, y_train):
         return int(min(candidate_idx, key=key_fn))
 
     return _pick_index
+
+
+def _fit_rf_selector_search(search_obj, X_train, y_train):
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message=r".*'penalty' was deprecated.*use 'l1_ratio' or 'C' instead.*",
+            category=FutureWarning,
+        )
+        warnings.filterwarnings(
+            "ignore",
+            message=r"Inconsistent values: penalty=l1 with l1_ratio=0.0.*",
+            category=UserWarning,
+        )
+        search_obj.fit(X_train, y_train)
 
 
 def load_rf_input_data():
@@ -414,6 +431,7 @@ if __name__=="__main__":
         model_name="RF_lasso",
         grid_label=grid_label,
         notes=SEARCH_NOTES,
+        fit_search=_fit_rf_selector_search,
     )
 
     optimized_LASSO_ = grid_search_LASSO.best_estimator_
@@ -464,6 +482,7 @@ if __name__=="__main__":
         model_name="RF_ridge",
         grid_label=grid_label,
         notes=SEARCH_NOTES,
+        fit_search=_fit_rf_selector_search,
     )
 
     optimized_ridge_ = grid_search_ridge.best_estimator_

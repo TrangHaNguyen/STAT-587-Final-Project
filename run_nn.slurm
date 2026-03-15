@@ -4,6 +4,9 @@
 #   sbatch --dependency=afterok:81704 run_nn.slurm
 # Or regardless of success/failure:
 #   sbatch --dependency=afterany:81704 run_nn.slurm
+# Optional overrides:
+#   USE_UV=1 sbatch run_nn.slurm
+#   NN_SCRIPT=PyScripts/Models/base_NN.py sbatch run_nn.slurm
 #SBATCH --job-name=nn_only
 #SBATCH --output=nn_only-%j.out
 #SBATCH --error=nn_only-%j.err
@@ -16,6 +19,7 @@
 #SBATCH --requeue
 
 USE_UV="${USE_UV:-0}"
+NN_SCRIPT="${NN_SCRIPT:-PyScripts/Models/NN.py}"
 
 set -euo pipefail
 
@@ -50,20 +54,48 @@ if command -v module >/dev/null 2>&1; then
     fi
 fi
 
-if [ ! -f "$PROJECT_ROOT/.venv/bin/activate" ]; then
-    echo "Missing $PROJECT_ROOT/.venv"
+VENV_PATH=""
+if [ -f "$PROJECT_ROOT/.venv/bin/activate" ]; then
+    VENV_PATH="$PROJECT_ROOT/.venv"
+elif [ -f "$PROJECT_ROOT/.venv311/bin/activate" ]; then
+    VENV_PATH="$PROJECT_ROOT/.venv311"
+fi
+
+if [ -z "$VENV_PATH" ]; then
+    echo "Missing virtual environment."
+    echo "Expected one of:"
+    echo "  $PROJECT_ROOT/.venv"
+    echo "  $PROJECT_ROOT/.venv311"
     echo "Create it on ORCA first before submitting this job."
     exit 1
 fi
 
-source "$PROJECT_ROOT/.venv/bin/activate"
+if [ ! -f "$PROJECT_ROOT/$NN_SCRIPT" ]; then
+    echo "NN script not found: $PROJECT_ROOT/$NN_SCRIPT"
+    exit 1
+fi
+
+source "$VENV_PATH/bin/activate"
 
 echo "Running from: $PROJECT_ROOT"
 echo "Host: $(hostname)"
 echo "Start time: $(date)"
 echo "USE_UV=$USE_UV"
+echo "VENV_PATH=$VENV_PATH"
+echo "NN_SCRIPT=$NN_SCRIPT"
 echo "SLURM_CPUS_PER_TASK=${SLURM_CPUS_PER_TASK:-unset}"
 echo "SLURM_MEM_PER_NODE=${SLURM_MEM_PER_NODE:-unset}"
 python --version
 
-python PyScripts/Models/NN.py
+python - <<'PY'
+import sys
+try:
+    import tensorflow as tf
+except Exception as exc:
+    print("TensorFlow import failed:", exc)
+    print("Install requirements in the active ORCA environment before submitting this job.")
+    sys.exit(1)
+print("TensorFlow version:", tf.__version__)
+PY
+
+python "$NN_SCRIPT"

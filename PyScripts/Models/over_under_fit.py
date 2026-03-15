@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import json
 from pathlib import Path
 
 import matplotlib
@@ -18,6 +19,58 @@ def default_history_path(project_root: Path, model: str) -> Path:
         "rf": "8yrs_search_history_rf.csv"
     }
     return project_root / "output" / mapping[model]
+
+
+def _parse_best_params_column(series: pd.Series) -> pd.Series:
+    def _parse_one(value):
+        if pd.isna(value):
+            return {}
+        if isinstance(value, dict):
+            return value
+        try:
+            parsed = json.loads(value)
+        except Exception:
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+
+    return series.apply(_parse_one)
+
+
+def _ensure_history_param_column(df: pd.DataFrame, x_param: str, model_name: str = "") -> pd.DataFrame:
+    out = df.copy()
+    if x_param in out.columns and out[x_param].notna().any():
+        return out
+
+    if "best_params" in out.columns:
+        parsed_best = _parse_best_params_column(out["best_params"])
+        key = x_param.removeprefix("param_")
+        extracted = parsed_best.apply(lambda params: params.get(key))
+        if extracted.notna().any():
+            out[x_param] = extracted
+
+    # Legacy logreg history files were appended under a fixed header, so C values
+    # for later searches may have landed in the first param column.
+    if (
+        x_param in {"param_classifier__C", "param_C"}
+        and "param_pca__n_components" in out.columns
+        and out["param_pca__n_components"].notna().any()
+    ):
+        logreg_c_models = {
+            "LogReg_Ridge",
+            "LogReg_LASSO",
+            "LogReg_PCA_Ridge",
+            "LogReg_PCA_Ridge_refit",
+            "LogReg_PCA_LASSO",
+            "LogReg_PCA_LASSO_refit",
+        }
+        if not model_name or model_name in logreg_c_models:
+            target_mask = out["model_name"].isin(logreg_c_models)
+            if model_name:
+                target_mask &= out["model_name"] == model_name
+            existing = out[x_param] if x_param in out.columns else pd.Series(np.nan, index=out.index)
+            out[x_param] = existing.where(~target_mask, out["param_pca__n_components"])
+
+    return out
 
 
 def has_crowded_numeric_spacing(x_vals: np.ndarray) -> bool:
@@ -140,6 +193,7 @@ def main() -> None:
     # Some history rows may contain unescaped commas in free-text fields.
     # Read defensively and skip malformed lines so plotting can proceed.
     df = pd.read_csv(history_path, engine="python", on_bad_lines="skip")
+    df = _ensure_history_param_column(df, args.x_param, model_name=args.model_name)
     if args.x_param not in df.columns:
         raise KeyError(f"{args.x_param} not found in history columns.")
 

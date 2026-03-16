@@ -1,0 +1,16 @@
+\begin{table}[htbp]
+\centering
+\caption{SVM Model Comparison}
+\label{tab:svm_comparison}
+\begin{tabular}{lrrrrr}
+\toprule
+Model & ROC-AUC & MCC & Test Acc & Sensitivity (Macro) & Specificity \\
+\midrule
+Linear SVM & 0.459 & 0.010 & 0.542 & 0.501 & 0.016 \\
+RBF SVM & 0.515 & -0.046 & 0.534 & 0.494 & 0.011 \\
+Poly SVM & 0.466 & -0.032 & 0.534 & 0.495 & 0.022 \\
+\bottomrule
+\end{tabular}
+\par\smallskip
+\footnotesize Test Acc = plain hold-out accuracy on the final 20\% test split. All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. Sensitivity (Macro) = macro-averaged recall across both classes.
+\end{table}

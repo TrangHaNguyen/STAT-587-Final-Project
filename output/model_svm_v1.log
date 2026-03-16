@@ -1,0 +1,118 @@
+
+[2026-03-14 14:26:56] CMD: /home/trnguye2/STAT-587-Final-Project/.venv/bin/python /home/trnguye2/STAT-587-Final-Project/PyScripts/Models/SVM.py
+[2026-03-14 14:26:56] ENV: MODEL_N_JOBS=6 GRID_VERSION=v1
+------- Downloading Data
+Finished Downloading Data -------
+Initial shape: 2922 rows, 2520 columns.
+------- Cleaning data
+Finished Cleaning Data -------
+Current shape: 2011 rows, 2390 columns.
+Created Percent Changes.
+Created Target (Regression).
+---EXTRA---: Created Day of Week.
+---EXTRA---: Created Daily Range.
+MODEL_N_JOBS=6 (set env MODEL_N_JOBS to override)
+GRID_VERSION=v1
+------- Generating Necessary Features
+Created Lag.
+Created EMA, Rolling Volatility (Scaled) and Rolling Z-Score.
+Created Max/Min Channel Positions/
+Created Rolling Volume Weighted Average Price.
+---EXTRA---: Created Open Metrics Forward Lag.
+Cleaned up Unnecessary Columns.
+Created Target (Classification)
+Cleaned up remaining/resulting NA values.
+Predictors, and Target (Regression) successfully split.
+Finished Generating Features -------
+Final shape (X): 1981 rows, 13844 columns.
+Final shape (y_regression): 1981 rows, 1 columns.
+
+
+------- Linear SVM Model -------
+--- Model Report ---
+Avg CV Train Plain Accuracy:      1.0000 (±0.0000)
+Avg CV Validation Plain Accuracy: 0.5061 (±0.0404)
+Avg CV Validation Precision: 0.5572
+Avg CV Validation Recall:      0.4328
+Avg CV Validation Specificity: 0.6114
+Final Test Accuracy:    0.5416
+Test Plain Misclassification Error:    0.4584
+Test ROC-AUC (macro):                 0.4592
+Test Recall:                          0.9860
+Test Specificity:                     0.0160
+Test Recall (macro):                  0.5013
+Test Specificity (macro):             0.5010
+Positive Prediction Rate (Test):        0.9849
+True Up Rate (Test):   0.5420
+Up Precision (Test):   0.5420
+Up Edge Rate (Test):   0.0000
+True Down Rate (Test): 0.4580
+Down Precision (Test): 0.5000
+Down Edge Rate (Test): 0.0420
+             Predicted Down  Predicted Up
+Actual Down               3           179
+Actual Up                 3           212
+
+
+------- RBF SVM Model -------
+--- Model Report ---
+Avg CV Train Plain Accuracy:      1.0000 (±0.0000)
+Avg CV Validation Plain Accuracy: 0.5356 (±0.0175)
+Avg CV Validation Precision: 0.5849
+Avg CV Validation Recall:      0.7114
+Avg CV Validation Specificity: 0.3316
+Final Test Accuracy:    0.5340
+Test Plain Misclassification Error:    0.4660
+Test ROC-AUC (macro):                 0.5149
+Test Recall:                          0.9767
+Test Specificity:                     0.0110
+Test Recall (macro):                  0.4939
+Test Specificity (macro):             0.4940
+Positive Prediction Rate (Test):        0.9824
+True Up Rate (Test):   0.5420
+Up Precision (Test):   0.5380
+Up Edge Rate (Test):   -0.0040
+True Down Rate (Test): 0.4580
+Down Precision (Test): 0.2860
+Down Edge Rate (Test): -0.1720
+             Predicted Down  Predicted Up
+Actual Down               2           180
+Actual Up                 5           210
+
+
+------- Polynomial SVM Model -------
+--- Model Report ---
+Avg CV Train Plain Accuracy:      1.0000 (±0.0000)
+Avg CV Validation Plain Accuracy: 0.5030 (±0.0188)
+Avg CV Validation Precision: 0.5479
+Avg CV Validation Recall:      0.5747
+Avg CV Validation Specificity: 0.4322
+Final Test Accuracy:    0.5340
+Test Plain Misclassification Error:    0.4660
+Test ROC-AUC (macro):                 0.4665
+Test Recall:                          0.9674
+Test Specificity:                     0.0220
+Test Recall (macro):                  0.4947
+Test Specificity (macro):             0.4945
+Positive Prediction Rate (Test):        0.9723
+True Up Rate (Test):   0.5420
+Up Precision (Test):   0.5390
+Up Edge Rate (Test):   -0.0030
+True Down Rate (Test): 0.4580
+Down Precision (Test): 0.3640
+Down Edge Rate (Test): -0.0940
+             Predicted Down  Predicted Up
+Actual Down               4           178
+Actual Up                 7           208
+Traceback (most recent call last):
+  File "/home/trnguye2/STAT-587-Final-Project/PyScripts/Models/SVM.py", line 364, in <module>
+    save_best_model_plots_from_gridsearch_all_params(
+  File "/home/trnguye2/STAT-587-Final-Project/PyScripts/Models/H_eval.py", line 490, in save_best_model_plots_from_gridsearch_all_params
+    save_best_model_plots_from_gridsearch(
+  File "/home/trnguye2/STAT-587-Final-Project/PyScripts/Models/H_eval.py", line 374, in save_best_model_plots_from_gridsearch
+    curve = gridsearch_curve_data(search, x_param)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/trnguye2/STAT-587-Final-Project/PyScripts/Models/H_eval.py", line 296, in gridsearch_curve_data
+    raise ValueError(f"No GridSearchCV rows left for x_param={x_param} after filtering best fixed params.")
+ValueError: No GridSearchCV rows left for x_param=classifier__gamma after filtering best fixed params.
+[2026-03-14 15:22:57] EXIT_CODE=1

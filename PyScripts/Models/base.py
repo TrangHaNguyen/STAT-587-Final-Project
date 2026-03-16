@@ -1144,7 +1144,7 @@ if __name__ == "__main__":
             'Test Acc':                    shared['test_split_accuracy'],
             'MCC':             shared['test_matthew_corr_coef'],
             'Precision':       shared['test_precision'],
-            'Recall':          shared['test_recall'],
+            'Sensitivity (Macro)': shared['test_sensitivity_macro'],
             'Specificity':     shared['test_specificity'],
             'F1':              shared['test_f1'],
             'ROC-AUC':         shared['test_roc_auc_macro'],
@@ -1894,12 +1894,12 @@ if __name__ == "__main__":
         r'Base = baseline logistic regression without regularization. '
         r'Test Acc = plain hold-out accuracy on the final 20\% test split. '
         r'All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. '
-        r'Recall = positive-class sensitivity.'
+        r'Sensitivity (Macro) = macro-averaged recall across both classes.'
     )
     lasso_note = (
         r'$^\dagger$ Degenerate classifier: optimal $C = 10^{-6}$ shrinks all '
         r'coefficients to zero; model predicts majority class for every observation '
-        r'(Recall = 1.0, Precision $\approx$ base rate).'
+        r'(Sensitivity (Macro) depends on recall across both classes; Precision $\approx$ base rate).'
     )
 
     degenerate_models = set(combined_df.index[combined_df['Degenerate']])

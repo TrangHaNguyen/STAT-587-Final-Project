@@ -1,0 +1,46 @@
+
+[2026-03-14 15:22:57] CMD: /home/trnguye2/STAT-587-Final-Project/.venv/bin/python /home/trnguye2/STAT-587-Final-Project/PyScripts/Models/NN.py
+[2026-03-14 15:22:57] ENV: MODEL_N_JOBS=6 GRID_VERSION=v1
+======================================================================
+NEURAL NETWORK COMPARISON
+======================================================================
+Loading and cleaning 8-year data via H_prep...
+------- Downloading Data
+Finished Downloading Data -------
+Initial shape: 2922 rows, 2520 columns.
+------- Cleaning data
+Finished Cleaning Data -------
+Current shape: 2011 rows, 2390 columns.
+Created Percent Changes.
+Created Target (Regression).
+------- Generating Necessary Features
+Created Target (Classification)
+Cleaned up remaining/resulting NA values.
+Predictors, and Target (Regression) successfully split.
+Finished Generating Features -------
+Final shape (X): 2009 rows, 4298 columns.
+Final shape (y_regression): 2009 rows, 1 columns.
+Raw feature shape: (2009, 2385)
+Sequence length: 7
+3D sequence shape: (2003, 7, 2385)
+Flattened sequence shape: (2003, 16695)
+Target shape: (2003,)
+
+Traceback (most recent call last):
+  File "/home/trnguye2/STAT-587-Final-Project/PyScripts/Models/NN.py", line 400, in <module>
+    main()
+  File "/home/trnguye2/STAT-587-Final-Project/PyScripts/Models/NN.py", line 348, in main
+    lstm_metrics = _load_or_compute_model_metrics(checkpoint_dir, "lstm", _compute_lstm_metrics)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/trnguye2/STAT-587-Final-Project/PyScripts/Models/NN.py", line 316, in _load_or_compute_model_metrics
+    payload = compute_fn()
+              ^^^^^^^^^^^^
+  File "/home/trnguye2/STAT-587-Final-Project/PyScripts/Models/NN.py", line 346, in _compute_lstm_metrics
+    return _evaluate_model("LSTM", lstm_estimator, X_seq_3d, y_seq)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/trnguye2/STAT-587-Final-Project/PyScripts/Models/NN.py", line 299, in _evaluate_model
+    estimator.fit(X_train, y_train)
+  File "/home/trnguye2/STAT-587-Final-Project/PyScripts/Models/NN.py", line 151, in fit
+    import tensorflow as tf
+ModuleNotFoundError: No module named 'tensorflow'
+[2026-03-14 15:23:00] EXIT_CODE=1

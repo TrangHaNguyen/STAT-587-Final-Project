@@ -94,6 +94,21 @@ Slurm should return a job ID, for example:
 
 Submitted batch job 123456
 
+To run only the neural-network script instead of the full pipeline:
+
+cd ~/projects/STAT-587-Final-Project
+sbatch run_nn.slurm
+
+If you used the uv route:
+
+cd ~/projects/STAT-587-Final-Project
+USE_UV=1 sbatch run_nn.slurm
+
+If you want the baseline neural-network script instead:
+
+cd ~/projects/STAT-587-Final-Project
+NN_SCRIPT=PyScripts/Models/base_NN.py sbatch run_nn.slurm
+
 
 ==================================================
 4. MONITOR THE JOB

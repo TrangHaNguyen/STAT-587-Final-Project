@@ -1,0 +1,169 @@
+
+[2026-03-14 05:00:15] CMD: /home/trnguye2/STAT-587-Final-Project/.venv/bin/python /home/trnguye2/STAT-587-Final-Project/PyScripts/Models/logistic_regression.py
+[2026-03-14 05:00:15] ENV: MODEL_N_JOBS=6 GRID_VERSION=v1
+MODEL_N_JOBS=6 (set env MODEL_N_JOBS to override)
+GRID_VERSION=v1
+------- Downloading Data
+Finished Downloading Data -------
+Initial shape: 2922 rows, 2520 columns.
+------- Cleaning data
+Finished Cleaning Data -------
+Current shape: 2011 rows, 2390 columns.
+Created Percent Changes.
+Created Target (Regression).
+---EXTRA---: Created Day of Week.
+---EXTRA---: Created Daily Range.
+------- Generating Necessary Features
+Created Lag.
+Created EMA, Rolling Volatility (Scaled) and Rolling Z-Score.
+Created Max/Min Channel Positions/
+Created Rolling Volume Weighted Average Price.
+---EXTRA---: Created Open Metrics Forward Lag.
+Cleaned up Unnecessary Columns.
+Created Target (Classification)
+Cleaned up remaining/resulting NA values.
+Predictors, and Target (Regression) successfully split.
+Finished Generating Features -------
+Final shape (X): 1981 rows, 13844 columns.
+Final shape (y_regression): 1981 rows, 1 columns.
+
+
+------- PCA Base Logistic Model -------
+--- Model Report ---
+Avg CV Train Plain Accuracy:      0.6676 (±0.0482)
+Avg CV Validation Plain Accuracy: 0.5280 (±0.0256)
+Avg CV Validation Precision: 0.59
+Avg CV Validation Recall:      0.5273
+Avg CV Validation Specificity: 0.5442
+Final Test Accuracy:    0.4534
+Test Plain Misclassification Error:    0.5466
+Test ROC-AUC (macro):                 0.4944
+Test Recall:                          0.2186
+Test Specificity:                     0.7310
+Test Recall (macro):                  0.4747
+Test Specificity (macro):             0.4750
+Positive Prediction Rate (Test):        0.2418
+True Up Rate (Test):   0.5420
+Up Precision (Test):   0.4900
+Up Edge Rate (Test):   -0.0520
+True Down Rate (Test): 0.4580
+Down Precision (Test): 0.4420
+Down Edge Rate (Test): -0.0160
+             Predicted Down  Predicted Up
+Actual Down             133            49
+Actual Up               168            47
+
+
+------- Logistic Ridge Model -------
+--- Model Report ---
+Avg CV Train Plain Accuracy:      0.7056 (±0.0141)
+Avg CV Validation Plain Accuracy: 0.5136 (±0.0605)
+Avg CV Validation Precision: 0.5571
+Avg CV Validation Recall:      0.3675
+Avg CV Validation Specificity: 0.6884
+Final Test Accuracy:    0.5290
+Test Plain Misclassification Error:    0.4710
+Test ROC-AUC (macro):                 0.4566
+Test Recall:                          0.8047
+Test Specificity:                     0.2030
+Test Recall (macro):                  0.5040
+Test Specificity (macro):             0.5040
+Positive Prediction Rate (Test):        0.8010
+True Up Rate (Test):   0.5420
+Up Precision (Test):   0.5440
+Up Edge Rate (Test):   0.0020
+True Down Rate (Test): 0.4580
+Down Precision (Test): 0.4680
+Down Edge Rate (Test): 0.0100
+             Predicted Down  Predicted Up
+Actual Down              37           145
+Actual Up                42           173
+
+
+------- Logistic LASSO Model -------
+--- Model Report ---
+Avg CV Train Plain Accuracy:      1.0000 (±0.0000)
+Avg CV Validation Plain Accuracy: 0.5197 (±0.0160)
+Avg CV Validation Precision: 0.5618
+Avg CV Validation Recall:      0.5572
+Avg CV Validation Specificity: 0.4858
+Final Test Accuracy:    0.5390
+Test Plain Misclassification Error:    0.4610
+Test ROC-AUC (macro):                 0.4779
+Test Recall:                          0.9814
+Test Specificity:                     0.0160
+Test Recall (macro):                  0.4989
+Test Specificity (macro):             0.4985
+Positive Prediction Rate (Test):        0.9824
+True Up Rate (Test):   0.5420
+Up Precision (Test):   0.5410
+Up Edge Rate (Test):   -0.0010
+True Down Rate (Test): 0.4580
+Down Precision (Test): 0.4290
+Down Edge Rate (Test): -0.0290
+             Predicted Down  Predicted Up
+Actual Down               3           179
+Actual Up                 4           211
+Retuned PCA for PCA Ridge(int.) after Ridge model selection: n_components=0.65 (116 components).
+--- Model Report ---
+Avg CV Train Plain Accuracy:      0.5771 (±0.0110)
+Avg CV Validation Plain Accuracy: 0.5076 (±0.0439)
+Avg CV Validation Precision: 0.5954
+Avg CV Validation Recall:      0.3429
+Avg CV Validation Specificity: 0.6862
+Final Test Accuracy:    0.4484
+Test Plain Misclassification Error:    0.5516
+Test ROC-AUC (macro):                 0.5128
+Test Recall:                          0.0326
+Test Specificity:                     0.9400
+Test Recall (macro):                  0.4861
+Test Specificity (macro):             0.4865
+Positive Prediction Rate (Test):        0.0453
+True Up Rate (Test):   0.5420
+Up Precision (Test):   0.3890
+Up Edge Rate (Test):   -0.1530
+True Down Rate (Test): 0.4580
+Down Precision (Test): 0.4510
+Down Edge Rate (Test): -0.0070
+             Predicted Down  Predicted Up
+Actual Down             171            11
+Actual Up               208             7
+Retuned PCA for PCA LASSO(int.) after LASSO model selection: n_components=0.65 (116 components).
+--- Model Report ---
+Avg CV Train Plain Accuracy:      0.5359 (±0.0294)
+Avg CV Validation Plain Accuracy: 0.5068 (±0.0531)
+Avg CV Validation Precision: 0.4669
+Avg CV Validation Recall:      0.3047
+Avg CV Validation Specificity: 0.7488
+Final Test Accuracy:    0.4987
+Test Plain Misclassification Error:    0.5013
+Test ROC-AUC (macro):                 0.5226
+Test Recall:                          0.5163
+Test Specificity:                     0.4780
+Test Recall (macro):                  0.4972
+Test Specificity (macro):             0.4970
+Positive Prediction Rate (Test):        0.5189
+True Up Rate (Test):   0.5420
+Up Precision (Test):   0.5390
+Up Edge Rate (Test):   -0.0030
+True Down Rate (Test): 0.4580
+Down Precision (Test): 0.4550
+Down Edge Rate (Test): -0.0030
+             Predicted Down  Predicted Up
+Actual Down              87            95
+Actual Up               104           111
+
+Best logistic model by average rank: PCA LASSO(int.) Log. Reg.
+
+===== Logistic Regression Comparison Table =====
+                           ROC-AUC    MCC  Test Acc  Recall  Specificity
+Model                                                                   
+PCA Base                     0.494 -0.059     0.453   0.219        0.731
+Ridge Log. Reg.              0.457  0.010     0.529   0.805        0.203
+LASSO Log. Reg.              0.478 -0.008     0.539   0.981        0.016
+PCA Ridge(int.) Log. Reg.    0.513 -0.067     0.448   0.033        0.940
+PCA LASSO(int.) Log. Reg.    0.523 -0.006     0.499   0.516        0.478
+Local ranked/exported winner in logistic_regression.py: PCA LASSO(int.) Log. Reg.
+Local plot winner in logistic_regression.py: PCA LASSO(int.) Log. Reg.
+Current global best model across registered scripts (informational only): base_random_forest.py :: RF+DOW
+[2026-03-14 05:09:07] EXIT_CODE=0

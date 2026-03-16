@@ -1,0 +1,113 @@
+
+[2026-03-14 04:53:10] CMD: /home/trnguye2/STAT-587-Final-Project/.venv/bin/python /home/trnguye2/STAT-587-Final-Project/PyScripts/Models/base_SVM.py
+[2026-03-14 04:53:10] ENV: MODEL_N_JOBS=6 GRID_VERSION=v1
+MODEL_N_JOBS=6 (set env MODEL_N_JOBS to override)
+GRID_VERSION=v1
+------- Downloading Data
+Finished Downloading Data -------
+Initial shape: 2922 rows, 2520 columns.
+------- Cleaning data
+Finished Cleaning Data -------
+Current shape: 2011 rows, 2390 columns.
+Created Percent Changes.
+Created Target (Regression).
+------- Generating Necessary Features
+Created Target (Classification)
+Cleaned up remaining/resulting NA values.
+Predictors, and Target (Regression) successfully split.
+Finished Generating Features -------
+Final shape (X): 2009 rows, 4298 columns.
+Final shape (y_regression): 2009 rows, 1 columns.
+Feature matrix shape: 2009 rows, 2385 columns.
+Final shape - X: (2009, 2385), y: (2009,)
+
+
+------- Raw Linear SVM Model -------
+--- Model Report ---
+Avg CV Train Plain Accuracy:      0.8920 (±0.0664)
+Avg CV Validation Plain Accuracy: 0.5019 (±0.0386)
+Avg CV Validation Precision: 0.5658
+Avg CV Validation Recall:      0.5008
+Avg CV Validation Specificity: 0.5318
+Final Test Accuracy:    0.5348
+Test Plain Misclassification Error:    0.4652
+Test ROC-AUC (macro):                 0.4654
+Test Recall:                          0.9770
+Test Specificity:                     0.0160
+Test Recall (macro):                  0.4966
+Test Specificity (macro):             0.4965
+Positive Prediction Rate (Test):        0.9801
+True Up Rate (Test):   0.5400
+Up Precision (Test):   0.5380
+Up Edge Rate (Test):   -0.0020
+True Down Rate (Test): 0.4600
+Down Precision (Test): 0.3750
+Down Edge Rate (Test): -0.0850
+             Predicted Down  Predicted Up
+Actual Down               3           182
+Actual Up                 5           212
+
+
+------- Raw RBF SVM Model -------
+--- Model Report ---
+Avg CV Train Plain Accuracy:      1.0000 (±0.0000)
+Avg CV Validation Plain Accuracy: 0.4921 (±0.0455)
+Avg CV Validation Precision: 0.4405
+Avg CV Validation Recall:      0.393
+Avg CV Validation Specificity: 0.6202
+Final Test Accuracy:    0.5398
+Test Plain Misclassification Error:    0.4602
+Test ROC-AUC (macro):                 0.5086
+Test Recall:                          0.9862
+Test Specificity:                     0.0160
+Test Recall (macro):                  0.5012
+Test Specificity (macro):             0.5010
+Positive Prediction Rate (Test):        0.9851
+True Up Rate (Test):   0.5400
+Up Precision (Test):   0.5400
+Up Edge Rate (Test):   0.0000
+True Down Rate (Test): 0.4600
+Down Precision (Test): 0.5000
+Down Edge Rate (Test): 0.0400
+             Predicted Down  Predicted Up
+Actual Down               3           182
+Actual Up                 3           214
+
+
+------- Raw Polynomial SVM Model -------
+--- Model Report ---
+Avg CV Train Plain Accuracy:      0.5409 (±0.0090)
+Avg CV Validation Plain Accuracy: 0.5318 (±0.0351)
+Avg CV Validation Precision: 0.5516
+Avg CV Validation Recall:      0.7839
+Avg CV Validation Specificity: 0.2422
+Final Test Accuracy:    0.4801
+Test Plain Misclassification Error:    0.5199
+Test ROC-AUC (macro):                 0.5181
+Test Recall:                          0.1244
+Test Specificity:                     0.8970
+Test Recall (macro):                  0.5109
+Test Specificity (macro):             0.5105
+Positive Prediction Rate (Test):        0.1144
+True Up Rate (Test):   0.5400
+Up Precision (Test):   0.5870
+Up Edge Rate (Test):   0.0470
+True Down Rate (Test): 0.4600
+Down Precision (Test): 0.4660
+Down Edge Rate (Test): 0.0060
+             Predicted Down  Predicted Up
+Actual Down             166            19
+Actual Up               190            27
+
+Best raw SVM model by average rank: Raw Poly SVM
+
+===== Raw SVM Comparison Table =====
+                ROC-AUC    MCC  Test Acc  Recall  Specificity
+Model                                                        
+Raw Linear SVM    0.465 -0.024     0.535   0.977        0.016
+Raw RBF SVM       0.509  0.010     0.540   0.986        0.016
+Raw Poly SVM      0.518  0.034     0.480   0.124        0.897
+Local ranked/exported winner in base_SVM.py: Raw Poly SVM
+Local plot winner in base_SVM.py: Raw Poly SVM
+Current global best model across registered scripts (informational only): base_random_forest.py :: RF+DOW
+[2026-03-14 05:00:12] EXIT_CODE=0

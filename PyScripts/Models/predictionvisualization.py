@@ -44,7 +44,9 @@ from model_grids import RANDOM_SEED, TEST_SIZE, TRAIN_TEST_SHUFFLE
 EXPECTED_SOURCE_SCRIPTS = {
     "base.py",
     "base_random_forest.py",
+    "base_NN.py",
     "base_SVM.py",
+    "NN.py",
     "logistic_regression.py",
     "random_forest.py",
     "SVM.py",
@@ -62,17 +64,17 @@ def _keep_raw_stock_ohlcv(X: pd.DataFrame) -> pd.DataFrame:
 
 
 def _load_leaderboard(dataset_label: str, output_dir: Path) -> pd.DataFrame:
-    ranked_path = output_dir / f"{dataset_label}_global_model_leaderboard_ranked.csv"
     raw_path = output_dir / f"{dataset_label}_global_model_leaderboard.csv"
 
-    if ranked_path.exists():
-        return pd.read_csv(ranked_path)
     if raw_path.exists():
-        return rank_models_by_metrics(pd.read_csv(raw_path))
+        # Re-rank from the raw leaderboard every time so auto mode compares all
+        # currently registered models globally, even if a stale ranked export
+        # was produced before more model families were added.
+        return pd.read_csv(raw_path)
 
     raise FileNotFoundError(
         f"No leaderboard found for dataset '{dataset_label}'. "
-        f"Expected one of: {ranked_path} or {raw_path}"
+        f"Expected: {raw_path}"
     )
 
 
@@ -113,15 +115,24 @@ def resolve_auto_candidate(
         require_complete=require_complete,
     )
 
-    if "average_rank" in dataset_df.columns:
-        dataset_df = dataset_df.sort_values(
-            ["average_rank", "validation_std_accuracy"],
-            ascending=[True, True],
-        ).reset_index(drop=True)
-    else:
-        dataset_df = rank_models_by_metrics(dataset_df).reset_index(drop=True)
+    dataset_df = rank_models_by_metrics(dataset_df).reset_index(drop=True)
 
     return dataset_df.iloc[0]
+
+
+def resolve_all_candidates(
+    *,
+    dataset_label: str,
+    output_dir: Path,
+    require_complete: bool = True,
+) -> pd.DataFrame:
+    leaderboard_df = _load_leaderboard(dataset_label, output_dir)
+    dataset_df = _validate_expected_sources(
+        leaderboard_df,
+        dataset_label=dataset_label,
+        require_complete=require_complete,
+    )
+    return rank_models_by_metrics(dataset_df).reset_index(drop=True)
 
 
 def _load_base_raw_dataset() -> dict[str, Any]:
@@ -305,7 +316,7 @@ def _resolve_base_candidate(best_row: pd.Series, output_dir: Path) -> dict[str, 
     if candidate_model == "Ridge+DOW":
         stage = _payload("dow_ridge_model")
         return {
-            "model": stage["pipeline_ridge_1se"],
+            "model": stage["pipeline_ridge_dow_1se"],
             "X_test_plot": dataset["X_test_dow"],
             "y_test": dataset["y_test_dow"],
             "plot_frame": dataset["X_test_dow"],
@@ -314,7 +325,7 @@ def _resolve_base_candidate(best_row: pd.Series, output_dir: Path) -> dict[str, 
     if candidate_model == "LASSO+DOW":
         stage = _payload("dow_lasso_model")
         return {
-            "model": stage["pipeline_lasso_1se"],
+            "model": stage["pipeline_lasso_dow_1se"],
             "X_test_plot": dataset["X_test_dow"],
             "y_test": dataset["y_test_dow"],
             "plot_frame": dataset["X_test_dow"],
@@ -322,21 +333,22 @@ def _resolve_base_candidate(best_row: pd.Series, output_dir: Path) -> dict[str, 
         }
     if candidate_model.startswith("Base+DOW+PCA"):
         stage = _payload("dow_baseline_pca_model")
+        pca_stage = _payload("dow_pca_selection")
         return {
-            "model": stage["baseline_clf"],
-            "X_test_plot": stage["X_test_pca"],
+            "model": stage["baseline_dow_clf"],
+            "X_test_plot": pca_stage["X_test_dow_pca"],
             "y_test": dataset["y_test_dow"],
             "plot_frame": pd.DataFrame(
-                stage["X_test_pca"],
+                pca_stage["X_test_dow_pca"],
                 index=dataset["X_test_dow"].index,
-                columns=[f"PC{i+1}" for i in range(stage["X_test_pca"].shape[1])],
+                columns=[f"PC{i+1}" for i in range(pca_stage["X_test_dow_pca"].shape[1])],
             ),
             "title": candidate_model,
         }
     if candidate_model.startswith("Ridge+PCA+DOW"):
         stage = _payload("dow_ridge_pca_model")
         return {
-            "model": stage["clf_ridge_pca_1se"],
+            "model": stage["clf_ridge_pca_dow_1se"],
             "X_test_plot": stage["X_test_pca"],
             "y_test": dataset["y_test_dow"],
             "plot_frame": pd.DataFrame(
@@ -349,7 +361,7 @@ def _resolve_base_candidate(best_row: pd.Series, output_dir: Path) -> dict[str, 
     if candidate_model.startswith("LASSO+PCA+DOW"):
         stage = _payload("dow_lasso_pca_model")
         return {
-            "model": stage["clf_lasso_pca_1se"],
+            "model": stage["clf_lasso_pca_dow_1se"],
             "X_test_plot": stage["X_test_pca"],
             "y_test": dataset["y_test_dow"],
             "plot_frame": pd.DataFrame(
@@ -568,12 +580,59 @@ def _resolve_random_forest_candidate(best_row: pd.Series, output_dir: Path) -> d
     raise ValueError(f"Unsupported random_forest.py candidate model: {candidate_model}")
 
 
+def _resolve_nn_plot_payload(
+    best_row: pd.Series,
+    output_dir: Path,
+    *,
+    model_family: str,
+    dataset_tag: str,
+) -> dict[str, Any]:
+    checkpoint_dir = output_dir / "checkpoints" / model_family / dataset_tag
+    candidate_model = str(best_row["candidate_model"])
+    stage_map = {
+        "LSTM": "lstm",
+        "RNN": "rnn",
+        "CNN": "cnn",
+        "Raw LSTM": "lstm",
+        "Raw RNN": "rnn",
+        "Raw CNN": "cnn",
+    }
+    if candidate_model not in stage_map:
+        raise ValueError(f"Unsupported {model_family} candidate model: {candidate_model}")
+    payload = load_stage_checkpoint(checkpoint_dir, stage_map[candidate_model])
+    if not isinstance(payload, dict) or "plot_payload" not in payload:
+        raise ValueError(
+            f"Checkpoint for {candidate_model} does not include plot payload. "
+            "Rerun the NN script once to upgrade its checkpoint."
+        )
+    plot_payload = payload["plot_payload"]
+    return {
+        "y_test": np.asarray(plot_payload["y_test"], dtype=int).ravel(),
+        "y_score": np.asarray(plot_payload["y_score"], dtype=float).ravel(),
+        "title": candidate_model,
+    }
+
+
 def resolve_candidate_artifacts(best_row: pd.Series, output_dir: Path) -> dict[str, Any]:
     source_script = str(best_row["source_script"])
     if source_script == "base.py":
         return _resolve_base_candidate(best_row, output_dir)
+    if source_script == "base_NN.py":
+        return _resolve_nn_plot_payload(
+            best_row,
+            output_dir,
+            model_family="base_NN",
+            dataset_tag="8yrs_raw_v1",
+        )
     if source_script == "logistic_regression.py":
         return _resolve_logistic_regression_candidate(best_row, output_dir)
+    if source_script == "NN.py":
+        return _resolve_nn_plot_payload(
+            best_row,
+            output_dir,
+            model_family="NN",
+            dataset_tag="8yrs_engineered_v1",
+        )
     if source_script == "base_SVM.py":
         return _resolve_base_svm_candidate(best_row, output_dir)
     if source_script == "SVM.py":
@@ -784,15 +843,34 @@ def save_prediction_visualizations(
     return paths
 
 
+def save_prediction_distribution_only(
+    *,
+    best_row: pd.Series,
+    resolved: dict[str, Any],
+    output_dir: Path,
+) -> Path:
+    y_test = np.asarray(resolved["y_test"]).astype(int).ravel()
+    title = f"{best_row['source_script']} :: {resolved['title']}"
+    if "y_score" in resolved:
+        y_score = np.asarray(resolved["y_score"], dtype=float).ravel()
+    else:
+        X_test_plot = resolved["X_test_plot"]
+        y_score = _extract_positive_scores(resolved["model"], X_test_plot)
+    stem = _make_safe_stem(f"{best_row['source_script']}_{resolved['title']}")
+    out_path = output_dir / f"{best_row['dataset_label']}_prediction_distribution_{stem}.png"
+    _plot_probability_distribution(y_test, y_score, title, out_path)
+    return out_path
+
+
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Generate prediction visualizations for the best available leaderboard model."
     )
     parser.add_argument(
         "--mode",
-        choices=["auto"],
+        choices=["auto", "all-distributions"],
         default="auto",
-        help="Selection mode. Only auto mode is implemented right now.",
+        help="Selection mode.",
     )
     parser.add_argument(
         "--dataset-label",
@@ -816,29 +894,65 @@ def build_arg_parser() -> argparse.ArgumentParser:
 def main() -> int:
     args = build_arg_parser().parse_args()
 
-    best_row = resolve_auto_candidate(
+    if args.mode == "auto":
+        best_row = resolve_auto_candidate(
+            dataset_label=args.dataset_label,
+            output_dir=args.output_dir,
+            require_complete=not args.allow_partial,
+        )
+        resolved = resolve_candidate_artifacts(best_row, args.output_dir)
+        output_paths = save_prediction_visualizations(
+            best_row=best_row,
+            resolved=resolved,
+            output_dir=args.output_dir,
+        )
+
+        print("Resolved auto-mode candidate for prediction visualization:")
+        print(f"  dataset_label: {best_row['dataset_label']}")
+        print(f"  source_script: {best_row['source_script']}")
+        print(f"  comparison_scope: {best_row['comparison_scope']}")
+        print(f"  candidate_model: {best_row['candidate_model']}")
+        print(f"  leaderboard_model: {best_row['Model']}")
+        if "average_rank" in best_row.index:
+            print(f"  average_rank: {best_row['average_rank']}")
+        print("Generated files:")
+        for path in output_paths:
+            print(f"  {path}")
+        return 0
+
+    ranked_df = resolve_all_candidates(
         dataset_label=args.dataset_label,
         output_dir=args.output_dir,
         require_complete=not args.allow_partial,
     )
-    resolved = resolve_candidate_artifacts(best_row, args.output_dir)
-    output_paths = save_prediction_visualizations(
-        best_row=best_row,
-        resolved=resolved,
-        output_dir=args.output_dir,
-    )
+    generated: list[tuple[str, Path]] = []
+    skipped: list[tuple[str, str]] = []
 
-    print("Resolved auto-mode candidate for prediction visualization:")
-    print(f"  dataset_label: {best_row['dataset_label']}")
-    print(f"  source_script: {best_row['source_script']}")
-    print(f"  comparison_scope: {best_row['comparison_scope']}")
-    print(f"  candidate_model: {best_row['candidate_model']}")
-    print(f"  leaderboard_model: {best_row['Model']}")
-    if "average_rank" in best_row.index:
-        print(f"  average_rank: {best_row['average_rank']}")
-    print("Generated files:")
-    for path in output_paths:
-        print(f"  {path}")
+    for _, row in ranked_df.iterrows():
+        try:
+            resolved = resolve_candidate_artifacts(row, args.output_dir)
+            out_path = save_prediction_distribution_only(
+                best_row=row,
+                resolved=resolved,
+                output_dir=args.output_dir,
+            )
+            generated.append((str(row["Model"]), out_path))
+        except Exception as exc:
+            skipped.append((str(row["Model"]), str(exc)))
+
+    print("Resolved all-distributions mode candidates from leaderboard:")
+    print(f"  dataset_label: {args.dataset_label}")
+    print(f"  total_rows: {len(ranked_df)}")
+    print(f"  generated: {len(generated)}")
+    print(f"  skipped: {len(skipped)}")
+    if generated:
+        print("Generated files:")
+        for model_name, path in generated:
+            print(f"  {model_name} -> {path}")
+    if skipped:
+        print("Skipped models:")
+        for model_name, reason in skipped:
+            print(f"  {model_name} -> {reason}")
 
     return 0
 

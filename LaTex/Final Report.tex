@@ -85,12 +85,16 @@
 \pagenumbering{roman}
 \setcounter{page}{1}
 
-\section*{Acknowledgment of Project Development and Prior Contributions}
-\addcontentsline{toc}{section}{Acknowledgment of Project Development and Prior Contributions}
+\section*{Acknowledgment}
 
 This work was initially undertaken as part of a group project and was later separated into individual projects following a final joint decision to proceed independently because of differences in objectives, methods, and findings. The present final report reflects the author's independently developed version after that separation.
 
 The author acknowledges contributions from the earlier shared project stage in the following areas: initial code for loading daily data and sector grouping, which was later subject to minor adjustment in the present version; portions of the original logistic regression and random forest pipeline code, which were substantially revised; and portions of the exploratory data analysis graphing code, which were moderately revised and incorporated into the present version.
+
+Computational resources used in this work were supported by the Oregon Regional Computing Accelerator (Orca), funded by NSF CC*-2346732.
+
+AI tools were used for technical consultation on coding choices, debugging, runtime planning and optimization, formatting assistance such as LaTeX cleanup, slide reformatting, and file-path corrections, and limited language support such as grammar checking and shortening slide text. The author directed the project workflow, determined the analytical goals, wrote the content of the report and presentation slides, and is responsible for the final interpretation and presentation of the work.
+
 
 %---------------- Table of Contents ----------------%
 \newpage
@@ -127,19 +131,20 @@ One motivation for using only historical data is that market prices may already 
 \subsection{Dataset description}
 
 
-\quad \ The raw data was retrieved via Yahoo Finance's API \verb|yfinance|, containing the open price (OP), close price (CP), high price (HP), low price (LP), and traded volume (TV) for each stock. They will be mentioned as OHLCV features. The data utilized contain information on stocks that are and/or were listed on the S\&P 500 index during the time period spanning January 1st, 2018, to December 31st, 2025. The cleaning process pertained to evaluating the data for change in tickers\endnote{this usually happens when one or more company merges with another company}, invalid data \endnote{for example, when a stock was in a frozen state}, holidays where the market was closed, and missing data due to being listed or delisted during the time frame. All the observations with missing information of any of the 5 price metrics or trading volume were removed.
+\quad \ The raw data was retrieved via Yahoo Finance's API \verb|yfinance|, containing the open price (OP), close price (CP), high price (HP), low price (LP), and traded volume (TV) for each stock. They will be mentioned as OHLCV features. The data utilized contain information on stocks that are and/or were listed on the S\&P 500 index during the time period spanning January 1st, 2018, to December 31st, 2025, including both end. The cleaning process pertained to evaluating the data for change in tickers\endnote{this usually happens when one or more company merges with another company}, invalid data \endnote{for example, when a stock was in a frozen state}, holidays where the market was closed, and missing data due to being listed or delisted during the time frame. All the observations with missing information of any of the 5 price metrics or trading volume were removed.
 
-The raw data contains 2010 trading days and 2520 features. The sizable number of columns is explained by each stock (2010) and index (1) having their own price metrics for CP, OP, HP, LP and TV $([503+1] * 5)=2520$. The number of rows is explained by the exclusion of 19 holidays and 211 weekend days.
+The raw data contains 2010 trading days and 2520 features. The sizable number of columns is explained by each stock (2009) and index (1) having their own price metrics for CP, OP, HP, LP and TV $([503+1] * 5)=2520$. The number of rows is explained by the exclusion of 19 holidays and 211 weekend days.
 
 The features are then modified to create additional engineered features that are commonly seen used in quantitative technical analysis and trading strategies. These features include lag values, day-to-day percent change, volatility, max/min channel position, rolling volume weighted average prices, rolling z-scores, daily range, and the day of the week. Details of formula for each variable generation is provided in the Subsection \ref{subsec:feature_engineering} of the Appendix.
 \todo{Major revision completed up to here; later results were added but this section is only minimally revised.}
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% , like abbreviation, some citation.%%%%%%%%%%%%%%%%%%%%% 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Major revision completed up to here; later results were added but this section is only minimally revised., like abbreviation, some citation.%%%%%%%%%%%%%%%%%%%%% 
 
 A little emphasis on lag is provided as follows: lag captures momentum, which allows the model to see if past data has any impact on future values. Unlike recurrent neural networks, all other base models, which are being considered in this paper, require lag values to be created before the training process since time-series isn't built directly into their architecture. Different lag periods will be used and the results will be compared to see if there is any significant difference in model performance. This feature is particularly important for statistical learning models that aren't traditional economic time-series analysis models, allowing us to capture the relationship between past and future values in a more flexible way.% Comment: this paragraph is also unclear. Fix this please.
 
 Regarding other created features, the day-to-day percent change is a common way to measure the relative change in price over time, which can be more informative than absolute price changes. The volatility feature captures the variability of price movements, which gives the model to potentially perceive highly volatile moments in the market. The max/min channel position helps identify potential levels of support and resistance, which can be used to inform the model on potential breakouts. The rolling z-score can help identify outliers in the data, which allows the model to perceive unnatural price movements (event detection). The daily range provides a glimpse into intraday volatility of a stock, which covers for what day-to-day volatility otherwise misses. Finally, the day of week feature can capture any potential patterns in stock price movements that may occur on specific days of the week. %Prof's comment: Comment same as the last two comments previously raised
 
-At the end of feature engineering, we remove most of the original data (OP, CP, HP, LP) since they are non-stationary, primarily due to fact that the architecture of Random Forest models will render most of the data obsolete and increase model complexity for no justifiable reason. %Prof's comment: the argument and reasoning raised is unclear. Rewrite this.% Delete:"and EMA (used to calculate Z-scores) since it is just an intermediate variable to create features. We can mention it in the appendix if needed"
+At the end of feature engineering, we remove most of the raw data (OP, CP, HP, LP), primarily due to fact that the architecture of Random Forest models will render most of the data obsolete and increase model complexity for no justifiable reason. %Prof's comment: the argument and reasoning raised is unclear. Rewrite this.% Delete:"and EMA (used to calculate Z-scores) since it is just an intermediate variable to create features. We can mention it in the appendix if needed"
 
 % At the end of our analysis, features involving non-stationary metrics (EMA, OP, CP, HP, LP, VWAP) are not included in the final model as they do not contribute to the prediction of the market direction. The final model will only include features that are stationary and have a significant impact on the prediction of the market direction.
 
@@ -414,10 +419,14 @@ Future methodological extensions include more extensive hyperparameter tuning an
 
 \section{Reproducibility Requirements}
 \todo{the instruction is listed in more detail in README in the folder. Overall, the setting is loading packages in requirement.txt before running any code.}
+
 \subsection{Environment file or package list}
+The computations for the final model runs were performed on the Oregon Regional Computing Accelerator (Orca) at Portland State University \cite{orca_2026}.
 \todo{Cite this to the file requirement.txt}
 \subsection{Folder structure}
 \todo{Ask chat gpt to generate png file to reflect the last organized folder structure}
+\safeinput{../output/project_folder_structure_include.tex}
+
 \subsection{Random seed control}
 The random seed can be adjusted in \texttt{model\_grids.py} at \texttt{PyScripts/Models/model\_grids.py}.
 \subsection{Clear function/code organization}

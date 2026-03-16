@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import re
 from pathlib import Path
 
 import matplotlib
@@ -137,6 +138,30 @@ def sort_by_complexity(df: pd.DataFrame, x_col: str, ordered: list[str] | None =
         out["_x_axis_mode"] = "categorical"
     return out
 
+MODEL_NAME_LABELS: dict[str, str] = {
+    "SVM_linear":                          "Linear SVM",
+    "SVM_rbf":                             "RBF SVM",
+    "SVM_poly":                            "Polynomial SVM",
+    "LogReg_LASSO":                        "LASSO Log. Reg.",
+    "LogReg_Ridge":                        "Ridge Log. Reg.",
+    "LogReg_PCA_Ridge":                    "PCA Ridge Log. Reg.",
+    "LogReg_PCA_Ridge_refit":              "PCA Ridge(int.) Log. Reg.",
+    "LogReg_PCA_Ridge_retuned_n_components": "PCA Ridge Log. Reg.",
+    "LogReg_PCA_LASSO":                    "PCA LASSO Log. Reg.",
+    "LogReg_PCA_LASSO_refit":              "PCA LASSO(int.) Log. Reg.",
+    "RF_base":                             "Base RF",
+    "RF_lasso":                            "LASSO RF",
+    "RF_ridge":                            "Ridge RF",
+}
+
+
+def _clean_param_label(x_param: str) -> str:
+    """Strip sklearn pipeline prefixes from a parameter name for axis display."""
+    label = re.sub(r'^param_', '', x_param)
+    label = re.sub(r'^(classifier|feature_selector__estimator|feature_selector|scaler|reducer|pca)__', '', label)
+    return label
+
+
 def metric_prefers_lower(metric_label: str) -> bool:
     label = metric_label.lower()
     return any(token in label for token in ("error", "loss", "misclassification"))
@@ -235,20 +260,6 @@ def main() -> None:
         upper = np.clip(y_train + y_train_std, 0.0, 1.0)
         plt.fill_between(x, lower, upper, alpha=0.18, label=f"Train {args.score_label} ±1 Std")
 
-    win = max(2, args.trend_window)
-    if len(df) >= win:
-        trend_test = pd.Series(y_test).rolling(win, min_periods=2).mean()
-        if x_axis_mode == "log":
-            plt.semilogx(x, trend_test, linewidth=2, label=f"Test Trend (w={win})")
-        else:
-            plt.plot(x, trend_test, linewidth=2, label=f"Test Trend (w={win})")
-        if not np.isnan(y_train).all():
-            trend_train = pd.Series(y_train).rolling(win, min_periods=2).mean()
-            if x_axis_mode == "log":
-                plt.semilogx(x, trend_train, linewidth=2, label=f"Train Trend (w={win})")
-            else:
-                plt.plot(x, trend_train, linewidth=2, label=f"Train Trend (w={win})")
-
     one_se_row = select_1se_row(df, lower_is_better=lower_is_better)
     best_idx = int(np.argmin(y_test)) if lower_is_better else int(np.argmax(y_test))
     plt.scatter(
@@ -263,13 +274,15 @@ def main() -> None:
     if one_se_row is not None:
         x_1se = float(one_se_row["_x_numeric"])
         y_1se = float(one_se_row["mean_test_score"])
-        x_label = str(one_se_row[args.x_param])
-        plt.axvline(x_1se, color="crimson", linestyle="--", linewidth=1.4, label=f"1SE Selected ({x_label})")
+        x_1se_tick = str(one_se_row[args.x_param])
+        plt.axvline(x_1se, color="crimson", linestyle="--", linewidth=1.4, label=f"1SE Selected ({_clean_param_label(args.x_param)}={x_1se_tick})")
         plt.scatter([x_1se], [y_1se], color="crimson", s=36, zorder=5)
 
-    plt.xlabel(args.x_param)
+    x_label = _clean_param_label(args.x_param)
+    model_label = MODEL_NAME_LABELS.get(args.model_name, args.model_name or args.model.upper())
+    plt.xlabel(x_label)
     plt.ylabel(args.score_label)
-    plt.title(f"{args.model.upper()} Search History: Train/Test {args.score_label} vs {args.x_param}")
+    plt.title(f"{model_label}: {args.score_label} vs {x_label}")
     plt.grid(alpha=0.3)
     plt.legend()
 

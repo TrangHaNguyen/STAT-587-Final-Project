@@ -84,6 +84,17 @@ def append_search_history(
     out.to_csv(history_path, mode="a", header=not history_path.exists(), index=False, float_format='%.3f')
 
 
+def history_has_entry(history_path: Path, model_name: str, grid_version: str) -> bool:
+    """Return True if the history CSV already has an entry for this model + grid version."""
+    if not history_path.exists():
+        return False
+    try:
+        df = pd.read_csv(history_path, engine="python", on_bad_lines="skip", usecols=["model_name", "grid_version"])
+        return bool(((df["model_name"] == model_name) & (df["grid_version"] == grid_version)).any())
+    except Exception:
+        return False
+
+
 def append_search_run(
     runs_path: Path,
     model_name: str,

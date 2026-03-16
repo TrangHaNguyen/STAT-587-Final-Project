@@ -29,7 +29,10 @@ from H_modeling import (
     transform_with_fitted_scaler_pca,
 )
 from H_eval import (
+    CV_SELECTION_CRITERIA,
     get_final_metrics,
+    get_or_compute_final_metrics,
+    _metrics_stage_name,
     rank_models_by_metrics,
     select_non_degenerate_plot_model,
     save_best_model_plots_from_gridsearch_all_params,
@@ -205,7 +208,7 @@ if __name__=="__main__":
         X_train,
         X_test,
     )
-    results=get_final_metrics(optimized_Log_Reg_PCA_base_, X_train, y_train, X_test, y_test, n_splits=tscv.n_splits, label="PCA Base")
+    results=get_or_compute_final_metrics(checkpoint_dir, _metrics_stage_name("PCA Base"), optimized_Log_Reg_PCA_base_, X_train, y_train, X_test, y_test, n_splits=tscv.n_splits, label="PCA Base")
     pca_base_results = results.copy()
     # RollingWindowBacktest disabled to save runtime. Restore this block if needed later.
     # rwb_obj=RollingWindowBacktest(clone(grid_search_PCA_base.best_estimator_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
@@ -245,7 +248,7 @@ if __name__=="__main__":
         fit_search=_fit_logistic_search,
     )
     optimized_Log_Reg_ridge_ = grid_search_ridge.best_estimator_
-    results=get_final_metrics(optimized_Log_Reg_ridge_, X_train, y_train, X_test, y_test, n_splits=tscv.n_splits, label="Ridge Log. Reg.")
+    results=get_or_compute_final_metrics(checkpoint_dir, _metrics_stage_name("Ridge Log. Reg."), optimized_Log_Reg_ridge_, X_train, y_train, X_test, y_test, n_splits=tscv.n_splits, label="Ridge Log. Reg.")
     ridge_results = results.copy()
     # RollingWindowBacktest disabled to save runtime. Restore this block if needed later.
     # rwb_obj=RollingWindowBacktest(clone(grid_search_ridge.best_estimator_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
@@ -285,7 +288,7 @@ if __name__=="__main__":
         fit_search=_fit_logistic_search,
     )
     optimized_Log_Reg_lasso_ = grid_search_lasso.best_estimator_
-    results=get_final_metrics(optimized_Log_Reg_lasso_, X_train, y_train, X_test, y_test, n_splits=tscv.n_splits, label="LASSO Log. Reg.")
+    results=get_or_compute_final_metrics(checkpoint_dir, _metrics_stage_name("LASSO Log. Reg."), optimized_Log_Reg_lasso_, X_train, y_train, X_test, y_test, n_splits=tscv.n_splits, label="LASSO Log. Reg.")
     lasso_results = results.copy()
     # RollingWindowBacktest disabled to save runtime. Restore this block if needed later.
     # rwb_obj=RollingWindowBacktest(clone(grid_search_lasso.best_estimator_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
@@ -407,7 +410,7 @@ if __name__=="__main__":
 
     optimized_Log_Reg_PCA_ridge_ = grid_search_PCA_ridge.best_estimator_
 
-    results=get_final_metrics(optimized_Log_Reg_PCA_ridge_, X_train_pca_ridge, y_train, X_test_pca_ridge, y_test, n_splits=tscv.n_splits, label="PCA Ridge(int.) Log. Reg.")
+    results=get_or_compute_final_metrics(checkpoint_dir, _metrics_stage_name("PCA Ridge(int.) Log. Reg."), optimized_Log_Reg_PCA_ridge_, X_train_pca_ridge, y_train, X_test_pca_ridge, y_test, n_splits=tscv.n_splits, label="PCA Ridge(int.) Log. Reg.")
     pca_ridge_results = results.copy()
     # RollingWindowBacktest disabled to save runtime. Restore this block if needed later.
     # rwb_obj=RollingWindowBacktest(clone(grid_search_PCA_ridge.best_estimator_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
@@ -494,7 +497,7 @@ if __name__=="__main__":
 
     optimized_Log_Reg_PCA_lasso_ = grid_search_PCA_lasso.best_estimator_
 
-    results=get_final_metrics(optimized_Log_Reg_PCA_lasso_, X_train_pca_lasso, y_train, X_test_pca_lasso, y_test, n_splits=tscv.n_splits, label="PCA LASSO(int.) Log. Reg.")
+    results=get_or_compute_final_metrics(checkpoint_dir, _metrics_stage_name("PCA LASSO(int.) Log. Reg."), optimized_Log_Reg_PCA_lasso_, X_train_pca_lasso, y_train, X_test_pca_lasso, y_test, n_splits=tscv.n_splits, label="PCA LASSO(int.) Log. Reg.")
     pca_lasso_results = results.copy()
     # RollingWindowBacktest disabled to save runtime. Restore this block if needed later.
     # rwb_obj=RollingWindowBacktest(clone(grid_search_PCA_lasso.best_estimator_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
@@ -511,7 +514,7 @@ if __name__=="__main__":
         {"Model": "PCA Ridge(int.) Log. Reg.", **pca_ridge_results},
         {"Model": "PCA LASSO(int.) Log. Reg.", **pca_lasso_results},
     ])
-    ranked_df = rank_models_by_metrics(ranking_df)
+    ranked_df = rank_models_by_metrics(ranking_df, criteria=CV_SELECTION_CRITERIA)
     best_model_name = str(ranked_df.iloc[0]["Model"])
     plot_model_name = select_non_degenerate_plot_model(ranked_df)
     output_dir = cwd / "output"
@@ -584,7 +587,7 @@ if __name__=="__main__":
         comparison_tex,
         'Logistic Regression Model Comparison',
         'tab:logistic_regression_comparison',
-        'Test Acc = plain hold-out accuracy on the final 20% test split. All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. Sensitivity (Macro) = macro-averaged recall across both classes.'
+        'Test Acc = plain hold-out accuracy on the final 20% test split. All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. Recall = positive-class sensitivity, TP / (TP + FN). Specificity = TN / (TN + FP).'
     )
     print(f"Local ranked/exported winner in logistic_regression.py: {best_model_name}")
     print(f"Local plot winner in logistic_regression.py: {plot_model_name}")

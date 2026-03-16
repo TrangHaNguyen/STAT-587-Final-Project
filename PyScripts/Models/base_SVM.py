@@ -12,7 +12,10 @@ import numpy as np
 
 from H_prep import clean_data, import_data, to_binary_class
 from H_eval import (
+    CV_SELECTION_CRITERIA,
     get_final_metrics,
+    get_or_compute_final_metrics,
+    _metrics_stage_name,
     rank_models_by_metrics,
     select_non_degenerate_plot_model,
     save_best_model_plots_from_gridsearch_all_params,
@@ -27,6 +30,7 @@ from H_search_history import (
     append_search_run,
     get_checkpoint_dir,
     get_git_commit,
+    history_has_entry,
     load_search_checkpoint,
     now_iso,
     save_search_checkpoint,
@@ -123,7 +127,19 @@ def _fit_or_load_search(
 ):
     if search_checkpoint_exists(checkpoint_dir, stage_name):
         print(f"Loading checkpoint for {model_name} from {checkpoint_dir / stage_name}")
-        return load_search_checkpoint(checkpoint_dir, stage_name)
+        loaded = load_search_checkpoint(checkpoint_dir, stage_name)
+        if not history_has_entry(history_path, model_name, grid_label):
+            append_search_history(
+                history_path=history_path,
+                cv_results=loaded.cv_results_,
+                run_time=run_time,
+                model_name=model_name,
+                search_type="grid",
+                grid_version=grid_label,
+                notes=SEARCH_NOTES,
+                best_params=loaded.best_params_,
+            )
+        return loaded
     search_obj.fit(X_train, y_train)
     append_search_history(
         history_path=history_path,
@@ -198,7 +214,7 @@ if __name__ == "__main__":
         grid_label,
     )
     optimized_linear_ = grid_search_linear.best_estimator_
-    results = get_final_metrics(optimized_linear_, X_train, y_train, X_test, y_test, label="Raw Linear Ker. SVM")
+    results = get_or_compute_final_metrics(checkpoint_dir, _metrics_stage_name("Raw Linear Ker. SVM"), optimized_linear_, X_train, y_train, X_test, y_test, label="Raw Linear Ker. SVM")
     linear_results = results.copy()
     # RollingWindowBacktest disabled to save runtime. Restore this block if needed later.
     # rwb_obj = RollingWindowBacktest(clone(grid_search_linear.best_estimator_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
@@ -234,7 +250,7 @@ if __name__ == "__main__":
         grid_label,
     )
     optimized_rbf_ = grid_search_rbf.best_estimator_
-    results = get_final_metrics(optimized_rbf_, X_train, y_train, X_test, y_test, label="Raw RBF Ker. SVM")
+    results = get_or_compute_final_metrics(checkpoint_dir, _metrics_stage_name("Raw RBF Ker. SVM"), optimized_rbf_, X_train, y_train, X_test, y_test, label="Raw RBF Ker. SVM")
     rbf_results = results.copy()
     # RollingWindowBacktest disabled to save runtime. Restore this block if needed later.
     # rwb_obj = RollingWindowBacktest(clone(grid_search_rbf.best_estimator_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
@@ -271,7 +287,7 @@ if __name__ == "__main__":
         grid_label,
     )
     optimized_poly_ = grid_search_poly.best_estimator_
-    results = get_final_metrics(optimized_poly_, X_train, y_train, X_test, y_test, label="Raw Poly. Ker. SVM")
+    results = get_or_compute_final_metrics(checkpoint_dir, _metrics_stage_name("Raw Poly. Ker. SVM"), optimized_poly_, X_train, y_train, X_test, y_test, label="Raw Poly. Ker. SVM")
     poly_results = results.copy()
     # RollingWindowBacktest disabled to save runtime. Restore this block if needed later.
     # rwb_obj = RollingWindowBacktest(clone(grid_search_poly.best_estimator_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
@@ -285,7 +301,7 @@ if __name__ == "__main__":
         {"Model": "Raw RBF SVM", **rbf_results},
         {"Model": "Raw Poly SVM", **poly_results},
     ])
-    ranked_df = rank_models_by_metrics(ranking_df)
+    ranked_df = rank_models_by_metrics(ranking_df, criteria=CV_SELECTION_CRITERIA)
     best_model_name = str(ranked_df.iloc[0]["Model"])
     plot_model_name = select_non_degenerate_plot_model(ranked_df)
     best_plot_config = {
@@ -325,7 +341,7 @@ if __name__ == "__main__":
         comparison_tex,
         'Raw SVM Model Comparison',
         'tab:base_svm_comparison',
-        'Test Acc = plain hold-out accuracy on the final 20% test split. All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. Sensitivity (Macro) = macro-averaged recall across both classes.'
+        'Test Acc = plain hold-out accuracy on the final 20% test split. All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. Recall = positive-class sensitivity, TP / (TP + FN). Specificity = TN / (TN + FP).'
     )
     print(f"Local ranked/exported winner in base_SVM.py: {best_model_name}")
     print(f"Local plot winner in base_SVM.py: {plot_model_name}")

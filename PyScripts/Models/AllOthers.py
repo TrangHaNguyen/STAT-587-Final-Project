@@ -15,8 +15,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 MODELS_DIR = PROJECT_ROOT / "PyScripts" / "Models"
 RESULTS_DIR = PROJECT_ROOT / "output"
 PLOTS_DIR = PROJECT_ROOT / "output"
-STATE_FILE = RESULTS_DIR / "all_pipeline_state.json"
-LOG_FILE = RESULTS_DIR / "all_pipeline.log"
+STATE_FILE = RESULTS_DIR / "allothers_pipeline_state.json"
+LOG_FILE = RESULTS_DIR / "allothers_pipeline.log"
 
 
 def now_iso() -> str:
@@ -112,13 +112,14 @@ def run_stage(
 
 
 def build_model_stages(models: list[str], grid_version: str) -> list[tuple[str, list[str]]]:
+    # NN scripts (base_nn, nn) are excluded: they require a separate Python 3.11
+    # environment with numpy==1.26.4 (TensorFlow constraint) which conflicts with
+    # numpy==2.4.2 used here. Run them via run_nn.slurm / requirements_nn.txt.
     model_to_script = {
         "base": "base.py",
-        "base_nn": "base_NN.py",
         "base_rf": "base_random_forest.py",
         "base_svm": "base_SVM.py",
         "logreg": "logistic_regression.py",
-        "nn": "NN.py",
         "rf": "random_forest.py",
         "svm": "SVM.py",
     }
@@ -195,8 +196,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Run all model searches safely with checkpoint/resume and optional plotting.")
     parser.add_argument(
         "--models",
-        default="base,base_rf,base_svm,base_nn,logreg,rf,svm,nn",
-        help="Comma list: base,base_rf,base_svm,base_nn,logreg,rf,svm,nn",
+        default="base,base_rf,base_svm,logreg,rf,svm",
+        help="Comma list: base,base_rf,base_svm,logreg,rf,svm  (NN excluded — use run_nn.slurm)",
     )
     parser.add_argument("--grid-version", default="v1", help="Grid version label (e.g., v3).")
     parser.add_argument("--n-jobs", type=int, default=4, help="MODEL_N_JOBS passed to model scripts.")
@@ -210,7 +211,7 @@ def main() -> None:
     args = parser.parse_args()
 
     models = parse_list(args.models)
-    allowed_models = {"base", "base_rf", "base_svm", "base_nn", "svm", "logreg", "rf", "nn"}
+    allowed_models = {"base", "base_rf", "base_svm", "svm", "logreg", "rf"}
 
     unknown_models = [m for m in models if m not in allowed_models]
     if unknown_models:

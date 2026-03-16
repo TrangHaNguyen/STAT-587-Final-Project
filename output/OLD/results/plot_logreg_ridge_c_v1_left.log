@@ -1,5 +1,0 @@
-
-[2026-03-09 08:11:02] CMD: /Library/Frameworks/Python.framework/Versions/3.13/bin/python3 /Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/over_under_fit.py --model logreg --x-param param_classifier__C --model-name LogReg_Ridge_internal --grid-version v1_left --trend-window 8 --out /Users/tranghanguyen/STAT-587-Final-Project/output/Used/png/over_under_fit_logreg_ridge_c_v1_left.png
-[2026-03-09 08:11:02] ENV: MODEL_N_JOBS=-1 GRID_VARIANT=None GRID_VERSION=v1
-Saved plot: /Users/tranghanguyen/STAT-587-Final-Project/output/Used/png/over_under_fit_logreg_ridge_c_v1_left.png
-[2026-03-09 08:11:03] EXIT_CODE=0

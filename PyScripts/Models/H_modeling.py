@@ -37,27 +37,32 @@ def as_sortable_numeric(value):
         return float("inf")
 
 
-def make_one_se_refit(
-    complexity_cols: list[str],
-    *,
-    n_splits: int,
-    fixed_cols: list[str] | None = None,
-    sort_value_map: dict[str, Callable[[Any], float]] | None = None,
-):
-    """Return a GridSearchCV refit callable implementing the 1-SE rule."""
+class _OneSERefit:
+    """Picklable callable implementing the 1-SE rule for GridSearchCV refit."""
 
-    def _pick_index(cv_results):
+    def __init__(
+        self,
+        complexity_cols: list[str],
+        n_splits: int,
+        fixed_cols: list[str] | None = None,
+        sort_value_map: dict[str, Callable[[Any], float]] | None = None,
+    ):
+        self.complexity_cols = complexity_cols
+        self.n_splits = n_splits
+        self.fixed_cols = fixed_cols
+        self.sort_value_map = sort_value_map
+
+    def __call__(self, cv_results):
         mean = np.asarray(cv_results["mean_test_score"], dtype=float)
         std = np.asarray(cv_results["std_test_score"], dtype=float)
-        se = std / np.sqrt(n_splits)
+        se = std / np.sqrt(self.n_splits)
         best_idx = int(np.argmax(mean))
         threshold = float(mean[best_idx] - se[best_idx])
         candidate_idx = np.where(mean >= threshold)[0]
         if len(candidate_idx) == 0:
             return best_idx
-
-        if fixed_cols:
-            for col in fixed_cols:
+        if self.fixed_cols:
+            for col in self.fixed_cols:
                 param_key = f"param_{col}"
                 best_val = cv_results[param_key][best_idx]
                 candidate_idx = np.array(
@@ -68,16 +73,24 @@ def make_one_se_refit(
                     return best_idx
 
         def key_fn(i: int):
-            complexity = []
-            for col in complexity_cols:
-                val = cv_results[f"param_{col}"][i]
-                sort_fn = (sort_value_map or {}).get(col, as_sortable_numeric)
-                complexity.append(sort_fn(val))
+            complexity = [
+                (self.sort_value_map or {}).get(col, as_sortable_numeric)(cv_results[f"param_{col}"][i])
+                for col in self.complexity_cols
+            ]
             return tuple(complexity + [-float(mean[i])])
 
         return int(min(candidate_idx, key=key_fn))
 
-    return _pick_index
+
+def make_one_se_refit(
+    complexity_cols: list[str],
+    *,
+    n_splits: int,
+    fixed_cols: list[str] | None = None,
+    sort_value_map: dict[str, Callable[[Any], float]] | None = None,
+) -> "_OneSERefit":
+    """Return a GridSearchCV refit callable implementing the 1-SE rule."""
+    return _OneSERefit(complexity_cols, n_splits, fixed_cols, sort_value_map)
 
 
 def fit_or_load_search(

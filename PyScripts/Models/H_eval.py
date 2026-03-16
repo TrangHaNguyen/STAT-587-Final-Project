@@ -15,14 +15,22 @@ import datetime
 from H_helpers import safe_div
 from model_grids import TIME_SERIES_CV_SPLITS
 
-# Shared CV-based selection criteria used by all non-NN scripts to pick the
-# best candidate without leaking test-set information into model selection.
+# Shared CV-based selection criteria (kept for reference, not used for ranking).
 CV_SELECTION_CRITERIA = {
     'validation_avg_roc_auc':     {'ascending': False, 'weight': 1.0},
     'validation_avg_accuracy':    {'ascending': False, 'weight': 1.0},
     'validation_avg_sensitivity': {'ascending': False, 'weight': 0.5},
     'validation_avg_specificity': {'ascending': False, 'weight': 0.5},
     'validation_std_accuracy':    {'ascending': True,  'weight': 0.5},
+}
+
+# Shared test-set selection criteria used by all scripts for both within-family
+# and cross-family model selection.
+TEST_SELECTION_CRITERIA = {
+    'test_roc_auc_macro':  {'ascending': False, 'weight': 1.0},
+    'test_split_accuracy': {'ascending': False, 'weight': 1.0},
+    'test_sensitivity':    {'ascending': False, 'weight': 1.0},
+    'test_specificity':    {'ascending': False, 'weight': 1.0},
 }
 
 MODEL_N_JOBS=int(os.getenv("MODEL_N_JOBS", "-1"))
@@ -93,14 +101,7 @@ def rank_models_by_metrics(results, criteria=None) -> pd.DataFrame:
     without letting ROC-AUC dominate the thresholded class-balance metrics.
     """
     if criteria is None:
-        # All default ranking metrics are "higher is better", so
-        # ascending=False gives rank 1 to the best model on each metric.
-        criteria = {
-            'test_split_accuracy': {'ascending': False, 'weight': 0.5},
-            'test_roc_auc_macro': {'ascending': False, 'weight': 1.5},
-            'test_sensitivity': {'ascending': False, 'weight': 1.0},
-            'test_specificity': {'ascending': False, 'weight': 1.0},
-        }
+        criteria = TEST_SELECTION_CRITERIA
 
     if isinstance(results, pd.DataFrame):
         ranked_df = results.copy()
@@ -639,7 +640,7 @@ def register_global_model_candidates(
         combined_df = export_df
 
     combined_df.to_csv(leaderboard_path, index=False, float_format='%.3f')
-    ranked_df = rank_models_by_metrics(combined_df)
+    ranked_df = rank_models_by_metrics(combined_df, criteria=TEST_SELECTION_CRITERIA)
     ranked_df.to_csv(ranked_path, index=False, float_format='%.3f')
     return ranked_df
 

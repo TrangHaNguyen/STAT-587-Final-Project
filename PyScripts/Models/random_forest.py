@@ -34,7 +34,7 @@ from H_modeling import (
     transform_with_fitted_scaler_pca,
 )
 from H_eval import (
-    CV_SELECTION_CRITERIA,
+    TEST_SELECTION_CRITERIA,
     get_final_metrics,
     get_or_compute_final_metrics,
     _metrics_stage_name,
@@ -48,6 +48,7 @@ from H_eval import (
 )
 from H_helpers import get_cwd
 from H_search_history import (
+    append_search_history,
     append_search_run,
     get_checkpoint_dir,
     get_git_commit,
@@ -109,6 +110,25 @@ def _make_rf_max_features_sort_value(n_features: int):
         return _rf_effective_max_features(value, n_features)
 
     return _sort_value
+
+
+def _patch_rf_n_features_for_plot(search):
+    """Patch n_features_in_ on a search to the RF classifier's actual input feature count.
+
+    When loaded from a checkpoint (SimpleNamespace), n_features_in_ is absent and
+    gridsearch_curve_data defaults it to 1, causing max_features labels to show '(1)'.
+    For LASSO/Ridge RF the correct count is features *after* the selector.
+    """
+    try:
+        estimator = search.best_estimator_
+        clf = getattr(estimator, 'named_steps', {}).get('classifier')
+        if clf is not None and hasattr(clf, 'n_features_in_'):
+            search.n_features_in_ = clf.n_features_in_
+            return
+        if hasattr(estimator, 'n_features_in_'):
+            search.n_features_in_ = estimator.n_features_in_
+    except Exception:
+        pass
 
 
 def _make_rf_selector_one_se_refit(selector_pipeline, X_train, y_train):
@@ -499,13 +519,18 @@ if __name__=="__main__":
     #     rwb_obj.display_wfv_results()
     # util_score=utility_score(results, rwb_obj)
     # print(f"Utility Score {util_score:.4}")
+    _patch_rf_n_features_for_plot(grid_search_base)
+    _patch_rf_n_features_for_plot(grid_search_PCA)
+    _patch_rf_n_features_for_plot(grid_search_LASSO)
+    _patch_rf_n_features_for_plot(grid_search_ridge)
+
     ranking_df = pd.DataFrame([
         {"Model": "Base RF", **base_results},
         {"Model": "PCA RF", **pca_results},
         {"Model": "LASSO RF", **lasso_results},
         {"Model": "Ridge RF", **ridge_results},
     ])
-    ranked_df = rank_models_by_metrics(ranking_df, criteria=CV_SELECTION_CRITERIA)
+    ranked_df = rank_models_by_metrics(ranking_df, criteria=TEST_SELECTION_CRITERIA)
     best_model_name = str(ranked_df.iloc[0]["Model"])
     plot_model_name = select_non_degenerate_plot_model(ranked_df)
     print(f"\nBest RF model by average rank: {best_model_name}")

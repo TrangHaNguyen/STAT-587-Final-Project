@@ -16,7 +16,7 @@ os.environ.setdefault("MPLCONFIGDIR", os.path.abspath(MPLCONFIGDIR))
 from H_prep import clean_data, import_data, data_clean_param_selection, to_binary_class
 from H_modeling import fit_or_load_search, load_input_data, make_one_se_refit
 from H_eval import (
-    CV_SELECTION_CRITERIA,
+    TEST_SELECTION_CRITERIA,
     get_final_metrics,
     get_or_compute_final_metrics,
     _metrics_stage_name,
@@ -106,13 +106,7 @@ def write_final_method_comparison_from_leaderboard(output_dir, output_prefix: st
         if script_df.empty:
             print(f"Skipping {method_label} in final methods table: no registered candidates found.")
             continue
-        # Fall back to default test-metric ranking for models without CV tuning (e.g. NN).
-        effective_criteria = (
-            CV_SELECTION_CRITERIA
-            if set(CV_SELECTION_CRITERIA.keys()).issubset(script_df.columns)
-            else None
-        )
-        ranked_script_df = rank_models_by_metrics(script_df, criteria=effective_criteria)
+        ranked_script_df = rank_models_by_metrics(script_df, criteria=TEST_SELECTION_CRITERIA)
         winner = ranked_script_df.iloc[0]
         finalist_rows.append(
             comparison_row_from_metrics(
@@ -353,7 +347,7 @@ if __name__ == "__main__":
         {"Model": "RBF SVM", **rbf_results},
         {"Model": "Poly SVM", **poly_results},
     ])
-    ranked_df = rank_models_by_metrics(ranking_df, criteria=CV_SELECTION_CRITERIA)
+    ranked_df = rank_models_by_metrics(ranking_df, criteria=TEST_SELECTION_CRITERIA)
     best_model_name = str(ranked_df.iloc[0]["Model"])
     plot_model_name = select_non_degenerate_plot_model(ranked_df)
     best_plot_config = {

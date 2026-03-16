@@ -45,11 +45,3 @@
 [2026-03-14 15:23:03] SKIP plot:rf_lasso_c:v1 (missing column(s): ['param_feature_selector__estimator__C'])
 [2026-03-14 15:23:03] SKIP plot:rf_ridge_c:v1 (missing column(s): ['param_feature_selector__estimator__C'])
 [2026-03-14 15:23:03] Pipeline finished.
-[2026-03-14 23:33:06] Pipeline start | models=['base', 'base_rf', 'base_svm', 'base_nn', 'logreg', 'rf', 'svm', 'nn'] grid_version=v1 n_jobs=4 resume=True skip_models=False skip_plots=False
-[2026-03-14 23:33:06] SKIP completed stage: model:base:v1
-[2026-03-14 23:33:06] SKIP completed stage: model:base_rf:v1
-[2026-03-14 23:33:06] SKIP completed stage: model:base_svm:v1
-[2026-03-14 23:33:06] START stage: model:base_nn:v1
-[2026-03-14 23:33:07] DONE stage: model:base_nn:v1 (1.7s)
-[2026-03-14 23:33:07] SKIP completed stage: model:logreg:v1
-[2026-03-14 23:33:07] START stage: model:rf:v1

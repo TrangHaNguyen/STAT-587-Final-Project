@@ -4,13 +4,13 @@ base_table_fig.py — Fast re-rank, re-plot, and LaTeX table for base.py logisti
 
 Requires base.py to have been run at least once (stage checkpoints must exist).
 Plot curve data is cached in output/base_plot_curves/ — a separate directory that
-base.py does NOT clear — so changing CV_SELECTION_CRITERIA weights is fast after
+base.py does NOT clear — so changing TEST_SELECTION_CRITERIA weights is fast after
 the first run.
 
 Run order:
   1. python base.py          (trains models, writes stage checkpoints)
   2. python base_table_fig.py  (caches all plot curves, writes plots + LaTeX table)
-  3. Edit CV_SELECTION_CRITERIA weights in H_eval.py
+  3. Edit TEST_SELECTION_CRITERIA weights in H_eval.py
   4. python base_table_fig.py  (< 2 min: loads all caches, re-ranks, re-plots)
 
 NOTE: base.py calls clear_output_checkpoints() at startup, which deletes the
@@ -56,7 +56,7 @@ from base import (
 )
 from H_prep import clean_data, import_data, to_binary_class
 from H_eval import (
-    CV_SELECTION_CRITERIA,
+    TEST_SELECTION_CRITERIA,
     get_or_compute_final_metrics,
     _metrics_stage_name,
     rank_models_by_metrics,
@@ -321,9 +321,9 @@ if __name__ == "__main__":
     combined_df = pd.concat([comparison_df, dow_df])
     combined_df.index.name = 'Model'
 
-    # Rank using CV_SELECTION_CRITERIA (only this section changes when you reweight)
-    ranked_df = rank_models_by_metrics(pd.DataFrame(ranking_rows), criteria=CV_SELECTION_CRITERIA)
-    rank_cols = ['Model'] + [f'rank_{k}' for k in CV_SELECTION_CRITERIA] + ['average_rank']
+    # Rank using TEST_SELECTION_CRITERIA (only this section changes when you reweight)
+    ranked_df = rank_models_by_metrics(pd.DataFrame(ranking_rows), criteria=TEST_SELECTION_CRITERIA)
+    rank_cols = ['Model'] + [f'rank_{k}' for k in TEST_SELECTION_CRITERIA] + ['average_rank']
     print("\n===== Ranked Models =====")
     print(ranked_df[[c for c in rank_cols if c in ranked_df.columns]].to_string(index=False))
 

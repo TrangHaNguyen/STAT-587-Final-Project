@@ -37,7 +37,7 @@ from H_modeling import (
     transform_with_fitted_scaler_pca,
 )
 from H_eval import (
-    CV_SELECTION_CRITERIA,
+    TEST_SELECTION_CRITERIA,
     get_final_metrics,
     get_or_compute_final_metrics,
     _metrics_stage_name,
@@ -126,13 +126,40 @@ def _make_rf_max_features_sort_value(n_features: int):
 
     return _sort_value
 
-def make_one_se_refit(
-    complexity_cols: list[str],
-    fixed_cols: list[str] | None = None,
-    sort_value_map: dict[str, callable] | None = None,
-):
-    """Return a GridSearchCV refit callable implementing the 1-SE rule."""
-    def _pick_index(cv_results):
+
+def _patch_rf_n_features_for_plot(search):
+    """Patch n_features_in_ on a search to the RF classifier's actual input feature count.
+
+    When loaded from a checkpoint (SimpleNamespace), n_features_in_ is absent and
+    gridsearch_curve_data defaults it to 1, causing max_features labels to show '(1)'.
+    For PCA RF the correct count is the number of PCA components fed to the classifier.
+    """
+    try:
+        estimator = search.best_estimator_
+        clf = getattr(estimator, 'named_steps', {}).get('classifier')
+        if clf is not None and hasattr(clf, 'n_features_in_'):
+            search.n_features_in_ = clf.n_features_in_
+            return
+        if hasattr(estimator, 'n_features_in_'):
+            search.n_features_in_ = estimator.n_features_in_
+    except Exception:
+        pass
+
+
+class _OneSERefit:
+    """Picklable callable implementing the 1-SE rule for GridSearchCV refit."""
+
+    def __init__(
+        self,
+        complexity_cols: list[str],
+        fixed_cols: list[str] | None = None,
+        sort_value_map: dict[str, callable] | None = None,
+    ):
+        self.complexity_cols = complexity_cols
+        self.fixed_cols = fixed_cols
+        self.sort_value_map = sort_value_map
+
+    def __call__(self, cv_results):
         mean = np.asarray(cv_results["mean_test_score"], dtype=float)
         std = np.asarray(cv_results["std_test_score"], dtype=float)
         se = std / np.sqrt(TIME_SERIES_CV_SPLITS)
@@ -141,27 +168,33 @@ def make_one_se_refit(
         candidate_idx = np.where(mean >= threshold)[0]
         if len(candidate_idx) == 0:
             return best_idx
-        if fixed_cols:
-            for col in fixed_cols:
+        if self.fixed_cols:
+            for col in self.fixed_cols:
                 param_key = f"param_{col}"
                 best_val = cv_results[param_key][best_idx]
-                candidate_idx = np.array([i for i in candidate_idx if cv_results[param_key][i] == best_val], dtype=int)
+                candidate_idx = np.array(
+                    [i for i in candidate_idx if cv_results[param_key][i] == best_val], dtype=int
+                )
                 if len(candidate_idx) == 0:
                     return best_idx
 
         def key_fn(i: int):
-            complexity = []
-            for col in complexity_cols:
-                param_key = f"param_{col}"
-                val = cv_results[param_key][i]
-                sort_fn = (sort_value_map or {}).get(col, _as_sortable_numeric)
-                complexity.append(sort_fn(val))
-            # Prefer simplest model; if tie, prefer higher score.
+            complexity = [
+                (self.sort_value_map or {}).get(col, _as_sortable_numeric)(cv_results[f"param_{col}"][i])
+                for col in self.complexity_cols
+            ]
             return tuple(complexity + [-float(mean[i])])
 
         return int(min(candidate_idx, key=key_fn))
 
-    return _pick_index
+
+def make_one_se_refit(
+    complexity_cols: list[str],
+    fixed_cols: list[str] | None = None,
+    sort_value_map: dict[str, callable] | None = None,
+) -> "_OneSERefit":
+    """Return a GridSearchCV refit callable implementing the 1-SE rule."""
+    return _OneSERefit(complexity_cols, fixed_cols, sort_value_map)
 
 RECALL_NOTE = "Recall = positive-class sensitivity, TP / (TP + FN). Specificity = TN / (TN + FP)."
 
@@ -718,6 +751,10 @@ if __name__ == "__main__":
     )
     print(f"LaTeX table saved to:           {os.path.abspath(tex_path)}")
 
+    for _s in [raw_searches['Raw RF'], raw_searches['PCA RF'],
+               dow_searches['Raw RF'], dow_searches['PCA RF']]:
+        _patch_rf_n_features_for_plot(_s)
+
     plot_candidates = {
         'Raw RF': {
             'search': raw_searches['Raw RF'],
@@ -753,7 +790,7 @@ if __name__ == "__main__":
         },
     }
     ranking_rows = raw_ranking_rows + dow_ranking_rows
-    ranked_df = rank_models_by_metrics(pd.DataFrame(ranking_rows), criteria=CV_SELECTION_CRITERIA)
+    ranked_df = rank_models_by_metrics(pd.DataFrame(ranking_rows), criteria=TEST_SELECTION_CRITERIA)
     best_model_name = str(ranked_df.iloc[0]["Model"])
     plot_model_name = select_non_degenerate_plot_model(ranked_df, available_models=plot_candidates)
     best_candidate = plot_candidates[plot_model_name]

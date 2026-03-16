@@ -1,0 +1,208 @@
+{
+  "stages": {
+    "model:base:v1": {
+      "command": [
+        "/Users/tranghanguyen/STAT-587-Final-Project/.venv/bin/python",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/base.py"
+      ],
+      "duration_sec": 196.25,
+      "finished_at": "2026-03-15 21:06:34",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/model_base_v1.log",
+      "return_code": 1,
+      "status": "failed"
+    },
+    "model:base_nn:v1": {
+      "command": [
+        "/Users/tranghanguyen/STAT-587-Final-Project/.venv/bin/python",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/base_NN.py"
+      ],
+      "duration_sec": 1.65,
+      "finished_at": "2026-03-14 23:33:07",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/model_base_nn_v1.log",
+      "return_code": 0,
+      "status": "completed"
+    },
+    "model:base_rf:v1": {
+      "command": [
+        "/home/trnguye2/STAT-587-Final-Project/.venv/bin/python",
+        "/home/trnguye2/STAT-587-Final-Project/PyScripts/Models/base_random_forest.py"
+      ],
+      "duration_sec": 2882.51,
+      "finished_at": "2026-03-14 04:53:10",
+      "log_file": "/home/trnguye2/STAT-587-Final-Project/output/model_base_rf_v1.log",
+      "return_code": 0,
+      "status": "completed"
+    },
+    "model:base_svm:v1": {
+      "command": [
+        "/home/trnguye2/STAT-587-Final-Project/.venv/bin/python",
+        "/home/trnguye2/STAT-587-Final-Project/PyScripts/Models/base_SVM.py"
+      ],
+      "duration_sec": 421.8,
+      "finished_at": "2026-03-14 05:00:12",
+      "log_file": "/home/trnguye2/STAT-587-Final-Project/output/model_base_svm_v1.log",
+      "return_code": 0,
+      "status": "completed"
+    },
+    "model:logreg:v1": {
+      "command": [
+        "/home/trnguye2/STAT-587-Final-Project/.venv/bin/python",
+        "/home/trnguye2/STAT-587-Final-Project/PyScripts/Models/logistic_regression.py"
+      ],
+      "duration_sec": 531.84,
+      "finished_at": "2026-03-14 05:09:07",
+      "log_file": "/home/trnguye2/STAT-587-Final-Project/output/model_logreg_v1.log",
+      "return_code": 0,
+      "status": "completed"
+    },
+    "model:nn:v1": {
+      "command": [
+        "/home/trnguye2/STAT-587-Final-Project/.venv/bin/python",
+        "/home/trnguye2/STAT-587-Final-Project/PyScripts/Models/NN.py"
+      ],
+      "duration_sec": 2.83,
+      "finished_at": "2026-03-14 15:23:00",
+      "log_file": "/home/trnguye2/STAT-587-Final-Project/output/model_nn_v1.log",
+      "return_code": 1,
+      "status": "failed"
+    },
+    "model:rf:v1": {
+      "command": [
+        "/Users/tranghanguyen/STAT-587-Final-Project/.venv/bin/python",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/random_forest.py"
+      ],
+      "duration_sec": 566.7,
+      "finished_at": "2026-03-15 19:37:02",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/model_rf_v1.log",
+      "return_code": 0,
+      "status": "completed"
+    },
+    "model:svm:v1": {
+      "command": [
+        "/Users/tranghanguyen/STAT-587-Final-Project/.venv/bin/python",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/SVM.py"
+      ],
+      "duration_sec": 313.7,
+      "finished_at": "2026-03-15 19:42:16",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/model_svm_v1.log",
+      "return_code": 0,
+      "status": "completed"
+    },
+    "plot:logreg_lasso_c:v1": {
+      "command": [
+        "/Users/tranghanguyen/STAT-587-Final-Project/.venv/bin/python",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/over_under_fit.py",
+        "--model",
+        "logreg",
+        "--x-param",
+        "param_classifier__C",
+        "--model-name",
+        "LogReg_LASSO",
+        "--grid-version",
+        "v1",
+        "--trend-window",
+        "8",
+        "--out",
+        "/Users/tranghanguyen/STAT-587-Final-Project/output/8yrs_over_under_fit_logreg_lasso_c_v1.png"
+      ],
+      "duration_sec": 0.6,
+      "finished_at": "2026-03-15 19:42:17",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/plot_logreg_lasso_c_v1.log",
+      "return_code": 0,
+      "status": "completed"
+    },
+    "plot:logreg_pca_c:v1": {
+      "command": [
+        "/Users/tranghanguyen/STAT-587-Final-Project/.venv/bin/python",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/over_under_fit.py",
+        "--model",
+        "logreg",
+        "--x-param",
+        "param_C",
+        "--model-name",
+        "LogReg_PCA_Ridge_refit",
+        "--grid-version",
+        "v1",
+        "--trend-window",
+        "8",
+        "--out",
+        "/Users/tranghanguyen/STAT-587-Final-Project/output/8yrs_over_under_fit_logreg_pca_c_v1.png"
+      ],
+      "duration_sec": 0.59,
+      "finished_at": "2026-03-15 19:42:18",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/plot_logreg_pca_c_v1.log",
+      "return_code": 0,
+      "status": "completed"
+    },
+    "plot:logreg_pca_ncomp:v1": {
+      "command": [
+        "/home/trnguye2/STAT-587-Final-Project/.venv/bin/python",
+        "/home/trnguye2/STAT-587-Final-Project/PyScripts/Models/over_under_fit.py",
+        "--model",
+        "logreg",
+        "--x-param",
+        "param_pca__n_components",
+        "--model-name",
+        "LogReg_PCA_Ridge",
+        "--grid-version",
+        "v1",
+        "--trend-window",
+        "8",
+        "--out",
+        "/home/trnguye2/STAT-587-Final-Project/output/8yrs_over_under_fit_logreg_pca_ncomp_v1.png"
+      ],
+      "duration_sec": 1.14,
+      "finished_at": "2026-03-14 15:23:03",
+      "log_file": "/home/trnguye2/STAT-587-Final-Project/output/plot_logreg_pca_ncomp_v1.log",
+      "return_code": 0,
+      "status": "completed"
+    },
+    "plot:logreg_ridge_c:v1": {
+      "command": [
+        "/Users/tranghanguyen/STAT-587-Final-Project/.venv/bin/python",
+        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/over_under_fit.py",
+        "--model",
+        "logreg",
+        "--x-param",
+        "param_classifier__C",
+        "--model-name",
+        "LogReg_Ridge",
+        "--grid-version",
+        "v1",
+        "--trend-window",
+        "8",
+        "--out",
+        "/Users/tranghanguyen/STAT-587-Final-Project/output/8yrs_over_under_fit_logreg_ridge_c_v1.png"
+      ],
+      "duration_sec": 0.58,
+      "finished_at": "2026-03-15 19:42:17",
+      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/plot_logreg_ridge_c_v1.log",
+      "return_code": 0,
+      "status": "completed"
+    },
+    "plot:svm_linear_c:v1": {
+      "command": [
+        "/home/trnguye2/STAT-587-Final-Project/.venv/bin/python",
+        "/home/trnguye2/STAT-587-Final-Project/PyScripts/Models/over_under_fit.py",
+        "--model",
+        "svm",
+        "--x-param",
+        "param_classifier__C",
+        "--model-name",
+        "SVM_linear",
+        "--grid-version",
+        "v1",
+        "--trend-window",
+        "8",
+        "--out",
+        "/home/trnguye2/STAT-587-Final-Project/output/8yrs_over_under_fit_svm_linear_c_v1.png"
+      ],
+      "duration_sec": 1.25,
+      "finished_at": "2026-03-14 15:23:01",
+      "log_file": "/home/trnguye2/STAT-587-Final-Project/output/plot_svm_linear_c_v1.log",
+      "return_code": 0,
+      "status": "completed"
+    }
+  },
+  "updated_at": "2026-03-15 21:06:34"
+}

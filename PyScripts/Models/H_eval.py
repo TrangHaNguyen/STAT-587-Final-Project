@@ -1,3 +1,4 @@
+import re
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -13,6 +14,16 @@ import datetime
 
 from H_helpers import safe_div
 from model_grids import TIME_SERIES_CV_SPLITS
+
+# Shared CV-based selection criteria used by all non-NN scripts to pick the
+# best candidate without leaking test-set information into model selection.
+CV_SELECTION_CRITERIA = {
+    'validation_avg_roc_auc':     {'ascending': False, 'weight': 1.0},
+    'validation_avg_accuracy':    {'ascending': False, 'weight': 1.0},
+    'validation_avg_sensitivity': {'ascending': False, 'weight': 0.5},
+    'validation_avg_specificity': {'ascending': False, 'weight': 0.5},
+    'validation_std_accuracy':    {'ascending': True,  'weight': 0.5},
+}
 
 MODEL_N_JOBS=int(os.getenv("MODEL_N_JOBS", "-1"))
 
@@ -70,9 +81,9 @@ def rank_models_by_metrics(results, criteria=None) -> pd.DataFrame:
     By default, models are ranked using the final holdout test metrics for
     every tuned candidate model passed into this function. The default weights
     are:
-    - test ROC-AUC: weight 1.5
-    - test sensitivity: weight 1
-    - test specificity: weight 1
+    - test ROC-AUC (macro): weight 1.5
+    - test sensitivity (positive-class): weight 1
+    - test specificity (positive-class): weight 1
     - test accuracy: weight 0.5
 
     Rank 1 is best for each metric, and larger ranks are worse. The reported
@@ -87,8 +98,8 @@ def rank_models_by_metrics(results, criteria=None) -> pd.DataFrame:
         criteria = {
             'test_split_accuracy': {'ascending': False, 'weight': 0.5},
             'test_roc_auc_macro': {'ascending': False, 'weight': 1.5},
-            'test_sensitivity_macro': {'ascending': False, 'weight': 1.0},
-            'test_specificity_macro': {'ascending': False, 'weight': 1.0},
+            'test_sensitivity': {'ascending': False, 'weight': 1.0},
+            'test_specificity': {'ascending': False, 'weight': 1.0},
         }
 
     if isinstance(results, pd.DataFrame):
@@ -541,7 +552,7 @@ def comparison_row_from_metrics(model_name: str, metrics: dict) -> dict:
         'Test Acc': metrics['test_split_accuracy'],
         'MCC': metrics['test_matthew_corr_coef'],
         'Precision': metrics['test_precision'],
-        'Sensitivity (Macro)': metrics['test_sensitivity_macro'],
+        'Recall': metrics['test_sensitivity'],
         'Specificity': metrics['test_specificity'],
         'F1': metrics['test_f1'],
         'ROC-AUC': metrics['test_roc_auc_macro'],
@@ -552,7 +563,7 @@ def comparison_row_from_metrics(model_name: str, metrics: dict) -> dict:
 def build_base_style_comparison_df(rows: list[dict]) -> pd.DataFrame:
     df = pd.DataFrame(rows).set_index('Model')
     # Hidden for report export for now: Precision, F1, CV Acc SD
-    keep_cols = ['ROC-AUC', 'MCC', 'Test Acc', 'Sensitivity (Macro)', 'Specificity']
+    keep_cols = ['ROC-AUC', 'MCC', 'Test Acc', 'Recall', 'Specificity']
     return df[keep_cols]
 
 
@@ -564,7 +575,7 @@ def build_compact_export_table(
     """Keep only compact reporting columns and optionally rename rows for export."""
     if keep_cols is None:
         # Hidden for report export for now: Precision, F1, CV Acc SD
-        keep_cols = ['ROC-AUC', 'MCC', 'Test Acc', 'Sensitivity (Macro)', 'Specificity']
+        keep_cols = ['ROC-AUC', 'MCC', 'Test Acc', 'Recall', 'Specificity']
     export_df = df.copy()[keep_cols]
     if index_renames:
         export_df = export_df.rename(index=index_renames)
@@ -591,8 +602,8 @@ def register_global_model_candidates(
         'Model',
         'test_split_accuracy',
         'test_roc_auc_macro',
-        'test_sensitivity_macro',
-        'test_specificity_macro',
+        'test_sensitivity',
+        'test_specificity',
         'validation_std_accuracy',
     ]
     missing = [col for col in required_cols if col not in ranking_df.columns]
@@ -735,6 +746,7 @@ def get_final_metrics(model_obj, X_train, y_train, X_test, y_test, n_splits: int
         'precision': make_scorer(precision_score, zero_division=0),
         'sensitivity': make_scorer(recall_score, zero_division=0),
         'specificity': make_scorer(_specificity_score),
+        'roc_auc': 'roc_auc',
     }
     with warnings.catch_warnings():
         warnings.filterwarnings(
@@ -766,6 +778,7 @@ def get_final_metrics(model_obj, X_train, y_train, X_test, y_test, n_splits: int
     mean_test_recall=np.mean(cv_results['test_sensitivity'])
     mean_test_precision=np.mean(cv_results['test_precision'])
     mean_test_specificity=np.mean(cv_results['test_specificity'])
+    mean_test_roc_auc=np.mean(cv_results['test_roc_auc'])
 
     final_score=model_obj.score(X_test, y_test)
 
@@ -827,6 +840,7 @@ def get_final_metrics(model_obj, X_train, y_train, X_test, y_test, n_splits: int
         "validation_avg_recall": round(mean_test_recall, 3),
         "validation_avg_sensitivity": round(mean_test_recall, 3),
         "validation_avg_specificity": round(mean_test_specificity, 3),
+        "validation_avg_roc_auc": round(mean_test_roc_auc, 3),
         "test_split_accuracy": round(final_score, 3),
         "test_misclassification_error": round(misclassification_error, 3),
         "test_roc_auc_macro": round(roc_auc_macro, 3),
@@ -855,6 +869,33 @@ def get_final_metrics(model_obj, X_train, y_train, X_test, y_test, n_splits: int
         "test_rows": X_test.shape[0],
         "test_cols": X_test.shape[1],
     }
+
+def _metrics_stage_name(label: str) -> str:
+    slug = re.sub(r'[^a-z0-9]+', '_', label.lower()).strip('_')
+    return f"metrics_{slug}"
+
+
+def get_or_compute_final_metrics(
+    checkpoint_dir,
+    stage_name: str,
+    model_obj,
+    X_train,
+    y_train,
+    X_test,
+    y_test,
+    n_splits: int = TIME_SERIES_CV_SPLITS,
+    label: str | None = None,
+) -> dict:
+    """Load metrics from checkpoint if available, otherwise run get_final_metrics and save."""
+    from H_search_history import stage_checkpoint_exists, load_stage_checkpoint, save_stage_checkpoint
+    checkpoint_dir = Path(checkpoint_dir)
+    if stage_checkpoint_exists(checkpoint_dir, stage_name):
+        print(f"Loading metrics checkpoint for {stage_name}")
+        return load_stage_checkpoint(checkpoint_dir, stage_name)
+    metrics = get_final_metrics(model_obj, X_train, y_train, X_test, y_test, n_splits=n_splits, label=label)
+    save_stage_checkpoint(checkpoint_dir, stage_name, metrics)
+    return metrics
+
 
 class RollingWindowBacktest:
     def __init__(self, model: BaseEstimator, X: pd.DataFrame | None =None, y: pd.DataFrame | None =None, X_train: pd.DataFrame =None, window_size: int | None =None, horizon: int | None = None):

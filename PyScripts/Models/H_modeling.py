@@ -15,6 +15,7 @@ from sklearn.base import clone
 
 from H_search_history import (
     append_search_history,
+    history_has_entry,
     load_search_checkpoint,
     save_search_checkpoint,
     search_checkpoint_exists,
@@ -95,7 +96,19 @@ def fit_or_load_search(
 ):
     if search_checkpoint_exists(checkpoint_dir, stage_name):
         print(f"Loading checkpoint for {model_name} from {checkpoint_dir / stage_name}")
-        return load_search_checkpoint(checkpoint_dir, stage_name)
+        loaded = load_search_checkpoint(checkpoint_dir, stage_name)
+        if not history_has_entry(history_path, model_name, grid_label):
+            append_search_history(
+                history_path=history_path,
+                cv_results=loaded.cv_results_,
+                run_time=run_time,
+                model_name=model_name,
+                search_type="grid",
+                grid_version=grid_label,
+                notes=notes,
+                best_params=loaded.best_params_,
+            )
+        return loaded
 
     if fit_search is None:
         search_obj.fit(X_train, y_train)

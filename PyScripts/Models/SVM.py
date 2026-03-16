@@ -16,7 +16,10 @@ os.environ.setdefault("MPLCONFIGDIR", os.path.abspath(MPLCONFIGDIR))
 from H_prep import clean_data, import_data, data_clean_param_selection, to_binary_class
 from H_modeling import fit_or_load_search, load_input_data, make_one_se_refit
 from H_eval import (
+    CV_SELECTION_CRITERIA,
     get_final_metrics,
+    get_or_compute_final_metrics,
+    _metrics_stage_name,
     rank_models_by_metrics,
     select_non_degenerate_plot_model,
     save_best_model_plots_from_gridsearch_all_params,
@@ -59,18 +62,11 @@ SAMPLE_PARQUET_PATH = os.path.join(
     '..', 'Data', 'sample.parquet'
 )
 
-CV_SELECTION_CRITERIA = {
-    'validation_avg_accuracy': {'ascending': False, 'weight': 0.5},
-    'validation_avg_precision': {'ascending': False, 'weight': 1.0},
-    'validation_avg_sensitivity': {'ascending': False, 'weight': 1.0},
-    'validation_avg_specificity': {'ascending': False, 'weight': 1.0},
-    'validation_std_accuracy': {'ascending': True, 'weight': 0.5},
-}
-
 FINAL_METHOD_GROUPS = {
     "Logistic Regression": ["base.py", "logistic_regression.py"],
     "Random Forest": ["base_random_forest.py", "random_forest.py"],
     "SVM": ["base_SVM.py", "SVM.py"],
+    "Neural Network": ["base_NN.py", "NN.py"],
 }
 
 
@@ -110,7 +106,13 @@ def write_final_method_comparison_from_leaderboard(output_dir, output_prefix: st
         if script_df.empty:
             print(f"Skipping {method_label} in final methods table: no registered candidates found.")
             continue
-        ranked_script_df = rank_models_by_metrics(script_df, criteria=CV_SELECTION_CRITERIA)
+        # Fall back to default test-metric ranking for models without CV tuning (e.g. NN).
+        effective_criteria = (
+            CV_SELECTION_CRITERIA
+            if set(CV_SELECTION_CRITERIA.keys()).issubset(script_df.columns)
+            else None
+        )
+        ranked_script_df = rank_models_by_metrics(script_df, criteria=effective_criteria)
         winner = ranked_script_df.iloc[0]
         finalist_rows.append(
             comparison_row_from_metrics(
@@ -124,15 +126,15 @@ def write_final_method_comparison_from_leaderboard(output_dir, output_prefix: st
         return
 
     final_comparison_df = build_base_style_comparison_df(finalist_rows)
-    final_comparison_csv = output_dir / f"{output_prefix}_3methods_comparison.csv"
-    final_comparison_tex = output_dir / f"{output_prefix}_3methods_comparison.tex"
+    final_comparison_csv = output_dir / f"{output_prefix}_4methods_comparison.csv"
+    final_comparison_tex = output_dir / f"{output_prefix}_4methods_comparison.tex"
     final_comparison_df.to_csv(final_comparison_csv, float_format='%.3f')
     write_base_style_latex_table(
         final_comparison_df,
         final_comparison_tex,
-        f'{output_prefix} 3-method comparison',
-        f'tab:{output_prefix}_3methods_comparison',
-        'Each row is the single winner for one method family across its feature-set variants. Winners are selected using training-only time-series CV metrics, and the table reports the final hold-out test metrics for those pre-selected winners.'
+        f'{output_prefix} 4-method comparison',
+        f'tab:{output_prefix}_4methods_comparison',
+        'Each row is the single winner for one method family across its feature-set variants. For Logistic Regression, Random Forest, and SVM, winners are selected using training-only time-series CV metrics. For Neural Network, winners are selected using hold-out test metrics (no CV tuning). All rows report final hold-out test metrics.'
     )
     print("\n===== Final Cross-Family Comparison (CV-selected finalists, test-reported) =====")
     print(final_comparison_df.to_string())
@@ -246,7 +248,7 @@ if __name__ == "__main__":
 
     optimized_linear_ = grid_search_linear.best_estimator_
 
-    results=get_final_metrics(optimized_linear_, X_train, y_train, X_test, y_test, label="Linear Ker. SVM")
+    results=get_or_compute_final_metrics(checkpoint_dir, _metrics_stage_name("Linear Ker. SVM"), optimized_linear_, X_train, y_train, X_test, y_test, label="Linear Ker. SVM")
     linear_results = results.copy()
     # RollingWindowBacktest disabled to save runtime. Restore this block if needed later.
     # rwb_obj=RollingWindowBacktest(clone(grid_search_linear.best_estimator_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
@@ -291,7 +293,7 @@ if __name__ == "__main__":
 
     optimized_rbf_ = grid_search_rbf.best_estimator_
 
-    results=get_final_metrics(optimized_rbf_, X_train, y_train, X_test, y_test, label="RBF Ker. SVM")
+    results=get_or_compute_final_metrics(checkpoint_dir, _metrics_stage_name("RBF Ker. SVM"), optimized_rbf_, X_train, y_train, X_test, y_test, label="RBF Ker. SVM")
     rbf_results = results.copy()
     # RollingWindowBacktest disabled to save runtime. Restore this block if needed later.
     # rwb_obj=RollingWindowBacktest(clone(grid_search_rbf.best_estimator_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
@@ -337,7 +339,7 @@ if __name__ == "__main__":
 
     optimized_poly_ = grid_search_poly.best_estimator_
 
-    results=get_final_metrics(optimized_poly_, X_train, y_train, X_test, y_test, label="Poly. Ker. SVM")
+    results=get_or_compute_final_metrics(checkpoint_dir, _metrics_stage_name("Poly. Ker. SVM"), optimized_poly_, X_train, y_train, X_test, y_test, label="Poly. Ker. SVM")
     poly_results = results.copy()
     # RollingWindowBacktest disabled to save runtime. Restore this block if needed later.
     # rwb_obj=RollingWindowBacktest(clone(grid_search_poly.best_estimator_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
@@ -390,7 +392,7 @@ if __name__ == "__main__":
         comparison_tex,
         'SVM Model Comparison',
         'tab:svm_comparison',
-        'Test Acc = plain hold-out accuracy on the final 20% test split. All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. Sensitivity (Macro) = macro-averaged recall across both classes.'
+        'Test Acc = plain hold-out accuracy on the final 20% test split. All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. Recall = positive-class sensitivity, TP / (TP + FN). Specificity = TN / (TN + FP).'
     )
     print(f"Local ranked/exported winner in SVM.py: {best_model_name}")
     print(f"Local plot winner in SVM.py: {plot_model_name}")

@@ -33,6 +33,7 @@ else:
 sys.path.append(os.path.abspath(cwd / "PyScripts" / "Models"))
 
 from H_eval import (
+    CV_SELECTION_CRITERIA,
     build_base_style_comparison_df,
     build_compact_export_table,
     comparison_row_from_metrics,
@@ -381,6 +382,19 @@ def _load_or_compute_model_payload(checkpoint_dir: Path, stage_name: str, comput
     return payload
 
 
+def _load_or_compute_epoch_curve(checkpoint_dir: Path, stage_name: str, compute_fn) -> dict:
+    """Checkpoint helper for epoch-selection curves."""
+    if stage_checkpoint_exists(checkpoint_dir, stage_name):
+        print(f"Loading epoch-curve checkpoint for {stage_name}")
+        payload = load_stage_checkpoint(checkpoint_dir, stage_name)
+        if isinstance(payload, dict) and "selected_label" in payload:
+            return payload
+        print(f"Epoch-curve checkpoint for {stage_name} is invalid. Recomputing.")
+    payload = compute_fn()
+    save_stage_checkpoint(checkpoint_dir, stage_name, payload)
+    return payload
+
+
 def _train_test_split_with_optional_dates(X, y, sample_dates=None):
     if sample_dates is None:
         X_train, X_test, y_train, y_test = train_test_split(
@@ -560,67 +574,32 @@ def _save_nn_curve_pair(curve, model_title: str, feature_title: str, x_label: st
 def generate_nn_epoch_diagnostics(
     *,
     ranking_df: pd.DataFrame,
-    sequence_length: int,
-    n_features: int,
-    X_seq_3d,
-    X_seq_flat,
-    y_seq,
-    sample_dates,
+    curves: dict,
     output_dir: Path,
     output_prefix: str,
     feature_title: str,
 ) -> tuple[str, list[Path]]:
-    ranked_df = rank_models_by_metrics(ranking_df)
+    """Plot epoch diagnostics for the best-ranked NN architecture using pre-computed curves.
+
+    ``curves`` must be a dict mapping architecture keys ``"LSTM"``, ``"RNN"``, ``"CNN"``
+    to the curve dicts returned by ``_compute_epoch_curve``.  The curves should have
+    been computed (and checkpointed) before calling this function so that the
+    CV-selected epoch used for model evaluation matches what is shown in the plots.
+    """
+    ranked_df = rank_models_by_metrics(ranking_df, criteria=CV_SELECTION_CRITERIA)
     plot_model_name = str(ranked_df.iloc[0]["Model"])
     output_bv = output_dir / f"{output_prefix}_nn_best_bias_variance.png"
     output_direct = output_dir / f"{output_prefix}_nn_best_train_test.png"
 
     if plot_model_name.endswith("LSTM"):
-        params = _first_grid_params(NN_LSTM_PARAM_GRID)
-        params.pop("sequence_length", None)
-        epoch_values = list(NN_LSTM_PARAM_GRID["epochs"])
-        estimator = _KerasSequenceClassifier(
-            architecture="lstm",
-            sequence_length=sequence_length,
-            n_features=n_features,
-            verbose=0,
-            **params,
-        )
-        epoch_param_name = "epochs"
-        model_title = "LSTM"
+        arch_key, model_title = "LSTM", "LSTM"
     elif plot_model_name.endswith("RNN"):
-        params = _first_grid_params(NN_RNN_PARAM_GRID)
-        params.pop("sequence_length", None)
-        epoch_values = list(NN_RNN_PARAM_GRID["epochs"])
-        estimator = _KerasSequenceClassifier(
-            architecture="rnn",
-            sequence_length=sequence_length,
-            n_features=n_features,
-            verbose=0,
-            **params,
-        )
-        epoch_param_name = "epochs"
-        model_title = "RNN"
+        arch_key, model_title = "RNN", "RNN"
     else:
-        params = _first_pipeline_params(NN_CNN_PARAM_GRID, "classifier__")
-        params.pop("sequence_length", None)
-        epoch_values = list(NN_CNN_PARAM_GRID["classifier__max_iter"])
-        estimator = Pipeline([
-            ("scaler", StandardScaler()),
-            ("classifier", MLPClassifier(
-                random_state=RANDOM_SEED,
-                verbose=0,
-                **params,
-            )),
-        ])
-        epoch_param_name = "classifier__max_iter"
-        model_title = "CNN"
+        arch_key, model_title = "CNN", "CNN"
 
-    X_plot = X_seq_flat if plot_model_name.endswith("CNN") else X_seq_3d
-    X_train, X_test, y_train, y_test, _ = _train_test_split_with_optional_dates(X_plot, y_seq, sample_dates)
-    curve = _compute_epoch_curve(estimator, X_train, y_train, X_test, y_test, epoch_values, epoch_param_name)
     _save_nn_curve_pair(
-        curve,
+        curves[arch_key],
         model_title=plot_model_name,
         feature_title=feature_title,
         x_label="Epochs / Max Iterations\n← Simpler training budget                    More training budget →",
@@ -648,9 +627,58 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     checkpoint_dir = get_checkpoint_dir(output_dir, "NN", f"{DATASET_LABEL}_{GRID_VERSION}")
 
+    # Pre-split once so epoch selection and model evaluation use the same split.
+    X_train_3d, X_test_3d, y_train, y_test, _ = _train_test_split_with_optional_dates(X_seq_3d, y_seq, seq_dates)
+    X_train_flat, X_test_flat, _, _, _ = _train_test_split_with_optional_dates(X_seq_flat, y_seq, seq_dates)
+
+    # --- Step 1: CV epoch selection (1SE rule) ---
+    def _compute_lstm_curve():
+        params = _first_grid_params(NN_LSTM_PARAM_GRID)
+        params.pop("sequence_length", None)
+        params.pop("epochs", None)
+        estimator = _KerasSequenceClassifier(
+            architecture="lstm", sequence_length=sequence_length, n_features=n_features, verbose=0, **params
+        )
+        return _compute_epoch_curve(estimator, X_train_3d, y_train, X_test_3d, y_test, list(NN_LSTM_PARAM_GRID["epochs"]), "epochs")
+
+    lstm_curve = _load_or_compute_epoch_curve(checkpoint_dir, "lstm_epoch_curve", _compute_lstm_curve)
+    selected_lstm_epochs = int(lstm_curve["selected_label"])
+    print(f"CV-selected LSTM epochs: {selected_lstm_epochs}")
+
+    def _compute_rnn_curve():
+        params = _first_grid_params(NN_RNN_PARAM_GRID)
+        params.pop("sequence_length", None)
+        params.pop("epochs", None)
+        estimator = _KerasSequenceClassifier(
+            architecture="rnn", sequence_length=sequence_length, n_features=n_features, verbose=0, **params
+        )
+        return _compute_epoch_curve(estimator, X_train_3d, y_train, X_test_3d, y_test, list(NN_RNN_PARAM_GRID["epochs"]), "epochs")
+
+    rnn_curve = _load_or_compute_epoch_curve(checkpoint_dir, "rnn_epoch_curve", _compute_rnn_curve)
+    selected_rnn_epochs = int(rnn_curve["selected_label"])
+    print(f"CV-selected RNN epochs: {selected_rnn_epochs}")
+
+    def _compute_cnn_curve():
+        params = _first_pipeline_params(NN_CNN_PARAM_GRID, "classifier__")
+        params.pop("sequence_length", None)
+        params.pop("max_iter", None)
+        estimator = Pipeline([
+            ("scaler", StandardScaler()),
+            ("classifier", MLPClassifier(random_state=RANDOM_SEED, verbose=0, **params)),
+        ])
+        return _compute_epoch_curve(estimator, X_train_flat, y_train, X_test_flat, y_test, list(NN_CNN_PARAM_GRID["classifier__max_iter"]), "classifier__max_iter")
+
+    cnn_curve = _load_or_compute_epoch_curve(checkpoint_dir, "cnn_epoch_curve", _compute_cnn_curve)
+    selected_cnn_max_iter = int(cnn_curve["selected_label"])
+    print(f"CV-selected CNN max_iter: {selected_cnn_max_iter}")
+
+    curves = {"LSTM": lstm_curve, "RNN": rnn_curve, "CNN": cnn_curve}
+
+    # --- Step 2: Model evaluation with CV-selected epochs ---
     def _compute_lstm_metrics():
         lstm_params = _first_grid_params(NN_LSTM_PARAM_GRID)
         lstm_sequence_length = int(lstm_params.pop("sequence_length", sequence_length))
+        lstm_params["epochs"] = selected_lstm_epochs
         lstm_estimator = _KerasSequenceClassifier(
             architecture="lstm",
             sequence_length=lstm_sequence_length,
@@ -667,6 +695,7 @@ def main() -> None:
     def _compute_rnn_metrics():
         rnn_params = _first_grid_params(NN_RNN_PARAM_GRID)
         rnn_sequence_length = int(rnn_params.pop("sequence_length", sequence_length))
+        rnn_params["epochs"] = selected_rnn_epochs
         rnn_estimator = _KerasSequenceClassifier(
             architecture="rnn",
             sequence_length=rnn_sequence_length,
@@ -688,6 +717,7 @@ def main() -> None:
                 "CNN grid default sequence_length does not match the loaded sequence data. "
                 "Keep the first sequence_length value aligned across NN grids."
             )
+        cnn_params["max_iter"] = selected_cnn_max_iter
         cnn_estimator = Pipeline([
             ("scaler", StandardScaler()),
             ("classifier", MLPClassifier(
@@ -711,16 +741,12 @@ def main() -> None:
     comparison_df = build_base_style_comparison_df(rows)
     export_df = build_compact_export_table(
         comparison_df,
-        keep_cols=["ROC-AUC", "MCC", "Test Acc", "Sensitivity (Macro)", "Specificity"],
+        keep_cols=["ROC-AUC", "MCC", "Test Acc", "Recall", "Specificity"],
     )
+    # --- Step 3: Plot using the already-computed curves ---
     plot_model_name, plot_paths = generate_nn_epoch_diagnostics(
         ranking_df=ranking_df,
-        sequence_length=sequence_length,
-        n_features=n_features,
-        X_seq_3d=X_seq_3d,
-        X_seq_flat=X_seq_flat,
-        y_seq=y_seq,
-        sample_dates=seq_dates,
+        curves=curves,
         output_dir=output_dir,
         output_prefix="8yrs",
         feature_title="Engineered sequence features",

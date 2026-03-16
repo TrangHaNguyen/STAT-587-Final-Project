@@ -34,7 +34,10 @@ from H_modeling import (
     transform_with_fitted_scaler_pca,
 )
 from H_eval import (
+    CV_SELECTION_CRITERIA,
     get_final_metrics,
+    get_or_compute_final_metrics,
+    _metrics_stage_name,
     rank_models_by_metrics,
     select_non_degenerate_plot_model,
     save_best_model_plots_from_gridsearch_all_params,
@@ -278,7 +281,7 @@ if __name__=="__main__":
 
     optimized_base_ = grid_search_base.best_estimator_
 
-    results=get_final_metrics(optimized_base_, X_train, y_train, X_test, y_test, label="Base RF")
+    results=get_or_compute_final_metrics(checkpoint_dir, _metrics_stage_name("Base RF"), optimized_base_, X_train, y_train, X_test, y_test, label="Base RF")
     base_results = results.copy()
     # RollingWindowBacktest disabled to save runtime. Restore this block if needed later.
     # rwb_obj=RollingWindowBacktest(clone(grid_search_base.best_estimator_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
@@ -384,7 +387,7 @@ if __name__=="__main__":
 
     optimized_PCA_ = fixed_pca_rf_refit
 
-    results=get_final_metrics(optimized_PCA_, X_train_pca, y_train, X_test_pca, y_test, label="PCA RF")
+    results=get_or_compute_final_metrics(checkpoint_dir, _metrics_stage_name("PCA RF"), optimized_PCA_, X_train_pca, y_train, X_test_pca, y_test, label="PCA RF")
     pca_results = results.copy()
     # RollingWindowBacktest disabled to save runtime. Restore this block if needed later.
     # rwb_obj=RollingWindowBacktest(clone(grid_search_PCA.best_estimator_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
@@ -436,7 +439,7 @@ if __name__=="__main__":
 
     optimized_LASSO_ = grid_search_LASSO.best_estimator_
 
-    results=get_final_metrics(optimized_LASSO_, X_train, y_train, X_test, y_test, label="LASSO RF")
+    results=get_or_compute_final_metrics(checkpoint_dir, _metrics_stage_name("LASSO RF"), optimized_LASSO_, X_train, y_train, X_test, y_test, label="LASSO RF")
     lasso_results = results.copy()
     # RollingWindowBacktest disabled to save runtime. Restore this block if needed later.
     # rwb_obj=RollingWindowBacktest(clone(grid_search_LASSO.best_estimator_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
@@ -487,7 +490,7 @@ if __name__=="__main__":
 
     optimized_ridge_ = grid_search_ridge.best_estimator_
 
-    results=get_final_metrics(optimized_ridge_, X_train, y_train, X_test, y_test, label="Ridge RF")
+    results=get_or_compute_final_metrics(checkpoint_dir, _metrics_stage_name("Ridge RF"), optimized_ridge_, X_train, y_train, X_test, y_test, label="Ridge RF")
     ridge_results = results.copy()
     # RollingWindowBacktest disabled to save runtime. Restore this block if needed later.
     # rwb_obj=RollingWindowBacktest(clone(grid_search_ridge.best_estimator_), X, y_classification, X_train, WINDOW_SIZE, HORIZON)
@@ -502,7 +505,7 @@ if __name__=="__main__":
         {"Model": "LASSO RF", **lasso_results},
         {"Model": "Ridge RF", **ridge_results},
     ])
-    ranked_df = rank_models_by_metrics(ranking_df)
+    ranked_df = rank_models_by_metrics(ranking_df, criteria=CV_SELECTION_CRITERIA)
     best_model_name = str(ranked_df.iloc[0]["Model"])
     plot_model_name = select_non_degenerate_plot_model(ranked_df)
     print(f"\nBest RF model by average rank: {best_model_name}")
@@ -558,7 +561,7 @@ if __name__=="__main__":
         comparison_tex,
         'Random Forest Model Comparison',
         'tab:random_forest_comparison',
-        'Test Acc = plain hold-out accuracy on the final 20% test split. All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. Sensitivity (Macro) = macro-averaged recall across both classes.'
+        'Test Acc = plain hold-out accuracy on the final 20% test split. All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. Recall = positive-class sensitivity, TP / (TP + FN). Specificity = TN / (TN + FP).'
     )
     print(f"Local ranked/exported winner in random_forest.py: {best_model_name}")
     print(f"Local plot winner in random_forest.py: {plot_model_name}")

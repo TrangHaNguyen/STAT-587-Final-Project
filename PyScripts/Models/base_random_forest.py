@@ -37,7 +37,10 @@ from H_modeling import (
     transform_with_fitted_scaler_pca,
 )
 from H_eval import (
+    CV_SELECTION_CRITERIA,
     get_final_metrics,
+    get_or_compute_final_metrics,
+    _metrics_stage_name,
     rank_models_by_metrics,
     select_non_degenerate_plot_model,
     save_best_model_plots_from_gridsearch,
@@ -160,7 +163,7 @@ def make_one_se_refit(
 
     return _pick_index
 
-RECALL_NOTE = "Sensitivity (Macro) = macro-averaged recall across both classes."
+RECALL_NOTE = "Recall = positive-class sensitivity, TP / (TP + FN). Specificity = TN / (TN + FP)."
 
 def _highlight_selected_value(
     ax,
@@ -256,9 +259,12 @@ def _run_grid_search(checkpoint_dir, stage_name, pipeline, param_grid, X_train, 
     save_search_checkpoint(checkpoint_dir, stage_name, grid_search)
     return grid_search
 
-def _run_model_report_and_backtest(search_obj, X_full, y_full, X_train, y_train, X_test, y_test, label, n_splits):
+def _run_model_report_and_backtest(search_obj, X_full, y_full, X_train, y_train, X_test, y_test, label, n_splits, checkpoint_dir=None):
     print("\n--- Model Report ---")
-    shared = get_final_metrics(search_obj.best_estimator_, X_train, y_train, X_test, y_test, n_splits=n_splits, label=label)
+    if checkpoint_dir is not None:
+        shared = get_or_compute_final_metrics(checkpoint_dir, _metrics_stage_name(label), search_obj.best_estimator_, X_train, y_train, X_test, y_test, n_splits=n_splits, label=label)
+    else:
+        shared = get_final_metrics(search_obj.best_estimator_, X_train, y_train, X_test, y_test, n_splits=n_splits, label=label)
     # RollingWindowBacktest disabled to save runtime. Restore this block if needed later.
     # print("\n--- Rolling Window Backtest ---")
     # rwb_obj = RollingWindowBacktest(
@@ -366,7 +372,7 @@ def _run_rf_suite(
         X_test_eval = spec.get('X_test_eval', X_test)
         X_train_eval = spec.get('X_train_fit', X_train)
         metric_rows[spec['name']] = _run_model_report_and_backtest(
-            search_obj, X_full, y_full, X_train_eval, y_train, X_test_eval, y_test, report_label, tscv.n_splits
+            search_obj, X_full, y_full, X_train_eval, y_train, X_test_eval, y_test, report_label, tscv.n_splits, checkpoint_dir=checkpoint_dir
         )
         searches[spec['name']] = search_obj
     pca_rf_search = searches['PCA RF']
@@ -423,6 +429,7 @@ def _run_rf_suite(
         y_test,
         f"PCA RF{heading_suffix}",
         tscv.n_splits,
+        checkpoint_dir=checkpoint_dir,
     )
     searches['PCA RF'] = pca_rf_search
     return searches, metric_rows, {
@@ -442,7 +449,7 @@ def _rf_metrics_payload(name, shared):
         'Test Acc':                    shared['test_split_accuracy'],
         'MCC':               shared['test_matthew_corr_coef'],
         'Precision':         shared['test_precision'],
-        'Sensitivity (Macro)': shared['test_sensitivity_macro'],
+        'Recall':            shared['test_sensitivity'],
         'Specificity':       shared['test_specificity'],
         'F1':                shared['test_f1'],
         'ROC-AUC':           shared['test_roc_auc_macro'],
@@ -746,7 +753,7 @@ if __name__ == "__main__":
         },
     }
     ranking_rows = raw_ranking_rows + dow_ranking_rows
-    ranked_df = rank_models_by_metrics(pd.DataFrame(ranking_rows))
+    ranked_df = rank_models_by_metrics(pd.DataFrame(ranking_rows), criteria=CV_SELECTION_CRITERIA)
     best_model_name = str(ranked_df.iloc[0]["Model"])
     plot_model_name = select_non_degenerate_plot_model(ranked_df, available_models=plot_candidates)
     best_candidate = plot_candidates[plot_model_name]

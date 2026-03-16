@@ -62,7 +62,10 @@ from model_grids import (
     TRAIN_TEST_SHUFFLE,
 )
 from H_eval import (
+    CV_SELECTION_CRITERIA,
     get_final_metrics,
+    get_or_compute_final_metrics,
+    _metrics_stage_name,
     rank_models_by_metrics,
     register_global_model_candidates,
     select_non_degenerate_plot_model,
@@ -726,7 +729,7 @@ def _retune_pca_with_fixed_logistic(
 if __name__ == "__main__":
     run_start = time.time()
     run_time = now_iso()
-    clear_output_checkpoints()
+    #clear_output_checkpoints()
     # Retained only as a compatibility switch. The active workflow no longer
     # writes diagnostic caches.
     RETRAIN_ALL = True
@@ -1121,8 +1124,8 @@ if __name__ == "__main__":
     ranking_rows = []
 
     def _eval_row(name, model, X_tr, y_tr, X_te, y_te, n_splits, best_c=None, best_c_label=None):
-        shared = get_final_metrics(
-            model, X_tr, y_tr, X_te, y_te, n_splits=n_splits, label=name
+        shared = get_or_compute_final_metrics(
+            checkpoint_dir, _metrics_stage_name(name), model, X_tr, y_tr, X_te, y_te, n_splits=n_splits, label=name
         )
         ranking_rows.append({'Model': name, **shared})
         preds = model.predict(X_te)
@@ -1144,7 +1147,7 @@ if __name__ == "__main__":
             'Test Acc':                    shared['test_split_accuracy'],
             'MCC':             shared['test_matthew_corr_coef'],
             'Precision':       shared['test_precision'],
-            'Sensitivity (Macro)': shared['test_sensitivity_macro'],
+            'Recall':          shared['test_sensitivity'],
             'Specificity':     shared['test_specificity'],
             'F1':              shared['test_f1'],
             'ROC-AUC':         shared['test_roc_auc_macro'],
@@ -1163,10 +1166,10 @@ if __name__ == "__main__":
     comparison_df = pd.DataFrame(rows).set_index('Model')
     print(comparison_df.to_string())
 
-    ranked_df = rank_models_by_metrics(pd.DataFrame(ranking_rows))
+    ranked_df = rank_models_by_metrics(pd.DataFrame(ranking_rows), criteria=CV_SELECTION_CRITERIA)
     print("\n===== Ranked Baseline Models =====")
-    print(ranked_df[['Model', 'rank_test_split_accuracy', 'rank_test_sensitivity_macro',
-                     'rank_test_specificity_macro', 'rank_test_roc_auc_macro', 'average_rank']].to_string(index=False))
+    print(ranked_df[['Model', 'rank_validation_avg_roc_auc', 'rank_validation_avg_sensitivity',
+                     'rank_validation_avg_specificity', 'rank_validation_std_accuracy', 'average_rank']].to_string(index=False))
 
     plot_configs = {
         f'Base+PCA ({n_components_raw}, {best_n_comp*100:.0f}%)': {
@@ -1672,10 +1675,10 @@ if __name__ == "__main__":
     print("\n===== Combined Comparison Table (raw + DOW) =====")
     print(combined_df.to_string())
 
-    ranked_df = rank_models_by_metrics(pd.DataFrame(ranking_rows))
+    ranked_df = rank_models_by_metrics(pd.DataFrame(ranking_rows), criteria=CV_SELECTION_CRITERIA)
     print("\n===== Ranked Models Across Raw + DOW =====")
-    print(ranked_df[['Model', 'rank_test_split_accuracy', 'rank_test_sensitivity_macro',
-                     'rank_test_specificity_macro', 'rank_test_roc_auc_macro', 'average_rank']].to_string(index=False))
+    print(ranked_df[['Model', 'rank_validation_avg_roc_auc', 'rank_validation_avg_sensitivity',
+                     'rank_validation_avg_specificity', 'rank_validation_std_accuracy', 'average_rank']].to_string(index=False))
 
     final_plot_configs = dict(plot_configs)
     final_plot_configs.update({
@@ -1894,12 +1897,12 @@ if __name__ == "__main__":
         r'Base = baseline logistic regression without regularization. '
         r'Test Acc = plain hold-out accuracy on the final 20\% test split. '
         r'All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. '
-        r'Sensitivity (Macro) = macro-averaged recall across both classes.'
+        r'Recall = positive-class sensitivity, TP / (TP + FN). Specificity = TN / (TN + FP).'
     )
     lasso_note = (
         r'$^\dagger$ Degenerate classifier: optimal $C = 10^{-6}$ shrinks all '
         r'coefficients to zero; model predicts majority class for every observation '
-        r'(Sensitivity (Macro) depends on recall across both classes; Precision $\approx$ base rate).'
+        r'(Recall $\approx 0$ or 1 depending on majority class; Precision $\approx$ base rate).'
     )
 
     degenerate_models = set(combined_df.index[combined_df['Degenerate']])

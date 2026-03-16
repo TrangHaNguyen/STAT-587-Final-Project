@@ -91,9 +91,7 @@ frozen
 state
 \@endanenote 
 \@doanenote {5}
-macro:->Among
-those,
-PCA
+macro:->PCA
 and
 wavelet
 transform

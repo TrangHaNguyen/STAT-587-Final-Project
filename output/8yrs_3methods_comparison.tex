@@ -1,0 +1,16 @@
+\begin{table}[htbp]
+\centering
+\caption{8yrs 3-method comparison}
+\label{tab:8yrs_3methods_comparison}
+\begin{tabular}{lrrrrr}
+\toprule
+Model & ROC-AUC & MCC & Test Acc & Sensitivity (Macro) & Specificity \\
+\midrule
+Logistic Regression: PCA Base & 0.494 & -0.059 & 0.453 & 0.475 & 0.731 \\
+Random Forest: Ridge RF & 0.477 & -0.055 & 0.496 & 0.476 & 0.231 \\
+SVM: RBF SVM & 0.515 & -0.046 & 0.534 & 0.494 & 0.011 \\
+\bottomrule
+\end{tabular}
+\par\smallskip
+\footnotesize Each row is the single winner for one method family across its feature-set variants. Winners are selected using training-only time-series CV metrics, and the table reports the final hold-out test metrics for those pre-selected winners.
+\end{table}

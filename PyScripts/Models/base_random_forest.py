@@ -160,7 +160,7 @@ def make_one_se_refit(
 
     return _pick_index
 
-RECALL_NOTE = "Recall = positive-class sensitivity."
+RECALL_NOTE = "Sensitivity (Macro) = macro-averaged recall across both classes."
 
 def _highlight_selected_value(
     ax,
@@ -442,7 +442,7 @@ def _rf_metrics_payload(name, shared):
         'Test Acc':                    shared['test_split_accuracy'],
         'MCC':               shared['test_matthew_corr_coef'],
         'Precision':         shared['test_precision'],
-        'Recall':            shared['test_recall'],
+        'Sensitivity (Macro)': shared['test_sensitivity_macro'],
         'Specificity':       shared['test_specificity'],
         'F1':                shared['test_f1'],
         'ROC-AUC':           shared['test_roc_auc_macro'],

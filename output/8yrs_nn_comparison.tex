@@ -1,0 +1,16 @@
+\begin{table}[htbp]
+\centering
+\caption{Neural-network model comparison on engineered sequence features.}
+\label{tab:nn_comparison}
+\begin{tabular}{lrrrrr}
+\toprule
+Model & ROC-AUC & MCC & Test Acc & Sensitivity (Macro) & Specificity \\
+\midrule
+LSTM & 0.513 & 0.029 & 0.532 & 0.513 & 0.293 \\
+RNN & 0.548 & -0.026 & 0.527 & 0.492 & 0.083 \\
+CNN & 0.454 & -0.014 & 0.519 & 0.494 & 0.199 \\
+\bottomrule
+\end{tabular}
+\par\smallskip
+\footnotesize Columns follow the base-model comparison format, excluding Precision, F1, and cross-validation columns because neural-network hyperparameters have not yet been tuned with cross-validation.
+\end{table}

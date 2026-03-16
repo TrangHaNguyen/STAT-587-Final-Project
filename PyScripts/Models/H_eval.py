@@ -287,19 +287,41 @@ def _param_values_match(series: pd.Series, target_value) -> pd.Series:
     return series.astype(str) == str(target_value)
 
 
+def _filter_curve_rows_by_best_params(df: pd.DataFrame, best_params: dict, x_param: str) -> pd.DataFrame:
+    """Filter GridSearchCV rows to the slice matching the selected fixed params.
+
+    Keep the historical column-wise filter first so existing successful model
+    code keeps the same behavior. If mixed/masked parameter columns remove
+    every row, fall back to the canonical `params` dict stored in cv_results_.
+    """
+    filtered_df = df.copy()
+    for param_name, param_value in best_params.items():
+        if param_name == x_param:
+            continue
+        col = f"param_{param_name}"
+        if col not in filtered_df.columns:
+            continue
+        filtered_df = filtered_df[_param_values_match(filtered_df[col], param_value)]
+
+    if not filtered_df.empty:
+        return filtered_df
+
+    if "params" not in df.columns:
+        return filtered_df
+
+    fallback_mask = df["params"].apply(
+        lambda params: isinstance(params, dict)
+        and all(params.get(param_name) == param_value for param_name, param_value in best_params.items() if param_name != x_param)
+    )
+    return df[fallback_mask].copy()
+
+
 def gridsearch_curve_data(search, x_param: str) -> dict:
     """Extract a one-parameter CV curve from GridSearchCV at best fixed settings."""
     df = pd.DataFrame(search.cv_results_).copy()
     best_params = search.best_params_
     n_features = int(getattr(search, "n_features_in_", 1))
-
-    for param_name, param_value in best_params.items():
-        if param_name == x_param:
-            continue
-        col = f"param_{param_name}"
-        if col not in df.columns:
-            continue
-        df = df[_param_values_match(df[col], param_value)]
+    df = _filter_curve_rows_by_best_params(df, best_params, x_param)
 
     if df.empty:
         raise ValueError(f"No GridSearchCV rows left for x_param={x_param} after filtering best fixed params.")
@@ -519,7 +541,7 @@ def comparison_row_from_metrics(model_name: str, metrics: dict) -> dict:
         'Test Acc': metrics['test_split_accuracy'],
         'MCC': metrics['test_matthew_corr_coef'],
         'Precision': metrics['test_precision'],
-        'Recall': metrics['test_recall'],
+        'Sensitivity (Macro)': metrics['test_sensitivity_macro'],
         'Specificity': metrics['test_specificity'],
         'F1': metrics['test_f1'],
         'ROC-AUC': metrics['test_roc_auc_macro'],
@@ -530,7 +552,7 @@ def comparison_row_from_metrics(model_name: str, metrics: dict) -> dict:
 def build_base_style_comparison_df(rows: list[dict]) -> pd.DataFrame:
     df = pd.DataFrame(rows).set_index('Model')
     # Hidden for report export for now: Precision, F1, CV Acc SD
-    keep_cols = ['ROC-AUC', 'MCC', 'Test Acc', 'Recall', 'Specificity']
+    keep_cols = ['ROC-AUC', 'MCC', 'Test Acc', 'Sensitivity (Macro)', 'Specificity']
     return df[keep_cols]
 
 
@@ -542,7 +564,7 @@ def build_compact_export_table(
     """Keep only compact reporting columns and optionally rename rows for export."""
     if keep_cols is None:
         # Hidden for report export for now: Precision, F1, CV Acc SD
-        keep_cols = ['ROC-AUC', 'MCC', 'Test Acc', 'Recall', 'Specificity']
+        keep_cols = ['ROC-AUC', 'MCC', 'Test Acc', 'Sensitivity (Macro)', 'Specificity']
     export_df = df.copy()[keep_cols]
     if index_renames:
         export_df = export_df.rename(index=index_renames)

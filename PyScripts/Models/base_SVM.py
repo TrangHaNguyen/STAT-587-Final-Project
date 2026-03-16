@@ -325,7 +325,7 @@ if __name__ == "__main__":
         comparison_tex,
         'Raw SVM Model Comparison',
         'tab:base_svm_comparison',
-        'Test Acc = plain hold-out accuracy on the final 20% test split. All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. Recall = positive-class sensitivity.'
+        'Test Acc = plain hold-out accuracy on the final 20% test split. All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. Sensitivity (Macro) = macro-averaged recall across both classes.'
     )
     print(f"Local ranked/exported winner in base_SVM.py: {best_model_name}")
     print(f"Local plot winner in base_SVM.py: {plot_model_name}")

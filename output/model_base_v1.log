@@ -1,0 +1,446 @@
+
+[2026-03-14 03:59:38] CMD: /home/trnguye2/STAT-587-Final-Project/.venv/bin/python /home/trnguye2/STAT-587-Final-Project/PyScripts/Models/base.py
+[2026-03-14 03:59:38] ENV: MODEL_N_JOBS=6 GRID_VERSION=v1
+No checkpoint directory to delete: /home/trnguye2/STAT-587-Final-Project/output/checkpoints
+MODEL_N_JOBS=6 (set env MODEL_N_JOBS to override)
+GRID_VERSION=v1
+------- Downloading Data
+Finished Downloading Data -------
+Initial shape: 2922 rows, 2520 columns.
+------- Cleaning data
+Finished Cleaning Data -------
+Current shape: 2011 rows, 2390 columns.
+Created Percent Changes.
+Created Target (Regression).
+------- Generating Necessary Features
+Created Target (Classification)
+Cleaned up remaining/resulting NA values.
+Predictors, and Target (Regression) successfully split.
+Finished Generating Features -------
+Final shape (X): 2009 rows, 4298 columns.
+Final shape (y_regression): 2009 rows, 1 columns.
+Feature matrix shape: 2009 rows, 2385 columns.
+Final shape — X: (2009, 2385), y: (2009,)
+
+========== Grid Search for Optimal PCA Components (Baseline) ===========
+Testing n_components: [0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.99]
+  n_components=0.65 (3 components): CV Balanced Accuracy = 0.5030 ± 0.0082
+  n_components=0.7 (4 components): CV Balanced Accuracy = 0.5015 ± 0.0077
+  n_components=0.75 (5 components): CV Balanced Accuracy = 0.4980 ± 0.0060
+  n_components=0.8 (8 components): CV Balanced Accuracy = 0.4998 ± 0.0142
+  n_components=0.85 (18 components): CV Balanced Accuracy = 0.5013 ± 0.0171
+  n_components=0.9 (61 components): CV Balanced Accuracy = 0.4992 ± 0.0069
+  n_components=0.95 (168 components): CV Balanced Accuracy = 0.5038 ± 0.0120
+  n_components=0.99 (389 components): CV Balanced Accuracy = 0.5002 ± 0.0091
+
+Best-mean CV n_components: 0.95 (168 components), CV=0.5038±0.0120
+1SE-selected n_components: 0.65 (3 components), CV=0.5030±0.0082, threshold=0.4985
+Final PCA: 2385 features → 3 components (65% variance)
+
+========== BASELINE: Plain Logistic Regression (No Regularization) + PCA ===========
+
+========== RIDGE (L2) Logistic Regression CV ==========
+Best C by mean CV (Ridge): 0.027826
+1SE-selected C (Ridge):    0.027826
+
+========== LASSO (L1) Logistic Regression CV ==========
+Best C by mean CV (LASSO): 4.641589
+1SE-selected C (LASSO):    0.000001
+
+========== RIDGE (L2) + PCA — LogisticRegressionCV ==========
+Testing n_components: [0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.99]
+  n_components=0.65 (3 components): CV Balanced Accuracy = 0.5034 ± 0.0067
+  n_components=0.7 (4 components): CV Balanced Accuracy = 0.5020 ± 0.0040
+  n_components=0.75 (5 components): CV Balanced Accuracy = 0.5028 ± 0.0055
+  n_components=0.8 (8 components): CV Balanced Accuracy = 0.5016 ± 0.0032
+  n_components=0.85 (18 components): CV Balanced Accuracy = 0.5006 ± 0.0012
+  n_components=0.9 (61 components): CV Balanced Accuracy = 0.5014 ± 0.0029
+  n_components=0.95 (168 components): CV Balanced Accuracy = 0.5023 ± 0.0046
+  n_components=0.99 (389 components): CV Balanced Accuracy = 0.5014 ± 0.0029
+Best C by mean CV (Ridge+PCA): 0.000001
+1SE-selected C (Ridge+PCA):    0.000001
+1SE-selected n_components (Ridge+PCA): 0.65 (3 components), CV=0.5034±0.0067, threshold=0.5004
+
+========== LASSO (L1) + PCA — LogisticRegressionCV ==========
+Testing n_components: [0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.99]
+  n_components=0.65 (3 components): CV Balanced Accuracy = 0.5000 ± 0.0000
+  n_components=0.7 (4 components): CV Balanced Accuracy = 0.5000 ± 0.0000
+  n_components=0.75 (5 components): CV Balanced Accuracy = 0.5000 ± 0.0000
+  n_components=0.8 (8 components): CV Balanced Accuracy = 0.5000 ± 0.0000
+  n_components=0.85 (18 components): CV Balanced Accuracy = 0.5000 ± 0.0000
+  n_components=0.9 (61 components): CV Balanced Accuracy = 0.5000 ± 0.0000
+  n_components=0.95 (168 components): CV Balanced Accuracy = 0.5000 ± 0.0000
+  n_components=0.99 (389 components): CV Balanced Accuracy = 0.5000 ± 0.0000
+Best C by mean CV (LASSO+PCA): 0.002154
+1SE-selected C (LASSO+PCA):    0.002154
+1SE-selected n_components (LASSO+PCA): 0.65 (3 components), CV=0.5000±0.0000, threshold=0.5000
+
+========== Model Comparison Table ==========
+--- Model Report ---
+Avg CV Train Plain Accuracy:      0.5482 (±0.0072)
+Avg CV Validation Plain Accuracy: 0.5019 (±0.0443)
+Avg CV Validation Precision: 0.3084
+Avg CV Validation Recall:      0.3299
+Avg CV Validation Specificity: 0.6762
+Final Test Accuracy:    0.5025
+Test Plain Misclassification Error:    0.4975
+Test ROC-AUC (macro):                 0.5299
+Test Recall:                          0.2488
+Test Specificity:                     0.8000
+Test Recall (macro):                  0.5244
+Test Specificity (macro):             0.5245
+Positive Prediction Rate (Test):        0.2264
+True Up Rate (Test):   0.5400
+Up Precision (Test):   0.5930
+Up Edge Rate (Test):   0.0530
+True Down Rate (Test): 0.4600
+Down Precision (Test): 0.4760
+Down Edge Rate (Test): 0.0160
+             Predicted Down  Predicted Up
+Actual Down             148            37
+Actual Up               163            54
+--- Model Report ---
+Avg CV Train Plain Accuracy:      0.9100 (±0.0619)
+Avg CV Validation Plain Accuracy: 0.4787 (±0.0294)
+Avg CV Validation Precision: 0.5316
+Avg CV Validation Recall:      0.4441
+Avg CV Validation Specificity: 0.5522
+Final Test Accuracy:    0.5323
+Test Plain Misclassification Error:    0.4677
+Test ROC-AUC (macro):                 0.4886
+Test Recall:                          0.9724
+Test Specificity:                     0.0160
+Test Recall (macro):                  0.4943
+Test Specificity (macro):             0.4940
+Positive Prediction Rate (Test):        0.9776
+True Up Rate (Test):   0.5400
+Up Precision (Test):   0.5370
+Up Edge Rate (Test):   -0.0030
+True Down Rate (Test): 0.4600
+Down Precision (Test): 0.3330
+Down Edge Rate (Test): -0.1270
+             Predicted Down  Predicted Up
+Actual Down               3           182
+Actual Up                 6           211
+--- Model Report ---
+Avg CV Train Plain Accuracy:      0.4604 (±0.0099)
+Avg CV Validation Plain Accuracy: 0.4577 (±0.0274)
+Avg CV Validation Precision: 0.0
+Avg CV Validation Recall:      0.0
+Avg CV Validation Specificity: 1.0
+Final Test Accuracy:    0.4602
+Test Plain Misclassification Error:    0.5398
+Test ROC-AUC (macro):                 0.5000
+Test Recall:                          0.0000
+Test Specificity:                     1.0000
+Test Recall (macro):                  0.5000
+Test Specificity (macro):             0.5000
+Positive Prediction Rate (Test):        0.0000
+True Up Rate (Test):   0.5400
+Up Precision (Test):   0.0000
+Up Edge Rate (Test):   -0.5400
+True Down Rate (Test): 0.4600
+Down Precision (Test): 0.4600
+Down Edge Rate (Test): 0.0000
+             Predicted Down  Predicted Up
+Actual Down             185             0
+Actual Up               217             0
+--- Model Report ---
+Avg CV Train Plain Accuracy:      0.5338 (±0.0108)
+Avg CV Validation Plain Accuracy: 0.5124 (±0.0524)
+Avg CV Validation Precision: 0.4302
+Avg CV Validation Recall:      0.3707
+Avg CV Validation Specificity: 0.6462
+Final Test Accuracy:    0.4602
+Test Plain Misclassification Error:    0.5398
+Test ROC-AUC (macro):                 0.5289
+Test Recall:                          0.0000
+Test Specificity:                     1.0000
+Test Recall (macro):                  0.5000
+Test Specificity (macro):             0.5000
+Positive Prediction Rate (Test):        0.0000
+True Up Rate (Test):   0.5400
+Up Precision (Test):   0.0000
+Up Edge Rate (Test):   -0.5400
+True Down Rate (Test): 0.4600
+Down Precision (Test): 0.4600
+Down Edge Rate (Test): 0.0000
+             Predicted Down  Predicted Up
+Actual Down             185             0
+Actual Up               217             0
+--- Model Report ---
+Avg CV Train Plain Accuracy:      0.5266 (±0.0264)
+Avg CV Validation Plain Accuracy: 0.4854 (±0.0524)
+Avg CV Validation Precision: 0.116
+Avg CV Validation Recall:      0.1787
+Avg CV Validation Specificity: 0.8342
+Final Test Accuracy:    0.4602
+Test Plain Misclassification Error:    0.5398
+Test ROC-AUC (macro):                 0.5293
+Test Recall:                          0.0000
+Test Specificity:                     1.0000
+Test Recall (macro):                  0.5000
+Test Specificity (macro):             0.5000
+Positive Prediction Rate (Test):        0.0000
+True Up Rate (Test):   0.5400
+Up Precision (Test):   0.0000
+Up Edge Rate (Test):   -0.5400
+True Down Rate (Test): 0.4600
+Down Precision (Test): 0.4600
+Down Edge Rate (Test): 0.0000
+             Predicted Down  Predicted Up
+Actual Down             185             0
+Actual Up               217             0
+                     Best C  Avg CV Train Plain Acc  CV Train Plain Acc SD  Avg CV Validation Plain Acc  CV Acc SD  Test Acc    MCC  Precision  Recall  Specificity     F1  ROC-AUC  Degenerate
+Model                                                                                                                                                                                          
+Base+PCA (3, 65%)       N/A                   0.548                  0.007                        0.502      0.044     0.502  0.058      0.593   0.249        0.800  0.351    0.530       False
+Raw Ridge          0.027826                   0.910                  0.062                        0.479      0.029     0.532 -0.039      0.537   0.972        0.016  0.692    0.489       False
+Raw LASSO          0.000001                   0.460                  0.010                        0.458      0.027     0.460  0.000      0.000   0.000        1.000  0.000    0.500        True
+Raw Ridge+PCA (3)  0.000001                   0.534                  0.011                        0.512      0.052     0.460  0.000      0.000   0.000        1.000  0.000    0.529        True
+Raw LASSO+PCA (3)  0.002154                   0.527                  0.026                        0.485      0.052     0.460  0.000      0.000   0.000        1.000  0.000    0.529        True
+
+===== Ranked Baseline Models =====
+            Model  rank_test_split_accuracy  rank_test_sensitivity_macro  rank_test_specificity_macro  rank_test_roc_auc_macro  average_rank
+Base+PCA (3, 65%)                       2.0                          1.0                          1.0                      1.0        1.1250
+Raw Ridge+PCA (3)                       4.0                          3.0                          3.0                      2.5        2.9375
+Raw LASSO+PCA (3)                       4.0                          3.0                          3.0                      2.5        2.9375
+        Raw LASSO                       4.0                          3.0                          3.0                      4.0        3.5000
+        Raw Ridge                       1.0                          5.0                          5.0                      5.0        4.5000
+
+Deferring best-model diagnostics until the combined raw + DOW ranking is available.
+
+========== Adding Day-of-Week Features ==========
+Day-of-week columns added: ['DOW_0', 'DOW_1', 'DOW_2', 'DOW_3']
+Feature matrix with DOW: 2389 columns
+
+========== Grid Search for Optimal PCA Components (DOW) ===========
+Testing n_components: [0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.99]
+  n_components=0.65 (3 components): CV Balanced Accuracy = 0.5030 ± 0.0082
+  n_components=0.7 (4 components): CV Balanced Accuracy = 0.5015 ± 0.0077
+  n_components=0.75 (5 components): CV Balanced Accuracy = 0.4980 ± 0.0060
+  n_components=0.8 (8 components): CV Balanced Accuracy = 0.4998 ± 0.0142
+  n_components=0.85 (19 components): CV Balanced Accuracy = 0.5041 ± 0.0218
+  n_components=0.9 (63 components): CV Balanced Accuracy = 0.4990 ± 0.0109
+  n_components=0.95 (170 components): CV Balanced Accuracy = 0.5060 ± 0.0090
+  n_components=0.99 (392 components): CV Balanced Accuracy = 0.4981 ± 0.0085
+
+Best-mean CV n_components (DOW): 0.95 (170 components), CV=0.5060±0.0090
+1SE-selected n_components (DOW): 0.65 (3 components), CV=0.5030±0.0082, threshold=0.5019
+Final PCA: 2389 features → 3 components (65% variance)
+
+========== BASELINE (No Reg) + DOW + PCA ===========
+
+========== RIDGE CV + DOW ==========
+Best C by mean CV (Ridge+DOW): 0.359381
+1SE-selected C (Ridge+DOW):    0.027826
+
+========== LASSO CV + DOW ==========
+Best C by mean CV (LASSO+DOW): 774.263683
+1SE-selected C (LASSO+DOW):    0.027826
+
+========== RIDGE CV + PCA + DOW ==========
+Testing n_components: [0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.99]
+  n_components=0.65 (3 components): CV Balanced Accuracy = 0.5032 ± 0.0068
+  n_components=0.7 (4 components): CV Balanced Accuracy = 0.5020 ± 0.0040
+  n_components=0.75 (5 components): CV Balanced Accuracy = 0.5013 ± 0.0027
+  n_components=0.8 (8 components): CV Balanced Accuracy = 0.5016 ± 0.0032
+  n_components=0.85 (19 components): CV Balanced Accuracy = 0.5006 ± 0.0012
+  n_components=0.9 (63 components): CV Balanced Accuracy = 0.5014 ± 0.0029
+  n_components=0.95 (170 components): CV Balanced Accuracy = 0.5014 ± 0.0029
+  n_components=0.99 (392 components): CV Balanced Accuracy = 0.5014 ± 0.0029
+Best C by mean CV (Ridge+PCA+DOW): 0.000001
+1SE-selected C (Ridge+PCA+DOW):    0.000001
+1SE-selected n_components (Ridge+PCA+DOW): 0.65 (3 components), CV=0.5032±0.0068, threshold=0.5001
+
+========== LASSO CV + PCA + DOW ==========
+Testing n_components: [0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.99]
+  n_components=0.65 (3 components): CV Balanced Accuracy = 0.5000 ± 0.0000
+  n_components=0.7 (4 components): CV Balanced Accuracy = 0.5000 ± 0.0000
+  n_components=0.75 (5 components): CV Balanced Accuracy = 0.5000 ± 0.0000
+  n_components=0.8 (8 components): CV Balanced Accuracy = 0.5000 ± 0.0000
+  n_components=0.85 (19 components): CV Balanced Accuracy = 0.5000 ± 0.0000
+  n_components=0.9 (63 components): CV Balanced Accuracy = 0.5000 ± 0.0000
+  n_components=0.95 (170 components): CV Balanced Accuracy = 0.5000 ± 0.0000
+  n_components=0.99 (392 components): CV Balanced Accuracy = 0.5000 ± 0.0000
+Best C by mean CV (LASSO+PCA+DOW): 0.002154
+1SE-selected C (LASSO+PCA+DOW):    0.002154
+1SE-selected n_components (LASSO+PCA+DOW): 0.65 (3 components), CV=0.5000±0.0000, threshold=0.5000
+--- Model Report ---
+Avg CV Train Plain Accuracy:      0.5475 (±0.0066)
+Avg CV Validation Plain Accuracy: 0.5019 (±0.0443)
+Avg CV Validation Precision: 0.3084
+Avg CV Validation Recall:      0.3299
+Avg CV Validation Specificity: 0.6762
+Final Test Accuracy:    0.5025
+Test Plain Misclassification Error:    0.4975
+Test ROC-AUC (macro):                 0.5299
+Test Recall:                          0.2488
+Test Specificity:                     0.8000
+Test Recall (macro):                  0.5244
+Test Specificity (macro):             0.5245
+Positive Prediction Rate (Test):        0.2264
+True Up Rate (Test):   0.5400
+Up Precision (Test):   0.5930
+Up Edge Rate (Test):   0.0530
+True Down Rate (Test): 0.4600
+Down Precision (Test): 0.4760
+Down Edge Rate (Test): 0.0160
+             Predicted Down  Predicted Up
+Actual Down             148            37
+Actual Up               163            54
+--- Model Report ---
+Avg CV Train Plain Accuracy:      0.9099 (±0.0623)
+Avg CV Validation Plain Accuracy: 0.4801 (±0.0319)
+Avg CV Validation Precision: 0.5275
+Avg CV Validation Recall:      0.4539
+Avg CV Validation Specificity: 0.544
+Final Test Accuracy:    0.5323
+Test Plain Misclassification Error:    0.4677
+Test ROC-AUC (macro):                 0.4885
+Test Recall:                          0.9724
+Test Specificity:                     0.0160
+Test Recall (macro):                  0.4943
+Test Specificity (macro):             0.4940
+Positive Prediction Rate (Test):        0.9776
+True Up Rate (Test):   0.5400
+Up Precision (Test):   0.5370
+Up Edge Rate (Test):   -0.0030
+True Down Rate (Test): 0.4600
+Down Precision (Test): 0.3330
+Down Edge Rate (Test): -0.1270
+             Predicted Down  Predicted Up
+Actual Down               3           182
+Actual Up                 6           211
+--- Model Report ---
+Avg CV Train Plain Accuracy:      0.5577 (±0.0402)
+Avg CV Validation Plain Accuracy: 0.4869 (±0.0318)
+Avg CV Validation Precision: 0.4419
+Avg CV Validation Recall:      0.4649
+Avg CV Validation Specificity: 0.534
+Final Test Accuracy:    0.4876
+Test Plain Misclassification Error:    0.5124
+Test ROC-AUC (macro):                 0.5045
+Test Recall:                          0.4332
+Test Specificity:                     0.5510
+Test Recall (macro):                  0.4923
+Test Specificity (macro):             0.4920
+Positive Prediction Rate (Test):        0.4403
+True Up Rate (Test):   0.5400
+Up Precision (Test):   0.5310
+Up Edge Rate (Test):   -0.0090
+True Down Rate (Test): 0.4600
+Down Precision (Test): 0.4530
+Down Edge Rate (Test): -0.0070
+             Predicted Down  Predicted Up
+Actual Down             102            83
+Actual Up               123            94
+--- Model Report ---
+Avg CV Train Plain Accuracy:      0.5338 (±0.0108)
+Avg CV Validation Plain Accuracy: 0.5124 (±0.0524)
+Avg CV Validation Precision: 0.4302
+Avg CV Validation Recall:      0.3707
+Avg CV Validation Specificity: 0.6462
+Final Test Accuracy:    0.4602
+Test Plain Misclassification Error:    0.5398
+Test ROC-AUC (macro):                 0.5290
+Test Recall:                          0.0000
+Test Specificity:                     1.0000
+Test Recall (macro):                  0.5000
+Test Specificity (macro):             0.5000
+Positive Prediction Rate (Test):        0.0000
+True Up Rate (Test):   0.5400
+Up Precision (Test):   0.0000
+Up Edge Rate (Test):   -0.5400
+True Down Rate (Test): 0.4600
+Down Precision (Test): 0.4600
+Down Edge Rate (Test): 0.0000
+             Predicted Down  Predicted Up
+Actual Down             185             0
+Actual Up               217             0
+--- Model Report ---
+Avg CV Train Plain Accuracy:      0.5266 (±0.0264)
+Avg CV Validation Plain Accuracy: 0.4854 (±0.0524)
+Avg CV Validation Precision: 0.116
+Avg CV Validation Recall:      0.1787
+Avg CV Validation Specificity: 0.8342
+Final Test Accuracy:    0.4602
+Test Plain Misclassification Error:    0.5398
+Test ROC-AUC (macro):                 0.5293
+Test Recall:                          0.0000
+Test Specificity:                     1.0000
+Test Recall (macro):                  0.5000
+Test Specificity (macro):             0.5000
+Positive Prediction Rate (Test):        0.0000
+True Up Rate (Test):   0.5400
+Up Precision (Test):   0.0000
+Up Edge Rate (Test):   -0.5400
+True Down Rate (Test): 0.4600
+Down Precision (Test): 0.4600
+Down Edge Rate (Test): 0.0000
+             Predicted Down  Predicted Up
+Actual Down             185             0
+Actual Up               217             0
+
+Day-of-Week Models:
+                         Best C  Avg CV Train Plain Acc  CV Train Plain Acc SD  Avg CV Validation Plain Acc  CV Acc SD  Test Acc    MCC  Precision  Recall  Specificity     F1  ROC-AUC  Degenerate
+Model                                                                                                                                                                                              
+Base+DOW+PCA (3, 65%)       N/A                   0.547                  0.007                        0.502      0.044     0.502  0.058      0.593   0.249        0.800  0.351    0.530       False
+Ridge+DOW              0.027826                   0.910                  0.062                        0.480      0.032     0.532 -0.039      0.537   0.972        0.016  0.692    0.489       False
+LASSO+DOW              0.027826                   0.558                  0.040                        0.487      0.032     0.488 -0.016      0.531   0.433        0.551  0.477    0.504       False
+Ridge+PCA+DOW (3)      0.000001                   0.534                  0.011                        0.512      0.052     0.460  0.000      0.000   0.000        1.000  0.000    0.529        True
+LASSO+PCA+DOW (3)      0.002154                   0.527                  0.026                        0.485      0.052     0.460  0.000      0.000   0.000        1.000  0.000    0.529        True
+
+===== Combined Comparison Table (raw + DOW) =====
+                         Best C  Avg CV Train Plain Acc  CV Train Plain Acc SD  Avg CV Validation Plain Acc  CV Acc SD  Test Acc    MCC  Precision  Recall  Specificity     F1  ROC-AUC  Degenerate
+Model                                                                                                                                                                                              
+Base+PCA (3, 65%)           N/A                   0.548                  0.007                        0.502      0.044     0.502  0.058      0.593   0.249        0.800  0.351    0.530       False
+Raw Ridge              0.027826                   0.910                  0.062                        0.479      0.029     0.532 -0.039      0.537   0.972        0.016  0.692    0.489       False
+Raw LASSO              0.000001                   0.460                  0.010                        0.458      0.027     0.460  0.000      0.000   0.000        1.000  0.000    0.500        True
+Raw Ridge+PCA (3)      0.000001                   0.534                  0.011                        0.512      0.052     0.460  0.000      0.000   0.000        1.000  0.000    0.529        True
+Raw LASSO+PCA (3)      0.002154                   0.527                  0.026                        0.485      0.052     0.460  0.000      0.000   0.000        1.000  0.000    0.529        True
+Base+DOW+PCA (3, 65%)       N/A                   0.547                  0.007                        0.502      0.044     0.502  0.058      0.593   0.249        0.800  0.351    0.530       False
+Ridge+DOW              0.027826                   0.910                  0.062                        0.480      0.032     0.532 -0.039      0.537   0.972        0.016  0.692    0.489       False
+LASSO+DOW              0.027826                   0.558                  0.040                        0.487      0.032     0.488 -0.016      0.531   0.433        0.551  0.477    0.504       False
+Ridge+PCA+DOW (3)      0.000001                   0.534                  0.011                        0.512      0.052     0.460  0.000      0.000   0.000        1.000  0.000    0.529        True
+LASSO+PCA+DOW (3)      0.002154                   0.527                  0.026                        0.485      0.052     0.460  0.000      0.000   0.000        1.000  0.000    0.529        True
+
+===== Ranked Models Across Raw + DOW =====
+                Model  rank_test_split_accuracy  rank_test_sensitivity_macro  rank_test_specificity_macro  rank_test_roc_auc_macro  average_rank
+    Base+PCA (3, 65%)                       3.5                          1.5                          1.5                      1.5        1.7500
+Base+DOW+PCA (3, 65%)                       3.5                          1.5                          1.5                      1.5        1.7500
+    Raw Ridge+PCA (3)                       8.0                          5.0                          5.0                      4.5        5.1875
+    Raw LASSO+PCA (3)                       8.0                          5.0                          5.0                      4.5        5.1875
+    Ridge+PCA+DOW (3)                       8.0                          5.0                          5.0                      4.5        5.1875
+    LASSO+PCA+DOW (3)                       8.0                          5.0                          5.0                      4.5        5.1875
+            Raw LASSO                       8.0                          5.0                          5.0                      8.0        6.5000
+            Raw Ridge                       1.5                          8.5                          8.5                      9.5        8.0000
+            Ridge+DOW                       1.5                          8.5                          8.5                      9.5        8.0000
+            LASSO+DOW                       5.0                         10.0                         10.0                      7.0        8.2500
+
+Best model across raw + DOW by average rank: Base+PCA (3, 65%)
+Plotting diagnostics for: Base+PCA (3, 65%)
+Figure saved to: /home/trnguye2/STAT-587-Final-Project/output/8yrs_1SE_base_logistic_best_bias_variance.png
+Figure saved to: /home/trnguye2/STAT-587-Final-Project/output/8yrs_1SE_base_logistic_best_train_test.png
+
+===== Full Comparison Table =====
+                       ROC-AUC    MCC  Test Acc  Recall  Specificity
+Model                                                               
+Base+PCA (3, 65%)        0.530  0.058     0.502   0.249        0.800
+Raw Ridge                0.489 -0.039     0.532   0.972        0.016
+Raw LASSO                0.500  0.000     0.460   0.000        1.000
+Raw Ridge+PCA (3)        0.529  0.000     0.460   0.000        1.000
+Raw LASSO+PCA (3)        0.529  0.000     0.460   0.000        1.000
+Base+DOW+PCA (3, 65%)    0.530  0.058     0.502   0.249        0.800
+Ridge+DOW                0.489 -0.039     0.532   0.972        0.016
+LASSO+DOW                0.504 -0.016     0.488   0.433        0.551
+Ridge+PCA+DOW (3)        0.529  0.000     0.460   0.000        1.000
+LASSO+PCA+DOW (3)        0.529  0.000     0.460   0.000        1.000
+Local ranked/exported winner in base.py: Base+PCA (3, 65%)
+Local plot winner in base.py: Base+PCA (3, 65%)
+Current global best model across registered scripts (informational only): base.py :: Base+PCA (3, 65%)
+LaTeX table saved to:           /home/trnguye2/STAT-587-Final-Project/output/8yrs_1SE_base_logistic_comparison.tex
+
+======================================================================
+All models trained successfully!
+======================================================================
+[2026-03-14 04:05:08] EXIT_CODE=0

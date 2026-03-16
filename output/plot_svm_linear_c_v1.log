@@ -1,0 +1,5 @@
+
+[2026-03-14 15:23:00] CMD: /home/trnguye2/STAT-587-Final-Project/.venv/bin/python /home/trnguye2/STAT-587-Final-Project/PyScripts/Models/over_under_fit.py --model svm --x-param param_classifier__C --model-name SVM_linear --grid-version v1 --trend-window 8 --out /home/trnguye2/STAT-587-Final-Project/output/8yrs_over_under_fit_svm_linear_c_v1.png
+[2026-03-14 15:23:00] ENV: MODEL_N_JOBS=6 GRID_VERSION=v1
+Saved plot: /home/trnguye2/STAT-587-Final-Project/output/8yrs_over_under_fit_svm_linear_c_v1.png
+[2026-03-14 15:23:01] EXIT_CODE=0

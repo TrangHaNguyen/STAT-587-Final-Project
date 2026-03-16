@@ -1,0 +1,88 @@
+
+[2026-03-14 05:00:12] CMD: /home/trnguye2/STAT-587-Final-Project/.venv/bin/python /home/trnguye2/STAT-587-Final-Project/PyScripts/Models/base_NN.py
+[2026-03-14 05:00:12] ENV: MODEL_N_JOBS=6 GRID_VERSION=v1
+======================================================================
+BASELINE NEURAL NETWORK COMPARISON
+======================================================================
+Loading and cleaning 8-year data via H_prep...
+------- Downloading Data
+Finished Downloading Data -------
+Initial shape: 2922 rows, 2520 columns.
+------- Cleaning data
+Finished Cleaning Data -------
+Current shape: 2011 rows, 2390 columns.
+Created Percent Changes.
+Created Target (Regression).
+------- Generating Necessary Features
+Created Target (Classification)
+Cleaned up remaining/resulting NA values.
+Predictors, and Target (Regression) successfully split.
+Finished Generating Features -------
+Final shape (X): 2009 rows, 4298 columns.
+Final shape (y_regression): 2009 rows, 1 columns.
+Raw feature shape: (2009, 2385)
+Sequence length: 7
+3D sequence shape: (2003, 7, 2385)
+Flattened sequence shape: (2003, 16695)
+Target shape: (2003,)
+
+Traceback (most recent call last):
+  File "/home/trnguye2/STAT-587-Final-Project/PyScripts/Models/base_NN.py", line 142, in <module>
+    main()
+  File "/home/trnguye2/STAT-587-Final-Project/PyScripts/Models/base_NN.py", line 81, in main
+    _load_or_compute_model_metrics(checkpoint_dir, "lstm", _compute_lstm_metrics),
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/trnguye2/STAT-587-Final-Project/PyScripts/Models/base_NN.py", line 47, in _load_or_compute_model_metrics
+    payload = compute_fn()
+              ^^^^^^^^^^^^
+  File "/home/trnguye2/STAT-587-Final-Project/PyScripts/Models/base_NN.py", line 76, in _compute_lstm_metrics
+    return _evaluate_model("Raw LSTM", estimator, X_seq_3d, y_seq)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/trnguye2/STAT-587-Final-Project/PyScripts/Models/NN.py", line 299, in _evaluate_model
+    estimator.fit(X_train, y_train)
+  File "/home/trnguye2/STAT-587-Final-Project/PyScripts/Models/NN.py", line 151, in fit
+    import tensorflow as tf
+ModuleNotFoundError: No module named 'tensorflow'
+[2026-03-14 05:00:15] EXIT_CODE=1
+
+[2026-03-14 23:33:06] CMD: /Users/tranghanguyen/STAT-587-Final-Project/.venv/bin/python /Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/base_NN.py
+[2026-03-14 23:33:06] ENV: MODEL_N_JOBS=4 GRID_VERSION=v1
+======================================================================
+BASELINE NEURAL NETWORK COMPARISON
+======================================================================
+Loading and cleaning 8-year raw baseline data...
+------- Downloading Data
+Finished Downloading Data -------
+Initial shape: 2922 rows, 2520 columns.
+------- Cleaning data
+Finished Cleaning Data -------
+Current shape: 2011 rows, 2390 columns.
+Created Percent Changes.
+Created Target (Regression).
+------- Generating Necessary Features
+Created Target (Classification)
+Cleaned up remaining/resulting NA values.
+Predictors, and Target (Regression) successfully split.
+Finished Generating Features -------
+Final shape (X): 2009 rows, 4298 columns.
+Final shape (y_regression): 2009 rows, 1 columns.
+Raw feature shape: (2009, 2385)
+Sequence length: 7
+3D sequence shape: (2003, 7, 2385)
+Flattened sequence shape: (2003, 16695)
+Target shape: (2003,)
+
+Loading checkpoint for lstm from /Users/tranghanguyen/STAT-587-Final-Project/output/checkpoints/base_NN/8yrs_raw_v1/lstm
+Loading checkpoint for rnn from /Users/tranghanguyen/STAT-587-Final-Project/output/checkpoints/base_NN/8yrs_raw_v1/rnn
+Loading checkpoint for cnn from /Users/tranghanguyen/STAT-587-Final-Project/output/checkpoints/base_NN/8yrs_raw_v1/cnn
+
+Baseline neural-network comparison table:
+          ROC-AUC    MCC  Test Acc  Sensitivity (Macro)  Specificity
+Model                                                               
+Raw LSTM    0.453  0.008     0.539                0.501        0.011
+Raw RNN     0.505  0.056     0.474                0.510        0.978
+Raw CNN     0.484 -0.006     0.474                0.498        0.805
+
+Saved LaTeX table to: /Users/tranghanguyen/STAT-587-Final-Project/output/8yrs_base_nn_comparison.tex
+Checkpoint directory: /Users/tranghanguyen/STAT-587-Final-Project/output/checkpoints/base_NN/8yrs_raw_v1
+[2026-03-14 23:33:07] EXIT_CODE=0

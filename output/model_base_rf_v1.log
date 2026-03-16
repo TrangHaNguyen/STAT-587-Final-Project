@@ -1,0 +1,233 @@
+
+[2026-03-14 04:05:08] CMD: /home/trnguye2/STAT-587-Final-Project/.venv/bin/python /home/trnguye2/STAT-587-Final-Project/PyScripts/Models/base_random_forest.py
+[2026-03-14 04:05:08] ENV: MODEL_N_JOBS=6 GRID_VERSION=v1
+MODEL_N_JOBS=6 (set env MODEL_N_JOBS to override)
+GRID_VERSION=v1
+------- Downloading Data
+Finished Downloading Data -------
+Initial shape: 2922 rows, 2520 columns.
+------- Cleaning data
+Finished Cleaning Data -------
+Current shape: 2011 rows, 2390 columns.
+Created Percent Changes.
+Created Target (Regression).
+------- Generating Necessary Features
+Created Target (Classification)
+Cleaned up remaining/resulting NA values.
+Predictors, and Target (Regression) successfully split.
+Finished Generating Features -------
+Final shape (X): 2009 rows, 4298 columns.
+Final shape (y_regression): 2009 rows, 1 columns.
+Feature matrix shape: 2009 rows, 2385 columns.
+Final shape — X: (2009, 2385), y: (2009,)
+Initial PCA from 1SE no-regularization logistic regression in base.py: n_components=0.65 (3 components).
+
+========== RF GridSearch (20 combinations) ==========
+Best params: {'classifier__max_depth': 2, 'classifier__max_features': 0.2, 'classifier__n_estimators': 100}
+
+--- Model Report ---
+--- Model Report ---
+Avg CV Train Plain Accuracy:      0.6944 (±0.0736)
+Avg CV Validation Plain Accuracy: 0.5116 (±0.0312)
+Avg CV Validation Precision: 0.6466
+Avg CV Validation Recall:      0.5639
+Avg CV Validation Specificity: 0.4644
+Final Test Accuracy:    0.5299
+Test Plain Misclassification Error:    0.4701
+Test ROC-AUC (macro):                 0.5126
+Test Recall:                          0.5576
+Test Specificity:                     0.4970
+Test Recall (macro):                  0.5275
+Test Specificity (macro):             0.5275
+Positive Prediction Rate (Test):        0.5323
+True Up Rate (Test):   0.5400
+Up Precision (Test):   0.5650
+Up Edge Rate (Test):   0.0250
+True Down Rate (Test): 0.4600
+Down Precision (Test): 0.4890
+Down Edge Rate (Test): 0.0290
+             Predicted Down  Predicted Up
+Actual Down              92            93
+Actual Up                96           121
+
+========== PCA + RF GridSearch ==========
+Best params (PCA RF): {'classifier__max_depth': 16, 'classifier__max_features': 'log2', 'classifier__n_estimators': 100}
+
+--- Model Report ---
+--- Model Report ---
+Avg CV Train Plain Accuracy:      0.9938 (±0.0062)
+Avg CV Validation Plain Accuracy: 0.4981 (±0.0345)
+Avg CV Validation Precision: 0.5418
+Avg CV Validation Recall:      0.3574
+Avg CV Validation Specificity: 0.6574
+Final Test Accuracy:    0.4204
+Test Plain Misclassification Error:    0.5796
+Test ROC-AUC (macro):                 0.3854
+Test Recall:                          0.1382
+Test Specificity:                     0.7510
+Test Recall (macro):                  0.4448
+Test Specificity (macro):             0.4445
+Positive Prediction Rate (Test):        0.1891
+True Up Rate (Test):   0.5400
+Up Precision (Test):   0.3950
+Up Edge Rate (Test):   -0.1450
+True Down Rate (Test): 0.4600
+Down Precision (Test): 0.4260
+Down Edge Rate (Test): -0.0340
+             Predicted Down  Predicted Up
+Actual Down             139            46
+Actual Up               187            30
+Retuned PCA for PCA RF after RF model selection: n_components=0.95 (168 components).
+
+========== PCA + RF Refit (retuned PCA, fixed RF params) ==========
+Fixed params (PCA RF retuned): {'classifier__max_depth': 16, 'classifier__max_features': 'log2', 'classifier__n_estimators': 100}
+
+--- Model Report ---
+--- Model Report ---
+Avg CV Train Plain Accuracy:      1.0000 (±0.0000)
+Avg CV Validation Plain Accuracy: 0.5281 (±0.0268)
+Avg CV Validation Precision: 0.5524
+Avg CV Validation Recall:      0.7105
+Avg CV Validation Specificity: 0.3172
+Final Test Accuracy:    0.5522
+Test Plain Misclassification Error:    0.4478
+Test ROC-AUC (macro):                 0.5266
+Test Recall:                          0.8710
+Test Specificity:                     0.1780
+Test Recall (macro):                  0.5247
+Test Specificity (macro):             0.5245
+Positive Prediction Rate (Test):        0.8483
+True Up Rate (Test):   0.5400
+Up Precision (Test):   0.5540
+Up Edge Rate (Test):   0.0140
+True Down Rate (Test): 0.4600
+Down Precision (Test): 0.5410
+Down Edge Rate (Test): 0.0810
+             Predicted Down  Predicted Up
+Actual Down              33           152
+Actual Up                28           189
+
+========== Generating Baseline RF max_depth Diagnostic Plots ==========
+Figure saved to: /home/trnguye2/STAT-587-Final-Project/output/8yrs_base_rf_bias_variance.png
+Figure saved to: /home/trnguye2/STAT-587-Final-Project/output/8yrs_base_rf_train_test.png
+
+========== Drawing Representative Tree from Optimal RF ==========
+Drawing tree #0 (4 leaves, max_depth=2)
+Figure saved to: /home/trnguye2/STAT-587-Final-Project/output/8yrs_base_rf_best_tree.png
+
+========== Model Comparison Table ==========
+        Avg CV Train Plain Acc  CV Train Plain Acc SD  Avg CV Validation Plain Acc  CV Acc SD  Test Acc    MCC  Precision  Recall  Specificity     F1  ROC-AUC
+Model                                                                                                                                                         
+Raw RF                   0.694                  0.074                        0.512      0.031     0.530  0.055      0.565   0.558        0.497  0.561    0.513
+PCA RF                   1.000                  0.000                        0.528      0.027     0.552  0.069      0.554   0.871        0.178  0.677    0.527
+
+Comparison table (raw) saved to: /home/trnguye2/STAT-587-Final-Project/output/8yrs_base_rf_comparison.csv
+
+========== Adding Day-of-Week Features ==========
+Day-of-week columns added: ['DOW_0', 'DOW_1', 'DOW_2', 'DOW_3']
+Feature matrix with DOW: 2389 columns
+Initial PCA from 1SE no-regularization logistic regression in base.py + DOW: n_components=0.65 (3 components).
+
+========== Raw RF + DOW GridSearch ==========
+Best params (Raw RF + DOW): {'classifier__max_depth': 4, 'classifier__max_features': 'sqrt', 'classifier__n_estimators': 100}
+
+--- Model Report ---
+--- Model Report ---
+Avg CV Train Plain Accuracy:      0.7938 (±0.0776)
+Avg CV Validation Plain Accuracy: 0.5169 (±0.0355)
+Avg CV Validation Precision: 0.5675
+Avg CV Validation Recall:      0.5413
+Avg CV Validation Specificity: 0.503
+Final Test Accuracy:    0.5498
+Test Plain Misclassification Error:    0.4502
+Test ROC-AUC (macro):                 0.5950
+Test Recall:                          0.4147
+Test Specificity:                     0.7080
+Test Recall (macro):                  0.5614
+Test Specificity (macro):             0.5615
+Positive Prediction Rate (Test):        0.3582
+True Up Rate (Test):   0.5400
+Up Precision (Test):   0.6250
+Up Edge Rate (Test):   0.0850
+True Down Rate (Test): 0.4600
+Down Precision (Test): 0.5080
+Down Edge Rate (Test): 0.0480
+             Predicted Down  Predicted Up
+Actual Down             131            54
+Actual Up               127            90
+
+========== PCA RF + DOW GridSearch ==========
+Best params (PCA RF + DOW): {'classifier__max_depth': 16, 'classifier__max_features': 'log2', 'classifier__n_estimators': 100}
+
+--- Model Report ---
+--- Model Report ---
+Avg CV Train Plain Accuracy:      0.9907 (±0.0100)
+Avg CV Validation Plain Accuracy: 0.4936 (±0.0375)
+Avg CV Validation Precision: 0.5298
+Avg CV Validation Recall:      0.3782
+Avg CV Validation Specificity: 0.6254
+Final Test Accuracy:    0.4303
+Test Plain Misclassification Error:    0.5697
+Test ROC-AUC (macro):                 0.3831
+Test Recall:                          0.3180
+Test Specificity:                     0.5620
+Test Recall (macro):                  0.4401
+Test Specificity (macro):             0.4400
+Positive Prediction Rate (Test):        0.3731
+True Up Rate (Test):   0.5400
+Up Precision (Test):   0.4600
+Up Edge Rate (Test):   -0.0800
+True Down Rate (Test): 0.4600
+Down Precision (Test): 0.4130
+Down Edge Rate (Test): -0.0470
+             Predicted Down  Predicted Up
+Actual Down             104            81
+Actual Up               148            69
+Retuned PCA for PCA RF after RF model selection + DOW: n_components=0.85 (19 components).
+
+========== PCA RF + DOW Refit (retuned PCA, fixed RF params) ==========
+Fixed params (PCA RF retuned + DOW): {'classifier__max_depth': 16, 'classifier__max_features': 'log2', 'classifier__n_estimators': 100}
+
+--- Model Report ---
+--- Model Report ---
+Avg CV Train Plain Accuracy:      0.9999 (±0.0003)
+Avg CV Validation Plain Accuracy: 0.5071 (±0.0349)
+Avg CV Validation Precision: 0.5432
+Avg CV Validation Recall:      0.6307
+Avg CV Validation Specificity: 0.3706
+Final Test Accuracy:    0.4751
+Test Plain Misclassification Error:    0.5249
+Test ROC-AUC (macro):                 0.4679
+Test Recall:                          0.5069
+Test Specificity:                     0.4380
+Test Recall (macro):                  0.4724
+Test Specificity (macro):             0.4725
+Positive Prediction Rate (Test):        0.5323
+True Up Rate (Test):   0.5400
+Up Precision (Test):   0.5140
+Up Edge Rate (Test):   -0.0260
+True Down Rate (Test): 0.4600
+Down Precision (Test): 0.4310
+Down Edge Rate (Test): -0.0290
+             Predicted Down  Predicted Up
+Actual Down              81           104
+Actual Up               107           110
+
+========== Lag1–Lag7 RF extension skipped to save runtime ==========
+
+===== Full Comparison Table =====
+            Avg CV Train Plain Acc  CV Train Plain Acc SD  Avg CV Validation Plain Acc  CV Acc SD  Test Acc    MCC  Precision  Recall  Specificity     F1  ROC-AUC
+Model                                                                                                                                                             
+Raw RF                       0.694                  0.074                        0.512      0.031     0.530  0.055      0.565   0.558        0.497  0.561    0.513
+PCA RF                       1.000                  0.000                        0.528      0.027     0.552  0.069      0.554   0.871        0.178  0.677    0.527
+RF+DOW                       0.794                  0.078                        0.517      0.035     0.550  0.128      0.625   0.415        0.708  0.499    0.595
+PCA RF+DOW                   1.000                  0.000                        0.507      0.035     0.475 -0.055      0.514   0.507        0.438  0.510    0.468
+
+Full comparison table saved to: /home/trnguye2/STAT-587-Final-Project/output/8yrs_base_rf_comparison.csv
+LaTeX table saved to:           /home/trnguye2/STAT-587-Final-Project/output/8yrs_1SE_base_random_forest.tex
+
+Best raw/DOW RF-family model by average rank: RF+DOW
+Local ranked/exported winner in base_random_forest.py: RF+DOW
+Local plot winner in base_random_forest.py: RF+DOW
+Current global best model across registered scripts (informational only): base_random_forest.py :: RF+DOW
+[2026-03-14 04:53:10] EXIT_CODE=0

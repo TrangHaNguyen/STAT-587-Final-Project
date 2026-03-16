@@ -1,0 +1,5 @@
+
+[2026-03-14 15:23:01] CMD: /home/trnguye2/STAT-587-Final-Project/.venv/bin/python /home/trnguye2/STAT-587-Final-Project/PyScripts/Models/over_under_fit.py --model logreg --x-param param_pca__n_components --model-name LogReg_PCA_Ridge --grid-version v1 --trend-window 8 --out /home/trnguye2/STAT-587-Final-Project/output/8yrs_over_under_fit_logreg_pca_ncomp_v1.png
+[2026-03-14 15:23:01] ENV: MODEL_N_JOBS=6 GRID_VERSION=v1
+Saved plot: /home/trnguye2/STAT-587-Final-Project/output/8yrs_over_under_fit_logreg_pca_ncomp_v1.png
+[2026-03-14 15:23:03] EXIT_CODE=0

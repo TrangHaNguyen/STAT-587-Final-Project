@@ -1,0 +1,59 @@
+STAT-587-Final-Project/
+|-- LaTex/
+|-- output/
+|   |-- checkpoints/
+|   |   |-- base/
+|   |   |   `-- 8yrs_v1/
+|   |   |       |-- dow_baseline_pca_model/
+|   |   |       |-- dow_lasso_model/
+|   |   |       |-- dow_lasso_pca_model/
+|   |   |       |-- dow_pca_selection/
+|   |   |       |-- dow_ridge_model/
+|   |   |       |-- dow_ridge_pca_model/
+|   |   |       |-- raw_baseline_pca_model/
+|   |   |       |-- raw_lasso_model/
+|   |   |       |-- raw_lasso_pca_model/
+|   |   |       |-- raw_pca_selection/
+|   |   |       |-- raw_ridge_model/
+|   |   |       `-- raw_ridge_pca_model/
+|   |   |-- base_random_forest/
+|   |   |   `-- 8yrs_v1/
+|   |   |       |-- dow_pca_rf/
+|   |   |       |-- dow_pca_rf_retuned_n_components/
+|   |   |       |-- dow_raw_rf/
+|   |   |       |-- dow_shared_logreg_pca_base/
+|   |   |       |-- raw_pca_rf/
+|   |   |       |-- raw_pca_rf_retuned_n_components/
+|   |   |       |-- raw_raw_rf/
+|   |   |       `-- raw_shared_logreg_pca_base/
+|   |   |-- logistic_regression/
+|   |   |   `-- 8yrs_v1/
+|   |   |       |-- logreg_lasso/
+|   |   |       |-- logreg_pca_base/
+|   |   |       |-- logreg_pca_lasso/
+|   |   |       |-- logreg_pca_lasso_refit/
+|   |   |       |-- logreg_pca_lasso_retuned_n_components/
+|   |   |       |-- logreg_pca_ridge/
+|   |   |       |-- logreg_pca_ridge_refit/
+|   |   |       |-- logreg_pca_ridge_retuned_n_components/
+|   |   |       `-- logreg_ridge/
+|   |   `-- random_forest/
+|   |       `-- 8yrs_v1/
+|   `-- OLD/
+|       |-- NotUsed/
+|       |-- results/
+|       `-- Used/
+|           |-- png/
+|           |-- tex/
+|           `-- txt/
+`-- PyScripts/
+    |-- cache/
+    |-- Data/
+    |   |-- kaggle/
+    |   `-- Old/
+    |-- EDA/
+    |-- Extract/
+    |-- Models/
+    |   |-- Extra/
+    |   `-- Unused/
+    `-- New/

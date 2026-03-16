@@ -119,6 +119,30 @@ Lin, C\BPBI Y.%
 \PrintBackRefs{\CurrentBib}
 
 \bibitem [\protect \citeauthoryear {%
+{Oregon Regional Computing Accelerator}%
+}{%
+{Oregon Regional Computing Accelerator}%
+}{%
+{\protect \APACyear {2026}}%
+}]{%
+orca_2026}
+\APACinsertmetastar {%
+orca_2026}%
+\begin{APACrefauthors}%
+{Oregon Regional Computing Accelerator}.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2026}{}{}.
+\newblock
+\APACrefbtitle {Orca User Documentation.} {Orca user documentation.}
+\newblock
+\begin{APACrefURL} \url{https://orca.pdx.edu/} \end{APACrefURL}
+\newblock
+\APACrefnote{Accessed March 14, 2026}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
 Wolfers%
 \ \BBA {} Zitzewitz%
 }{%

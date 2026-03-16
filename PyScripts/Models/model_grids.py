@@ -26,10 +26,15 @@ TRAIN_TEST_SHUFFLE = False
 # plotting reducers, and neural-network initialization.
 RANDOM_SEED = 1
 
-# Shared lag configuration for the neural-network update scripts. The raw
-# baseline-style loading path does not create lagged feature columns, so these
-# values also define the rolling sequence window length used by those models.
-NN_LAG_PERIOD = [1, 2, 3, 4, 5, 6, 7]
+# Shared sequence/window options for the neural-network scripts. The current
+# NN workflows still use the first configured value from each grid until a full
+# search loop is added, so keep the active/default length first.
+NN_SEQUENCE_LENGTH_OPTIONS = [7, 5, 10]
+
+# Shared lag configuration for the engineered-feature NN path. This remains
+# aligned with the active/default sequence length so the current scripts keep
+# their existing behavior.
+NN_LAG_PERIOD = list(range(1, NN_SEQUENCE_LENGTH_OPTIONS[0] + 1))
 
 # Shared class-weight configuration used by the active model scripts.
 LOGISTIC_CLASS_WEIGHT = None
@@ -41,11 +46,12 @@ SVM_CLASS_WEIGHT = None
 # Used in: NN.py
 # ---------------------------------------------------------------------------
 
-# Used by: `NN.py`
-# Purpose: CV-ready hyperparameter grid for the LSTM wrapper. The current
-# script uses the first value from each list until a full NN tuning workflow
-# is added.
+# Used by: `NN.py`, `base_NN.py`
+# Purpose: lightweight epoch-focused tuning grid for the LSTM wrapper. The
+# current scripts still take the first value from each list, so keep the active
+# default first and vary training length rather than architecture for now.
 NN_LSTM_PARAM_GRID = {
+    "sequence_length": [7],
     "units_1": [64],
     "units_2": [32],
     "dense_units": [16],
@@ -53,37 +59,40 @@ NN_LSTM_PARAM_GRID = {
     "dropout_2": [0.2],
     "activation": ["relu"],
     "learning_rate": [0.001],
-    "epochs": [60],
+    "epochs": [20, 40, 60, 80, 120],
     "batch_size": [32],
     "patience": [12],
     "validation_split": [0.2],
 }
 
-# Used by: `NN.py`
-# Purpose: CV-ready hyperparameter grid for the SimpleRNN wrapper. The current
-# script uses the first value from each list until a full NN tuning workflow
-# is added.
+# Used by: `NN.py`, `base_NN.py`
+# Purpose: lightweight epoch-focused tuning grid for the SimpleRNN wrapper.
+# Keep patience slightly lower than LSTM because the simpler recurrent model
+# often plateaus earlier.
 NN_RNN_PARAM_GRID = {
+    "sequence_length": [7],
     "units_1": [64],
+    "dense_units": [16],
     "dropout_1": [0.3],
     "activation": ["tanh"],
     "learning_rate": [0.001],
-    "epochs": [50],
+    "epochs": [20, 40, 60, 80, 120],
     "batch_size": [32],
     "patience": [10],
     "validation_split": [0.2],
 }
 
-# Used by: `NN.py`
-# Purpose: CV-ready hyperparameter grid for the CNN-style MLP pipeline. These
-# keys already match sklearn `Pipeline` parameter naming for future GridSearchCV.
+# Used by: `NN.py`, `base_NN.py`
+# Purpose: lightweight iteration-focused tuning grid for the flattened-sequence
+# MLP baseline used as the current CNN-style model.
 NN_CNN_PARAM_GRID = {
+    "sequence_length": [7],
     "classifier__hidden_layer_sizes": [(128, 64)],
     "classifier__activation": ["relu"],
     "classifier__solver": ["adam"],
     "classifier__batch_size": [32],
     "classifier__learning_rate_init": [0.001],
-    "classifier__max_iter": [200],
+    "classifier__max_iter": [50, 100, 200, 400],
     "classifier__early_stopping": [True],
     "classifier__validation_fraction": [0.2],
     "classifier__n_iter_no_change": [15],

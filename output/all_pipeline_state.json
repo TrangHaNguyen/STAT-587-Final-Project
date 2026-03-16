@@ -13,14 +13,14 @@
     },
     "model:base_nn:v1": {
       "command": [
-        "/Users/tranghanguyen/STAT-587-Final-Project/.venv/bin/python",
-        "/Users/tranghanguyen/STAT-587-Final-Project/PyScripts/Models/base_NN.py"
+        "/home/trnguye2/STAT-587-Final-Project/.venv/bin/python",
+        "/home/trnguye2/STAT-587-Final-Project/PyScripts/Models/base_NN.py"
       ],
-      "duration_sec": 1.65,
-      "finished_at": "2026-03-14 23:33:07",
-      "log_file": "/Users/tranghanguyen/STAT-587-Final-Project/output/model_base_nn_v1.log",
-      "return_code": 0,
-      "status": "completed"
+      "duration_sec": 2.85,
+      "finished_at": "2026-03-14 05:00:15",
+      "log_file": "/home/trnguye2/STAT-587-Final-Project/output/model_base_nn_v1.log",
+      "return_code": 1,
+      "status": "failed"
     },
     "model:base_rf:v1": {
       "command": [
@@ -135,5 +135,5 @@
       "status": "completed"
     }
   },
-  "updated_at": "2026-03-14 23:33:07"
+  "updated_at": "2026-03-14 15:23:03"
 }

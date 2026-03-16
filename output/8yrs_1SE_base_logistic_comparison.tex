@@ -1,26 +1,26 @@
 \begin{table}[htbp]
 \centering
 \caption{Logistic Regression Model Comparison: Raw OHLCV vs Raw OHLCV + Day-of-Week}
-\label{tab:base\_logistic\_comparison}
+\label{tab:base_logistic_comparison}
 \begin{tabular}{lrrrrr}
 \toprule
 Model & ROC-AUC & MCC & Test Acc & Recall & Specificity \\
 \midrule
 Base+PCA (3, 65\%) & 0.530 & 0.058 & 0.502 & 0.249 & 0.800 \\
-Raw Ridge & 0.489 & -0.039 & 0.532 & 0.972 & 0.016 \\
-Raw LASSO$^\dagger$ & 0.500 & 0.000 & 0.460 & 0.000 & 1.000 \\
+Raw Ridge & 0.467 & -0.037 & 0.527 & 0.940 & 0.043 \\
+Raw LASSO & 0.483 & -0.059 & 0.532 & 0.982 & 0.005 \\
 Raw Ridge+PCA (3)$^\dagger$ & 0.529 & 0.000 & 0.460 & 0.000 & 1.000 \\
 Raw LASSO+PCA (3)$^\dagger$ & 0.529 & 0.000 & 0.460 & 0.000 & 1.000 \\
 \midrule
 Base+DOW+PCA (3, 65\%) & 0.530 & 0.058 & 0.502 & 0.249 & 0.800 \\
-Ridge+DOW & 0.489 & -0.039 & 0.532 & 0.972 & 0.016 \\
-LASSO+DOW & 0.504 & -0.016 & 0.488 & 0.433 & 0.551 \\
+Ridge+DOW & 0.467 & -0.047 & 0.525 & 0.935 & 0.043 \\
+LASSO+DOW & 0.483 & -0.059 & 0.532 & 0.982 & 0.005 \\
 Ridge+PCA+DOW (3)$^\dagger$ & 0.529 & 0.000 & 0.460 & 0.000 & 1.000 \\
 LASSO+PCA+DOW (3)$^\dagger$ & 0.529 & 0.000 & 0.460 & 0.000 & 1.000 \\
 \bottomrule
 \end{tabular}
 \par\smallskip
-\footnotesize Base = baseline logistic regression without regularization. Test Acc = plain hold-out accuracy on the final 20\% test split. All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. Recall = positive-class sensitivity.
+\footnotesize Base = baseline logistic regression without regularization. Test Acc = plain hold-out accuracy on the final 20\% test split. All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. Recall = positive-class sensitivity, TP / (TP + FN). Specificity = TN / (TN + FP).
 \\
-\footnotesize $^\dagger$ Degenerate classifier: optimal $C = 10^{-6}$ shrinks all coefficients to zero; model predicts majority class for every observation (Recall = 1.0, Precision $\approx$ base rate).
+\footnotesize $^\dagger$ Degenerate classifier: optimal $C = 10^{-6}$ shrinks all coefficients to zero; model predicts majority class for every observation (Recall $\approx 0$ or 1 depending on majority class; Precision $\approx$ base rate).
 \end{table}

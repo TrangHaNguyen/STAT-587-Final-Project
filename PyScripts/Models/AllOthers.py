@@ -206,6 +206,7 @@ def main() -> None:
     parser.add_argument("--stop-on-error", action="store_true", help="Abort on first failed stage.")
     parser.add_argument("--skip-models", action="store_true", help="Skip model runs; useful for plot-only refresh.")
     parser.add_argument("--skip-plots", action="store_true", help="Skip over_under_fit plotting stages.")
+    parser.add_argument("--skip-viz", action="store_true", help="Skip prediction visualization and complexity scatter stages.")
     parser.add_argument("--notes", default="", help="SEARCH_NOTES passed to model scripts.")
     parser.set_defaults(resume=True)
     args = parser.parse_args()
@@ -287,6 +288,23 @@ def main() -> None:
                 "--out", str(out_path)
             ]
             stage_id = f"plot:{name}:{gv}"
+            run_stage(state, stage_id, cmd, base_env, resume=args.resume, stop_on_error=args.stop_on_error)
+
+    if not args.skip_viz:
+        viz_stages = [
+            (
+                "viz:prediction_distribution",
+                [sys.executable, str(MODELS_DIR / "predictionvisualization.py"),
+                 "--output-dir", str(RESULTS_DIR)],
+            ),
+            (
+                "viz:complexity_scatter",
+                [sys.executable, str(MODELS_DIR / "complexity.py"),
+                 "--dataset-label", "8yrs",
+                 "--output-dir", str(RESULTS_DIR)],
+            ),
+        ]
+        for stage_id, cmd in viz_stages:
             run_stage(state, stage_id, cmd, base_env, resume=args.resume, stop_on_error=args.stop_on_error)
 
     append_log("Pipeline finished.")

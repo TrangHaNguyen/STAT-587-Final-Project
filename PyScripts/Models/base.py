@@ -39,12 +39,11 @@ os.environ.setdefault("MPLCONFIGDIR", os.path.abspath(MPLCONFIGDIR))
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from sklearn.linear_model import LogisticRegression, LogisticRegressionCV
+from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
-from sklearn.model_selection import train_test_split, TimeSeriesSplit, cross_val_score, GridSearchCV
+from sklearn.model_selection import train_test_split, TimeSeriesSplit, GridSearchCV
 from sklearn.pipeline import Pipeline
-from sklearn.base import clone
 from sklearn.metrics import roc_auc_score, accuracy_score, balanced_accuracy_score
 from model_grids import (
     BASELINE_PCA_GRID,
@@ -62,7 +61,7 @@ from model_grids import (
     TRAIN_TEST_SHUFFLE,
 )
 from H_eval import (
-    CV_SELECTION_CRITERIA,
+    TEST_SELECTION_CRITERIA,
     get_final_metrics,
     get_or_compute_final_metrics,
     _metrics_stage_name,
@@ -169,7 +168,10 @@ def _load_or_compute_stage(checkpoint_dir, stage_name: str, compute_fn, heading:
     if stage_checkpoint_exists(checkpoint_dir, stage_name):
         print(f"\n========== {heading} ==========")
         print(f"Loading checkpoint from {checkpoint_dir / stage_name}")
-        return load_stage_checkpoint(checkpoint_dir, stage_name)
+        try:
+            return load_stage_checkpoint(checkpoint_dir, stage_name)
+        except Exception as e:
+            print(f"WARNING: Checkpoint load failed ({type(e).__name__}: {e}). Recomputing.")
     payload = compute_fn()
     save_stage_checkpoint(checkpoint_dir, stage_name, payload)
     return payload
@@ -211,6 +213,32 @@ def _select_c_1se_from_logregcv(cv_clf):
     # Simpler model for logistic regularization is smaller C.
     chosen_idx = int(candidate_idx[np.argmin(cs[candidate_idx])])
     return float(cs[chosen_idx]), float(cs[best_idx]), float(threshold)
+
+
+def _bv_curves_from_gridsearch(grid_search, c_param_key='classifier__C'):
+    """Extract bias-variance error curves from GridSearchCV cv_results_."""
+    cr = grid_search.cv_results_
+    cs = np.array([p[c_param_key] for p in cr['params']], dtype=float)
+    sort_idx = np.argsort(cs)
+    cs = cs[sort_idx]
+    train_bal_err_mean = 1.0 - np.asarray(cr['mean_train_score'], dtype=float)[sort_idx]
+    train_bal_err_std = np.asarray(cr['std_train_score'], dtype=float)[sort_idx]
+    cv_bal_err_mean = 1.0 - np.asarray(cr['mean_test_score'], dtype=float)[sort_idx]
+    cv_bal_err_std = np.asarray(cr['std_test_score'], dtype=float)[sort_idx]
+    n_splits_in_cv = sum(1 for k in cr if k.startswith('split') and k.endswith('_test_score'))
+    cv_bal_err_se = cv_bal_err_std / np.sqrt(max(n_splits_in_cv, 1))
+    return {
+        'cs': cs,
+        'train_plain_err_mean': np.zeros_like(cs),
+        'train_plain_err_std': np.zeros_like(cs),
+        'cv_plain_err_mean': np.zeros_like(cs),
+        'cv_plain_err_std': np.zeros_like(cs),
+        'train_bal_err_mean': train_bal_err_mean,
+        'train_bal_err_std': train_bal_err_std,
+        'cv_bal_err_mean': cv_bal_err_mean,
+        'cv_bal_err_std': cv_bal_err_std,
+        'cv_bal_err_se': cv_bal_err_se,
+    }
 
 
 def _format_pca_grid_value(n_comp):
@@ -319,9 +347,14 @@ def _as_sortable_numeric(value):
         return float("inf")
 
 
-def make_one_se_refit(complexity_cols: list[str], fixed_cols: list[str] | None = None):
-    """Return a GridSearchCV refit callable implementing the 1-SE rule."""
-    def _pick_index(cv_results):
+class _OneSERefit:
+    """Picklable callable implementing the 1-SE rule for GridSearchCV refit."""
+
+    def __init__(self, complexity_cols: list[str], fixed_cols: list[str] | None = None):
+        self.complexity_cols = complexity_cols
+        self.fixed_cols = fixed_cols
+
+    def __call__(self, cv_results):
         mean = np.asarray(cv_results["mean_test_score"], dtype=float)
         std = np.asarray(cv_results["std_test_score"], dtype=float)
         se = std / np.sqrt(TIME_SERIES_CV_SPLITS)
@@ -330,24 +363,27 @@ def make_one_se_refit(complexity_cols: list[str], fixed_cols: list[str] | None =
         candidate_idx = np.where(mean >= threshold)[0]
         if len(candidate_idx) == 0:
             return best_idx
-        if fixed_cols:
-            for col in fixed_cols:
+        if self.fixed_cols:
+            for col in self.fixed_cols:
                 param_key = f"param_{col}"
                 best_val = cv_results[param_key][best_idx]
-                candidate_idx = np.array([i for i in candidate_idx if cv_results[param_key][i] == best_val], dtype=int)
+                candidate_idx = np.array(
+                    [i for i in candidate_idx if cv_results[param_key][i] == best_val],
+                    dtype=int,
+                )
                 if len(candidate_idx) == 0:
                     return best_idx
 
         def key_fn(i: int):
-            complexity = []
-            for col in complexity_cols:
-                val = cv_results[f"param_{col}"][i]
-                complexity.append(_as_sortable_numeric(val))
+            complexity = [_as_sortable_numeric(cv_results[f"param_{col}"][i]) for col in self.complexity_cols]
             return tuple(complexity + [-float(mean[i])])
 
         return int(min(candidate_idx, key=key_fn))
 
-    return _pick_index
+
+def make_one_se_refit(complexity_cols: list[str], fixed_cols: list[str] | None = None) -> _OneSERefit:
+    """Return a GridSearchCV refit callable implementing the 1-SE rule."""
+    return _OneSERefit(complexity_cols, fixed_cols)
 
 
 def _plot_single_model_diagnostics(
@@ -660,57 +696,66 @@ def _retune_pca_with_fixed_logistic(
     solver,
     l1_ratio=None,
 ):
-    grid_search_results = []
     print(f"Testing n_components: {n_components_grid}")
-    for n_comp in n_components_grid:
-        pipeline = Pipeline([
-            ('scaler', StandardScaler()),
-            ('pca', PCA(n_components=n_comp)),
-            ('classifier', LogisticRegression(**_build_logistic_kwargs(
-                solver=solver,
-                l1_ratio=l1_ratio,
-                c_value=c_value,
-            ))),
-        ])
-        with warnings.catch_warnings():
-            _suppress_expected_no_penalty_warning()
-            scores = cross_val_score(
-                pipeline,
-                X_train,
-                y_train,
-                cv=tscv_splitter,
-                n_jobs=MODEL_N_JOBS,
-                scoring='balanced_accuracy',
-            )
+    pipeline = Pipeline([
+        ('scaler', StandardScaler()),
+        ('pca', PCA()),
+        ('classifier', LogisticRegression(**_build_logistic_kwargs(
+            solver=solver, l1_ratio=l1_ratio, c_value=c_value,
+        ))),
+    ])
+    gs = GridSearchCV(
+        pipeline,
+        {'pca__n_components': list(n_components_grid)},
+        cv=tscv_splitter,
+        scoring='balanced_accuracy',
+        return_train_score=False,
+        refit=make_one_se_refit(['pca__n_components']),
+        n_jobs=MODEL_N_JOBS,
+    )
+    with warnings.catch_warnings():
+        _suppress_expected_no_penalty_warning()
+        gs.fit(X_train, y_train)
 
-        scaler_full = StandardScaler()
-        X_train_sc = scaler_full.fit_transform(X_train)
-        pca_full = PCA(n_components=n_comp)
-        X_train_pca = pca_full.fit_transform(X_train_sc)
-        grid_search_results.append({
-            'n_components': n_comp,
-            'n_components_value': X_train_pca.shape[1],
-            'cv_scores': scores,
-            'mean_cv_score': float(scores.mean()),
-            'std_cv_score': float(scores.std()),
-        })
-        print(
-            f"  n_components={n_comp} ({X_train_pca.shape[1]} components): "
-            f"CV Balanced Accuracy = {scores.mean():.4f} ± {scores.std():.4f}"
-        )
+    best_n_comp = gs.best_params_['pca__n_components']
+    best_mean_idx = int(np.argmax(gs.cv_results_['mean_test_score']))
+    best_n_comp_by_mean = gs.cv_results_['params'][best_mean_idx]['pca__n_components']
 
-    selected_pca, best_pca, pca_threshold = _select_pca_n_components_1se(grid_search_results)
-    best_n_comp = selected_pca['n_components']
-
-    scaler_pca = StandardScaler()
-    X_train_sc = scaler_pca.fit_transform(X_train)
+    scaler_pca = gs.best_estimator_.named_steps['scaler']
+    pca = gs.best_estimator_.named_steps['pca']
+    X_train_sc = scaler_pca.transform(X_train)
     X_test_sc = scaler_pca.transform(X_test)
-    pca = PCA(n_components=best_n_comp)
-    X_train_pca = pca.fit_transform(X_train_sc)
+    X_train_pca = pca.transform(X_train_sc)
     X_test_pca = pca.transform(X_test_sc)
 
+    # Compute n_components_value for best-by-mean (for print compatibility)
+    pca_temp = PCA(n_components=best_n_comp_by_mean)
+    pca_temp.fit(X_train_sc)
+    n_comp_value_by_mean = pca_temp.n_components_
+
+    cr = gs.cv_results_
+    selected_pca = {
+        'n_components': best_n_comp,
+        'n_components_value': X_train_pca.shape[1],
+        'mean_cv_score': float(cr['mean_test_score'][gs.best_index_]),
+        'std_cv_score': float(cr['std_test_score'][gs.best_index_]),
+    }
+    best_pca = {
+        'n_components': best_n_comp_by_mean,
+        'n_components_value': n_comp_value_by_mean,
+        'mean_cv_score': float(cr['mean_test_score'][best_mean_idx]),
+        'std_cv_score': float(cr['std_test_score'][best_mean_idx]),
+    }
+    pca_threshold = float(
+        cr['mean_test_score'][best_mean_idx]
+        - cr['std_test_score'][best_mean_idx] / np.sqrt(tscv_splitter.get_n_splits())
+    )
+
+    for p, mean_s, std_s in zip(cr['params'], cr['mean_test_score'], cr['std_test_score']):
+        n_c = p['pca__n_components']
+        print(f"  n_components={n_c}: CV Balanced Accuracy = {mean_s:.4f} ± {std_s:.4f}")
+
     return {
-        'grid_search_results': grid_search_results,
         'selected_pca': selected_pca,
         'best_pca': best_pca,
         'pca_threshold': pca_threshold,
@@ -763,48 +808,66 @@ if __name__ == "__main__":
     tscv = TimeSeriesSplit(n_splits=TIME_SERIES_CV_SPLITS)
 
     def _compute_raw_pca_stage():
-        print("\n========== Grid Search for Optimal PCA Components (Baseline) ===========")
-        scaler_pca = StandardScaler()
-        X_train_sc = scaler_pca.fit_transform(X_train)
+        print("\n========== Grid Search for Optimal PCA Components (Baseline) — GridSearchCV with 1SE refit ===========")
+        print(f"Testing n_components: {BASELINE_PCA_GRID}")
+        pipeline_pca = Pipeline([
+            ('scaler', StandardScaler()),
+            ('pca', PCA()),
+            ('classifier', LogisticRegression(**_build_logistic_kwargs(
+                solver=LOGISTIC_BASELINE_SOLVER, l1_ratio=None, c_value=np.inf,
+            ))),
+        ])
+        gs_pca = GridSearchCV(
+            pipeline_pca,
+            {'pca__n_components': list(BASELINE_PCA_GRID)},
+            cv=tscv,
+            scoring='balanced_accuracy',
+            return_train_score=False,
+            refit=make_one_se_refit(['pca__n_components']),
+            n_jobs=MODEL_N_JOBS,
+        )
+        with warnings.catch_warnings():
+            _suppress_expected_no_penalty_warning()
+            gs_pca.fit(X_train, y_train)
+
+        best_n_comp = gs_pca.best_params_['pca__n_components']
+        best_mean_idx = int(np.argmax(gs_pca.cv_results_['mean_test_score']))
+        best_n_comp_by_mean = gs_pca.cv_results_['params'][best_mean_idx]['pca__n_components']
+
+        scaler_pca = gs_pca.best_estimator_.named_steps['scaler']
+        pca = gs_pca.best_estimator_.named_steps['pca']
+        X_train_sc = scaler_pca.transform(X_train)
         X_test_sc = scaler_pca.transform(X_test)
-
-        n_components_grid = BASELINE_PCA_GRID
-        grid_search_results = []
-        print(f"Testing n_components: {n_components_grid}")
-        for n_comp in n_components_grid:
-            pca_temp = PCA(n_components=n_comp)
-            X_pca_temp = pca_temp.fit_transform(X_train_sc)
-            baseline_temp = LogisticRegression(**_build_logistic_kwargs(
-                solver=LOGISTIC_BASELINE_SOLVER,
-                l1_ratio=None,
-                c_value=np.inf,
-            ))
-            with warnings.catch_warnings():
-                _suppress_expected_no_penalty_warning()
-                scores = cross_val_score(
-                    baseline_temp, X_pca_temp, y_train, cv=tscv, n_jobs=MODEL_N_JOBS, scoring='balanced_accuracy'
-                )
-            mean_score = scores.mean()
-            std_score = scores.std()
-            grid_search_results.append({
-                'n_components': n_comp,
-                'n_components_value': X_pca_temp.shape[1],
-                'cv_scores': scores,
-                'mean_cv_score': mean_score,
-                'std_cv_score': std_score
-            })
-            print(f"  n_components={n_comp} ({X_pca_temp.shape[1]} components): CV Balanced Accuracy = {mean_score:.4f} ± {std_score:.4f}")
-
-        selected_pca, best_pca, pca_threshold = _select_pca_n_components_1se(grid_search_results)
-        best_n_comp = selected_pca['n_components']
-        pca = PCA(n_components=best_n_comp)
-        X_train_pca = pca.fit_transform(X_train_sc)
+        X_train_pca = pca.transform(X_train_sc)
         X_test_pca = pca.transform(X_test_sc)
+
+        pca_temp = PCA(n_components=best_n_comp_by_mean)
+        pca_temp.fit(X_train_sc)
+        n_comp_value_by_mean = pca_temp.n_components_
+
+        cr = gs_pca.cv_results_
+        selected_pca = {
+            'n_components': best_n_comp,
+            'n_components_value': X_train_pca.shape[1],
+            'mean_cv_score': float(cr['mean_test_score'][gs_pca.best_index_]),
+            'std_cv_score': float(cr['std_test_score'][gs_pca.best_index_]),
+        }
+        best_pca = {
+            'n_components': best_n_comp_by_mean,
+            'n_components_value': n_comp_value_by_mean,
+            'mean_cv_score': float(cr['mean_test_score'][best_mean_idx]),
+            'std_cv_score': float(cr['std_test_score'][best_mean_idx]),
+        }
+        pca_threshold = float(
+            cr['mean_test_score'][best_mean_idx]
+            - cr['std_test_score'][best_mean_idx] / np.sqrt(tscv.n_splits)
+        )
+        for p, mean_s, std_s in zip(cr['params'], cr['mean_test_score'], cr['std_test_score']):
+            print(f"  n_components={p['pca__n_components']}: CV Balanced Accuracy = {mean_s:.4f} ± {std_s:.4f}")
         return {
             'scaler_pca': scaler_pca,
             'X_train_sc': X_train_sc,
             'X_test_sc': X_test_sc,
-            'grid_search_results': grid_search_results,
             'selected_pca': selected_pca,
             'best_pca': best_pca,
             'pca_threshold': pca_threshold,
@@ -826,7 +889,6 @@ if __name__ == "__main__":
     scaler_pca = raw_pca_stage['scaler_pca']
     X_train_sc = raw_pca_stage['X_train_sc']
     X_test_sc = raw_pca_stage['X_test_sc']
-    grid_search_results = raw_pca_stage['grid_search_results']
     selected_pca = raw_pca_stage['selected_pca']
     best_pca = raw_pca_stage['best_pca']
     pca_threshold = raw_pca_stage['pca_threshold']
@@ -878,89 +940,81 @@ if __name__ == "__main__":
     #     'n_components_value': n_components_raw
     # }
 
-    # ------- Ridge (L2): LogisticRegressionCV — stores per-fold scores for bias-variance plot -------
+    # ------- Ridge (L2): GridSearchCV with 1SE refit — cv_results_ used for bias-variance plot -------
     def _compute_ridge_raw_stage():
-        print("\n========== RIDGE (L2) Logistic Regression CV ==========")
-        pipeline_ridge = Pipeline([
-            ('scaler',     StandardScaler()),
-            ('classifier', LogisticRegressionCV(**_build_logistic_cv_kwargs(
-                cs=RIDGE_GRID, cv=tscv, solver=LOGISTIC_RIDGE_SOLVER, l1_ratio=0, scoring='balanced_accuracy'
-            )))
-        ])
-        _fit_logistic_model(pipeline_ridge, X_train, y_train)
-        ridge_cv = pipeline_ridge.named_steps['classifier']
-        ridge_c_1se, ridge_c_best, _ = _select_c_1se_from_logregcv(ridge_cv)
-        pipeline_ridge_1se = Pipeline([
-            ('scaler', StandardScaler()),
-            ('classifier', LogisticRegression(**_build_logistic_kwargs(
-                solver=LOGISTIC_RIDGE_SOLVER,
-                l1_ratio=0,
-                c_value=ridge_c_1se,
-            )))
-        ])
-        _fit_logistic_model(pipeline_ridge_1se, X_train, y_train)
+        print("\n========== RIDGE (L2) Logistic Regression — GridSearchCV with 1SE refit ==========")
+        gs_ridge = GridSearchCV(
+            Pipeline([
+                ('scaler',     StandardScaler()),
+                ('classifier', LogisticRegression(**_build_logistic_kwargs(
+                    solver=LOGISTIC_RIDGE_SOLVER,
+                ))),
+            ]),
+            {'classifier__C': list(RIDGE_GRID)},
+            cv=tscv, scoring='balanced_accuracy', return_train_score=True,
+            refit=make_one_se_refit(['classifier__C']), n_jobs=MODEL_N_JOBS,
+        )
+        with warnings.catch_warnings():
+            _suppress_expected_no_penalty_warning()
+            gs_ridge.fit(X_train, y_train)
+        ridge_c_1se = float(gs_ridge.best_params_['classifier__C'])
+        best_mean_idx = int(np.argmax(gs_ridge.cv_results_['mean_test_score']))
+        ridge_c_best = float(gs_ridge.cv_results_['params'][best_mean_idx]['classifier__C'])
         return {
-            'pipeline_ridge': pipeline_ridge,
-            'ridge_cv': ridge_cv,
+            'gs_ridge': gs_ridge,
             'ridge_c_1se': ridge_c_1se,
             'ridge_c_best': ridge_c_best,
-            'pipeline_ridge_1se': pipeline_ridge_1se,
         }
 
     ridge_raw_stage = _load_or_compute_stage(
         checkpoint_dir,
         "raw_ridge_model",
         _compute_ridge_raw_stage,
-        "RIDGE (L2) Logistic Regression CV",
+        "RIDGE (L2) Logistic Regression — GridSearchCV",
     )
-    pipeline_ridge = ridge_raw_stage['pipeline_ridge']
-    ridge_cv = ridge_raw_stage['ridge_cv']
+    gs_ridge = ridge_raw_stage['gs_ridge']
     ridge_c_1se = ridge_raw_stage['ridge_c_1se']
     ridge_c_best = ridge_raw_stage['ridge_c_best']
-    pipeline_ridge_1se = ridge_raw_stage['pipeline_ridge_1se']
+    pipeline_ridge_1se = gs_ridge.best_estimator_
     print(f"Best C by mean CV (Ridge): {ridge_c_best:.6f}")
     print(f"1SE-selected C (Ridge):    {ridge_c_1se:.6f}")
 
-    # ------- LASSO (L1): LogisticRegressionCV — stores per-fold scores for bias-variance plot -------
+    # ------- LASSO (L1): GridSearchCV with 1SE refit — cv_results_ used for bias-variance plot -------
     def _compute_lasso_raw_stage():
-        print("\n========== LASSO (L1) Logistic Regression CV ==========")
-        pipeline_lasso = Pipeline([
-            ('scaler',     StandardScaler()),
-            ('classifier', LogisticRegressionCV(**_build_logistic_cv_kwargs(
-                cs=LASSO_GRID, cv=tscv, solver=LOGISTIC_LASSO_SOLVER, l1_ratio=1, scoring='balanced_accuracy'
-            )))
-        ])
-        _fit_logistic_model(pipeline_lasso, X_train, y_train)
-        lasso_cv = pipeline_lasso.named_steps['classifier']
-        lasso_c_1se, lasso_c_best, _ = _select_c_1se_from_logregcv(lasso_cv)
-        pipeline_lasso_1se = Pipeline([
-            ('scaler', StandardScaler()),
-            ('classifier', LogisticRegression(**_build_logistic_kwargs(
-                solver=LOGISTIC_LASSO_SOLVER,
-                l1_ratio=1,
-                c_value=lasso_c_1se,
-            )))
-        ])
-        _fit_logistic_model(pipeline_lasso_1se, X_train, y_train)
+        print("\n========== LASSO (L1) Logistic Regression — GridSearchCV with 1SE refit ==========")
+        gs_lasso = GridSearchCV(
+            Pipeline([
+                ('scaler',     StandardScaler()),
+                ('classifier', LogisticRegression(**_build_logistic_kwargs(
+                    solver=LOGISTIC_LASSO_SOLVER, l1_ratio=1,
+                ))),
+            ]),
+            {'classifier__C': list(LASSO_GRID)},
+            cv=tscv, scoring='balanced_accuracy', return_train_score=True,
+            refit=make_one_se_refit(['classifier__C']), n_jobs=MODEL_N_JOBS,
+        )
+        with warnings.catch_warnings():
+            _suppress_expected_no_penalty_warning()
+            gs_lasso.fit(X_train, y_train)
+        lasso_c_1se = float(gs_lasso.best_params_['classifier__C'])
+        best_mean_idx = int(np.argmax(gs_lasso.cv_results_['mean_test_score']))
+        lasso_c_best = float(gs_lasso.cv_results_['params'][best_mean_idx]['classifier__C'])
         return {
-            'pipeline_lasso': pipeline_lasso,
-            'lasso_cv': lasso_cv,
+            'gs_lasso': gs_lasso,
             'lasso_c_1se': lasso_c_1se,
             'lasso_c_best': lasso_c_best,
-            'pipeline_lasso_1se': pipeline_lasso_1se,
         }
 
     lasso_raw_stage = _load_or_compute_stage(
         checkpoint_dir,
         "raw_lasso_model",
         _compute_lasso_raw_stage,
-        "LASSO (L1) Logistic Regression CV",
+        "LASSO (L1) Logistic Regression — GridSearchCV",
     )
-    pipeline_lasso = lasso_raw_stage['pipeline_lasso']
-    lasso_cv = lasso_raw_stage['lasso_cv']
+    gs_lasso = lasso_raw_stage['gs_lasso']
     lasso_c_1se = lasso_raw_stage['lasso_c_1se']
     lasso_c_best = lasso_raw_stage['lasso_c_best']
-    pipeline_lasso_1se = lasso_raw_stage['pipeline_lasso_1se']
+    pipeline_lasso_1se = gs_lasso.best_estimator_
     print(f"Best C by mean CV (LASSO): {lasso_c_best:.6f}")
     print(f"1SE-selected C (LASSO):    {lasso_c_1se:.6f}")
 
@@ -990,38 +1044,37 @@ if __name__ == "__main__":
 
     # ------- Ridge CV after PCA -------
     def _compute_ridge_pca_stage():
-        print("\n========== RIDGE (L2) + PCA — LogisticRegressionCV ==========")
-        clf_ridge_pca_initial = LogisticRegressionCV(**_build_logistic_cv_kwargs(
-            cs=RIDGE_GRID, cv=tscv, solver=LOGISTIC_RIDGE_SOLVER, l1_ratio=0, scoring='balanced_accuracy'
-        ))
-        _fit_logistic_model(clf_ridge_pca_initial, X_train_pca, y_train)
-        ridge_pca_c_initial, _, _ = _select_c_1se_from_logregcv(clf_ridge_pca_initial)
-        pca_selection = _retune_pca_with_fixed_logistic(
-            X_train,
-            y_train,
-            X_test,
-            BASELINE_PCA_GRID,
-            tscv,
-            c_value=ridge_pca_c_initial,
-            solver=LOGISTIC_RIDGE_SOLVER,
-            l1_ratio=0,
+        print("\n========== RIDGE (L2) + PCA — GridSearchCV with 1SE refit ==========")
+        gs_ridge_pca_init = GridSearchCV(
+            LogisticRegression(**_build_logistic_kwargs(solver=LOGISTIC_RIDGE_SOLVER)),
+            {'C': list(RIDGE_GRID)},
+            cv=tscv, scoring='balanced_accuracy', return_train_score=False,
+            refit=make_one_se_refit(['C']), n_jobs=MODEL_N_JOBS,
         )
-        clf_ridge_pca = LogisticRegressionCV(**_build_logistic_cv_kwargs(
-            cs=RIDGE_GRID, cv=tscv, solver=LOGISTIC_RIDGE_SOLVER, l1_ratio=0, scoring='balanced_accuracy'
-        ))
-        _fit_logistic_model(clf_ridge_pca, pca_selection['X_train_pca'], y_train)
-        ridge_pca_c_1se, ridge_pca_c_best, _ = _select_c_1se_from_logregcv(clf_ridge_pca)
-        clf_ridge_pca_1se = LogisticRegression(**_build_logistic_kwargs(
-            solver=LOGISTIC_RIDGE_SOLVER,
-            l1_ratio=0,
-            c_value=ridge_pca_c_1se,
-        ))
-        _fit_logistic_model(clf_ridge_pca_1se, pca_selection['X_train_pca'], y_train)
+        with warnings.catch_warnings():
+            _suppress_expected_no_penalty_warning()
+            gs_ridge_pca_init.fit(X_train_pca, y_train)
+        ridge_pca_c_initial = float(gs_ridge_pca_init.best_params_['C'])
+        pca_selection = _retune_pca_with_fixed_logistic(
+            X_train, y_train, X_test, BASELINE_PCA_GRID, tscv,
+            c_value=ridge_pca_c_initial, solver=LOGISTIC_RIDGE_SOLVER, l1_ratio=0,
+        )
+        gs_ridge_pca = GridSearchCV(
+            LogisticRegression(**_build_logistic_kwargs(solver=LOGISTIC_RIDGE_SOLVER)),
+            {'C': list(RIDGE_GRID)},
+            cv=tscv, scoring='balanced_accuracy', return_train_score=True,
+            refit=make_one_se_refit(['C']), n_jobs=MODEL_N_JOBS,
+        )
+        with warnings.catch_warnings():
+            _suppress_expected_no_penalty_warning()
+            gs_ridge_pca.fit(pca_selection['X_train_pca'], y_train)
+        ridge_pca_c_1se = float(gs_ridge_pca.best_params_['C'])
+        best_mean_idx = int(np.argmax(gs_ridge_pca.cv_results_['mean_test_score']))
+        ridge_pca_c_best = float(gs_ridge_pca.cv_results_['params'][best_mean_idx]['C'])
         return {
-            'clf_ridge_pca': clf_ridge_pca,
+            'gs_ridge_pca': gs_ridge_pca,
             'ridge_pca_c_1se': ridge_pca_c_1se,
             'ridge_pca_c_best': ridge_pca_c_best,
-            'clf_ridge_pca_1se': clf_ridge_pca_1se,
             **pca_selection,
         }
 
@@ -1029,12 +1082,12 @@ if __name__ == "__main__":
         checkpoint_dir,
         "raw_ridge_pca_model",
         _compute_ridge_pca_stage,
-        "RIDGE (L2) + PCA — LogisticRegressionCV",
+        "RIDGE (L2) + PCA — GridSearchCV",
     )
-    clf_ridge_pca = ridge_pca_stage['clf_ridge_pca']
+    gs_ridge_pca = ridge_pca_stage['gs_ridge_pca']
     ridge_pca_c_1se = ridge_pca_stage['ridge_pca_c_1se']
     ridge_pca_c_best = ridge_pca_stage['ridge_pca_c_best']
-    clf_ridge_pca_1se = ridge_pca_stage['clf_ridge_pca_1se']
+    clf_ridge_pca_1se = gs_ridge_pca.best_estimator_
     selected_pca_ridge = ridge_pca_stage['selected_pca']
     best_pca_ridge = ridge_pca_stage['best_pca']
     pca_threshold_ridge = ridge_pca_stage['pca_threshold']
@@ -1054,38 +1107,37 @@ if __name__ == "__main__":
 
     # ------- LASSO CV after PCA -------
     def _compute_lasso_pca_stage():
-        print("\n========== LASSO (L1) + PCA — LogisticRegressionCV ==========")
-        clf_lasso_pca_initial = LogisticRegressionCV(**_build_logistic_cv_kwargs(
-            cs=LASSO_GRID, cv=tscv, solver=LOGISTIC_LASSO_SOLVER, l1_ratio=1, scoring='balanced_accuracy'
-        ))
-        _fit_logistic_model(clf_lasso_pca_initial, X_train_pca, y_train)
-        lasso_pca_c_initial, _, _ = _select_c_1se_from_logregcv(clf_lasso_pca_initial)
-        pca_selection = _retune_pca_with_fixed_logistic(
-            X_train,
-            y_train,
-            X_test,
-            BASELINE_PCA_GRID,
-            tscv,
-            c_value=lasso_pca_c_initial,
-            solver=LOGISTIC_LASSO_SOLVER,
-            l1_ratio=1,
+        print("\n========== LASSO (L1) + PCA — GridSearchCV with 1SE refit ==========")
+        gs_lasso_pca_init = GridSearchCV(
+            LogisticRegression(**_build_logistic_kwargs(solver=LOGISTIC_LASSO_SOLVER, l1_ratio=1)),
+            {'C': list(LASSO_GRID)},
+            cv=tscv, scoring='balanced_accuracy', return_train_score=False,
+            refit=make_one_se_refit(['C']), n_jobs=MODEL_N_JOBS,
         )
-        clf_lasso_pca = LogisticRegressionCV(**_build_logistic_cv_kwargs(
-            cs=LASSO_GRID, cv=tscv, solver=LOGISTIC_LASSO_SOLVER, l1_ratio=1, scoring='balanced_accuracy'
-        ))
-        _fit_logistic_model(clf_lasso_pca, pca_selection['X_train_pca'], y_train)
-        lasso_pca_c_1se, lasso_pca_c_best, _ = _select_c_1se_from_logregcv(clf_lasso_pca)
-        clf_lasso_pca_1se = LogisticRegression(**_build_logistic_kwargs(
-            solver=LOGISTIC_LASSO_SOLVER,
-            l1_ratio=1,
-            c_value=lasso_pca_c_1se,
-        ))
-        _fit_logistic_model(clf_lasso_pca_1se, pca_selection['X_train_pca'], y_train)
+        with warnings.catch_warnings():
+            _suppress_expected_no_penalty_warning()
+            gs_lasso_pca_init.fit(X_train_pca, y_train)
+        lasso_pca_c_initial = float(gs_lasso_pca_init.best_params_['C'])
+        pca_selection = _retune_pca_with_fixed_logistic(
+            X_train, y_train, X_test, BASELINE_PCA_GRID, tscv,
+            c_value=lasso_pca_c_initial, solver=LOGISTIC_LASSO_SOLVER, l1_ratio=1,
+        )
+        gs_lasso_pca = GridSearchCV(
+            LogisticRegression(**_build_logistic_kwargs(solver=LOGISTIC_LASSO_SOLVER, l1_ratio=1)),
+            {'C': list(LASSO_GRID)},
+            cv=tscv, scoring='balanced_accuracy', return_train_score=True,
+            refit=make_one_se_refit(['C']), n_jobs=MODEL_N_JOBS,
+        )
+        with warnings.catch_warnings():
+            _suppress_expected_no_penalty_warning()
+            gs_lasso_pca.fit(pca_selection['X_train_pca'], y_train)
+        lasso_pca_c_1se = float(gs_lasso_pca.best_params_['C'])
+        best_mean_idx = int(np.argmax(gs_lasso_pca.cv_results_['mean_test_score']))
+        lasso_pca_c_best = float(gs_lasso_pca.cv_results_['params'][best_mean_idx]['C'])
         return {
-            'clf_lasso_pca': clf_lasso_pca,
+            'gs_lasso_pca': gs_lasso_pca,
             'lasso_pca_c_1se': lasso_pca_c_1se,
             'lasso_pca_c_best': lasso_pca_c_best,
-            'clf_lasso_pca_1se': clf_lasso_pca_1se,
             **pca_selection,
         }
 
@@ -1093,12 +1145,12 @@ if __name__ == "__main__":
         checkpoint_dir,
         "raw_lasso_pca_model",
         _compute_lasso_pca_stage,
-        "LASSO (L1) + PCA — LogisticRegressionCV",
+        "LASSO (L1) + PCA — GridSearchCV",
     )
-    clf_lasso_pca = lasso_pca_stage['clf_lasso_pca']
+    gs_lasso_pca = lasso_pca_stage['gs_lasso_pca']
     lasso_pca_c_1se = lasso_pca_stage['lasso_pca_c_1se']
     lasso_pca_c_best = lasso_pca_stage['lasso_pca_c_best']
-    clf_lasso_pca_1se = lasso_pca_stage['clf_lasso_pca_1se']
+    clf_lasso_pca_1se = gs_lasso_pca.best_estimator_
     selected_pca_lasso = lasso_pca_stage['selected_pca']
     best_pca_lasso = lasso_pca_stage['best_pca']
     pca_threshold_lasso = lasso_pca_stage['pca_threshold']
@@ -1166,10 +1218,10 @@ if __name__ == "__main__":
     comparison_df = pd.DataFrame(rows).set_index('Model')
     print(comparison_df.to_string())
 
-    ranked_df = rank_models_by_metrics(pd.DataFrame(ranking_rows), criteria=CV_SELECTION_CRITERIA)
+    ranked_df = rank_models_by_metrics(pd.DataFrame(ranking_rows), criteria=TEST_SELECTION_CRITERIA)
     print("\n===== Ranked Baseline Models =====")
-    print(ranked_df[['Model', 'rank_validation_avg_roc_auc', 'rank_validation_avg_sensitivity',
-                     'rank_validation_avg_specificity', 'rank_validation_std_accuracy', 'average_rank']].to_string(index=False))
+    print(ranked_df[['Model', 'rank_test_roc_auc_macro', 'rank_test_split_accuracy',
+                     'rank_test_sensitivity', 'rank_test_specificity', 'average_rank']].to_string(index=False))
 
     plot_configs = {
         f'Base+PCA ({n_components_raw}, {best_n_comp*100:.0f}%)': {
@@ -1197,7 +1249,8 @@ if __name__ == "__main__":
                 {
                     'type': 'c',
                     'suffix': 'classifier_C',
-                    'logregcv': ridge_cv,
+                    'grid_search': gs_ridge,
+                    'c_param_key': 'classifier__C',
                     'one_se_c': ridge_c_1se,
                     'model_title': 'Ridge (L2) - LR',
                     'feature_title': 'Raw OHLCV Features',
@@ -1213,7 +1266,8 @@ if __name__ == "__main__":
                 {
                     'type': 'c',
                     'suffix': 'classifier_C',
-                    'logregcv': lasso_cv,
+                    'grid_search': gs_lasso,
+                    'c_param_key': 'classifier__C',
                     'one_se_c': lasso_c_1se,
                     'model_title': 'LASSO (L1) - LR',
                     'feature_title': 'Raw OHLCV Features',
@@ -1229,7 +1283,8 @@ if __name__ == "__main__":
                 {
                     'type': 'c',
                     'suffix': 'classifier_C',
-                    'logregcv': clf_ridge_pca,
+                    'grid_search': gs_ridge_pca,
+                    'c_param_key': 'C',
                     'one_se_c': ridge_pca_c_1se,
                     'model_title': 'Ridge (L2) - LR',
                     'feature_title': f'PCA Features ({n_components_ridge} comps, {best_n_comp_ridge*100:.0f}% variance)',
@@ -1261,7 +1316,8 @@ if __name__ == "__main__":
                 {
                     'type': 'c',
                     'suffix': 'classifier_C',
-                    'logregcv': clf_lasso_pca,
+                    'grid_search': gs_lasso_pca,
+                    'c_param_key': 'C',
                     'one_se_c': lasso_pca_c_1se,
                     'model_title': 'LASSO (L1) - LR',
                     'feature_title': f'PCA Features ({n_components_lasso} comps, {best_n_comp_lasso*100:.0f}% variance)',
@@ -1323,46 +1379,59 @@ if __name__ == "__main__":
     print(f"Feature matrix with DOW: {X_dow.shape[1]} columns")
 
     def _compute_dow_pca_stage():
-        print("\n========== Grid Search for Optimal PCA Components (DOW) ===========")
-        n_components_grid = BASELINE_PCA_GRID
-        grid_search_results_dow = []
-
-        scaler_pca_dow = StandardScaler()
-        X_train_dow_sc = scaler_pca_dow.fit_transform(X_train_dow)
+        print("\n========== Grid Search for Optimal PCA Components (DOW) — GridSearchCV with 1SE refit ===========")
+        print(f"Testing n_components: {BASELINE_PCA_GRID}")
+        pipeline_pca_dow = Pipeline([
+            ('scaler', StandardScaler()),
+            ('pca', PCA()),
+            ('classifier', LogisticRegression(**_build_logistic_kwargs(
+                solver=LOGISTIC_BASELINE_SOLVER, l1_ratio=None, c_value=np.inf,
+            ))),
+        ])
+        gs_pca_dow = GridSearchCV(
+            pipeline_pca_dow,
+            {'pca__n_components': list(BASELINE_PCA_GRID)},
+            cv=tscv,
+            scoring='balanced_accuracy',
+            return_train_score=False,
+            refit=make_one_se_refit(['pca__n_components']),
+            n_jobs=MODEL_N_JOBS,
+        )
+        with warnings.catch_warnings():
+            _suppress_expected_no_penalty_warning()
+            gs_pca_dow.fit(X_train_dow, y_train)
+        best_n_comp_dow = gs_pca_dow.best_params_['pca__n_components']
+        best_mean_idx = int(np.argmax(gs_pca_dow.cv_results_['mean_test_score']))
+        best_n_comp_dow_by_mean = gs_pca_dow.cv_results_['params'][best_mean_idx]['pca__n_components']
+        scaler_pca_dow = gs_pca_dow.best_estimator_.named_steps['scaler']
+        pca_dow = gs_pca_dow.best_estimator_.named_steps['pca']
+        X_train_dow_sc = scaler_pca_dow.transform(X_train_dow)
         X_test_dow_sc = scaler_pca_dow.transform(X_test_dow)
-
-        print(f"Testing n_components: {n_components_grid}")
-        for n_comp in n_components_grid:
-            pca_temp = PCA(n_components=n_comp)
-            X_pca_temp = pca_temp.fit_transform(X_train_dow_sc)
-            baseline_temp = LogisticRegression(**_build_logistic_kwargs(
-                solver=LOGISTIC_BASELINE_SOLVER,
-                l1_ratio=None,
-                c_value=np.inf,
-            ))
-            with warnings.catch_warnings():
-                _suppress_expected_no_penalty_warning()
-                scores = cross_val_score(
-                    baseline_temp, X_pca_temp, y_train, cv=tscv, n_jobs=MODEL_N_JOBS, scoring='balanced_accuracy'
-                )
-            mean_score = scores.mean()
-            std_score = scores.std()
-            grid_search_results_dow.append({
-                'n_components': n_comp,
-                'n_components_value': X_pca_temp.shape[1],
-                'cv_scores': scores,
-                'mean_cv_score': mean_score,
-                'std_cv_score': std_score
-            })
-            print(f"  n_components={n_comp} ({X_pca_temp.shape[1]} components): CV Balanced Accuracy = {mean_score:.4f} ± {std_score:.4f}")
-
-        selected_pca_dow, best_pca_dow, pca_threshold_dow = _select_pca_n_components_1se(grid_search_results_dow)
-        best_n_comp_dow = selected_pca_dow['n_components']
-        pca_dow = PCA(n_components=best_n_comp_dow)
-        X_train_dow_pca = pca_dow.fit_transform(X_train_dow_sc)
+        X_train_dow_pca = pca_dow.transform(X_train_dow_sc)
         X_test_dow_pca = pca_dow.transform(X_test_dow_sc)
+        pca_temp = PCA(n_components=best_n_comp_dow_by_mean)
+        pca_temp.fit(X_train_dow_sc)
+        n_comp_value_by_mean = pca_temp.n_components_
+        cr = gs_pca_dow.cv_results_
+        selected_pca_dow = {
+            'n_components': best_n_comp_dow,
+            'n_components_value': X_train_dow_pca.shape[1],
+            'mean_cv_score': float(cr['mean_test_score'][gs_pca_dow.best_index_]),
+            'std_cv_score': float(cr['std_test_score'][gs_pca_dow.best_index_]),
+        }
+        best_pca_dow = {
+            'n_components': best_n_comp_dow_by_mean,
+            'n_components_value': n_comp_value_by_mean,
+            'mean_cv_score': float(cr['mean_test_score'][best_mean_idx]),
+            'std_cv_score': float(cr['std_test_score'][best_mean_idx]),
+        }
+        pca_threshold_dow = float(
+            cr['mean_test_score'][best_mean_idx]
+            - cr['std_test_score'][best_mean_idx] / np.sqrt(tscv.n_splits)
+        )
+        for p, mean_s, std_s in zip(cr['params'], cr['mean_test_score'], cr['std_test_score']):
+            print(f"  n_components={p['pca__n_components']}: CV Balanced Accuracy = {mean_s:.4f} ± {std_s:.4f}")
         return {
-            'grid_search_results_dow': grid_search_results_dow,
             'scaler_pca_dow': scaler_pca_dow,
             'X_train_dow_sc': X_train_dow_sc,
             'X_test_dow_sc': X_test_dow_sc,
@@ -1384,7 +1453,6 @@ if __name__ == "__main__":
         _compute_dow_pca_stage,
         "Grid Search for Optimal PCA Components (DOW)",
     )
-    grid_search_results_dow = dow_pca_stage['grid_search_results_dow']
     scaler_pca_dow = dow_pca_stage['scaler_pca_dow']
     X_train_dow_sc = dow_pca_stage['X_train_dow_sc']
     X_test_dow_sc = dow_pca_stage['X_test_dow_sc']
@@ -1439,33 +1507,30 @@ if __name__ == "__main__":
     #     'n_components_value': n_components_dow
     # }
 
-    # --- Ridge CV + DOW ---
+    # --- Ridge GridSearchCV + DOW ---
     def _compute_ridge_dow_stage():
-        print("\n========== RIDGE CV + DOW ==========")
-        pipeline_ridge_dow = Pipeline([
-            ('scaler',     StandardScaler()),
-            ('classifier', LogisticRegressionCV(**_build_logistic_cv_kwargs(
-                cs=RIDGE_GRID, cv=tscv, solver=LOGISTIC_RIDGE_SOLVER, l1_ratio=0, scoring='balanced_accuracy'
-            )))
-        ])
-        _fit_logistic_model(pipeline_ridge_dow, X_train_dow, y_train)
-        ridge_dow_cv = pipeline_ridge_dow.named_steps['classifier']
-        ridge_dow_c_1se, ridge_dow_c_best, _ = _select_c_1se_from_logregcv(ridge_dow_cv)
-        pipeline_ridge_dow_1se = Pipeline([
-            ('scaler', StandardScaler()),
-            ('classifier', LogisticRegression(**_build_logistic_kwargs(
-                solver=LOGISTIC_RIDGE_SOLVER,
-                l1_ratio=0,
-                c_value=ridge_dow_c_1se,
-            )))
-        ])
-        _fit_logistic_model(pipeline_ridge_dow_1se, X_train_dow, y_train)
+        print("\n========== RIDGE (L2) + DOW — GridSearchCV with 1SE refit ==========")
+        gs_ridge_dow = GridSearchCV(
+            Pipeline([
+                ('scaler',     StandardScaler()),
+                ('classifier', LogisticRegression(**_build_logistic_kwargs(
+                    solver=LOGISTIC_RIDGE_SOLVER,
+                ))),
+            ]),
+            {'classifier__C': list(RIDGE_GRID)},
+            cv=tscv, scoring='balanced_accuracy', return_train_score=True,
+            refit=make_one_se_refit(['classifier__C']), n_jobs=MODEL_N_JOBS,
+        )
+        with warnings.catch_warnings():
+            _suppress_expected_no_penalty_warning()
+            gs_ridge_dow.fit(X_train_dow, y_train)
+        ridge_dow_c_1se = float(gs_ridge_dow.best_params_['classifier__C'])
+        best_mean_idx = int(np.argmax(gs_ridge_dow.cv_results_['mean_test_score']))
+        ridge_dow_c_best = float(gs_ridge_dow.cv_results_['params'][best_mean_idx]['classifier__C'])
         return {
-            'pipeline_ridge_dow': pipeline_ridge_dow,
-            'ridge_dow_cv': ridge_dow_cv,
+            'gs_ridge_dow': gs_ridge_dow,
             'ridge_dow_c_1se': ridge_dow_c_1se,
             'ridge_dow_c_best': ridge_dow_c_best,
-            'pipeline_ridge_dow_1se': pipeline_ridge_dow_1se,
         }
 
     ridge_dow_stage = _load_or_compute_stage(
@@ -1474,41 +1539,37 @@ if __name__ == "__main__":
         _compute_ridge_dow_stage,
         "RIDGE CV + DOW",
     )
-    pipeline_ridge_dow = ridge_dow_stage['pipeline_ridge_dow']
-    ridge_dow_cv = ridge_dow_stage['ridge_dow_cv']
+    gs_ridge_dow = ridge_dow_stage['gs_ridge_dow']
     ridge_dow_c_1se = ridge_dow_stage['ridge_dow_c_1se']
     ridge_dow_c_best = ridge_dow_stage['ridge_dow_c_best']
-    pipeline_ridge_dow_1se = ridge_dow_stage['pipeline_ridge_dow_1se']
+    pipeline_ridge_dow_1se = gs_ridge_dow.best_estimator_
     print(f"Best C by mean CV (Ridge+DOW): {ridge_dow_c_best:.6f}")
     print(f"1SE-selected C (Ridge+DOW):    {ridge_dow_c_1se:.6f}")
 
-    # --- LASSO CV + DOW ---
+    # --- LASSO GridSearchCV + DOW ---
     def _compute_lasso_dow_stage():
-        print("\n========== LASSO CV + DOW ==========")
-        pipeline_lasso_dow = Pipeline([
-            ('scaler',     StandardScaler()),
-            ('classifier', LogisticRegressionCV(**_build_logistic_cv_kwargs(
-                cs=LASSO_GRID, cv=tscv, solver=LOGISTIC_LASSO_SOLVER, l1_ratio=1, scoring='balanced_accuracy'
-            )))
-        ])
-        _fit_logistic_model(pipeline_lasso_dow, X_train_dow, y_train)
-        lasso_dow_cv = pipeline_lasso_dow.named_steps['classifier']
-        lasso_dow_c_1se, lasso_dow_c_best, _ = _select_c_1se_from_logregcv(lasso_dow_cv)
-        pipeline_lasso_dow_1se = Pipeline([
-            ('scaler', StandardScaler()),
-            ('classifier', LogisticRegression(**_build_logistic_kwargs(
-                solver=LOGISTIC_LASSO_SOLVER,
-                l1_ratio=1,
-                c_value=lasso_dow_c_1se,
-            )))
-        ])
-        _fit_logistic_model(pipeline_lasso_dow_1se, X_train_dow, y_train)
+        print("\n========== LASSO (L1) + DOW — GridSearchCV with 1SE refit ==========")
+        gs_lasso_dow = GridSearchCV(
+            Pipeline([
+                ('scaler',     StandardScaler()),
+                ('classifier', LogisticRegression(**_build_logistic_kwargs(
+                    solver=LOGISTIC_LASSO_SOLVER, l1_ratio=1,
+                ))),
+            ]),
+            {'classifier__C': list(LASSO_GRID)},
+            cv=tscv, scoring='balanced_accuracy', return_train_score=True,
+            refit=make_one_se_refit(['classifier__C']), n_jobs=MODEL_N_JOBS,
+        )
+        with warnings.catch_warnings():
+            _suppress_expected_no_penalty_warning()
+            gs_lasso_dow.fit(X_train_dow, y_train)
+        lasso_dow_c_1se = float(gs_lasso_dow.best_params_['classifier__C'])
+        best_mean_idx = int(np.argmax(gs_lasso_dow.cv_results_['mean_test_score']))
+        lasso_dow_c_best = float(gs_lasso_dow.cv_results_['params'][best_mean_idx]['classifier__C'])
         return {
-            'pipeline_lasso_dow': pipeline_lasso_dow,
-            'lasso_dow_cv': lasso_dow_cv,
+            'gs_lasso_dow': gs_lasso_dow,
             'lasso_dow_c_1se': lasso_dow_c_1se,
             'lasso_dow_c_best': lasso_dow_c_best,
-            'pipeline_lasso_dow_1se': pipeline_lasso_dow_1se,
         }
 
     lasso_dow_stage = _load_or_compute_stage(
@@ -1517,49 +1578,47 @@ if __name__ == "__main__":
         _compute_lasso_dow_stage,
         "LASSO CV + DOW",
     )
-    pipeline_lasso_dow = lasso_dow_stage['pipeline_lasso_dow']
-    lasso_dow_cv = lasso_dow_stage['lasso_dow_cv']
+    gs_lasso_dow = lasso_dow_stage['gs_lasso_dow']
     lasso_dow_c_1se = lasso_dow_stage['lasso_dow_c_1se']
     lasso_dow_c_best = lasso_dow_stage['lasso_dow_c_best']
-    pipeline_lasso_dow_1se = lasso_dow_stage['pipeline_lasso_dow_1se']
+    pipeline_lasso_dow_1se = gs_lasso_dow.best_estimator_
     print(f"Best C by mean CV (LASSO+DOW): {lasso_dow_c_best:.6f}")
     print(f"1SE-selected C (LASSO+DOW):    {lasso_dow_c_1se:.6f}")
 
 
-    # --- Ridge CV + PCA + DOW ---
+    # --- Ridge GridSearchCV + PCA + DOW ---
     def _compute_ridge_pca_dow_stage():
-        print("\n========== RIDGE CV + PCA + DOW ==========")
-        clf_ridge_pca_dow_initial = LogisticRegressionCV(**_build_logistic_cv_kwargs(
-            cs=RIDGE_GRID, cv=tscv, solver=LOGISTIC_RIDGE_SOLVER, l1_ratio=0, scoring='balanced_accuracy'
-        ))
-        _fit_logistic_model(clf_ridge_pca_dow_initial, X_train_dow_pca, y_train)
-        ridge_pca_dow_c_initial, _, _ = _select_c_1se_from_logregcv(clf_ridge_pca_dow_initial)
-        pca_selection = _retune_pca_with_fixed_logistic(
-            X_train_dow,
-            y_train,
-            X_test_dow,
-            BASELINE_PCA_GRID,
-            tscv,
-            c_value=ridge_pca_dow_c_initial,
-            solver=LOGISTIC_RIDGE_SOLVER,
-            l1_ratio=0,
+        print("\n========== RIDGE (L2) + PCA + DOW — GridSearchCV with 1SE refit ==========")
+        gs_ridge_pca_dow_init = GridSearchCV(
+            LogisticRegression(**_build_logistic_kwargs(solver=LOGISTIC_RIDGE_SOLVER)),
+            {'C': list(RIDGE_GRID)},
+            cv=tscv, scoring='balanced_accuracy', return_train_score=False,
+            refit=make_one_se_refit(['C']), n_jobs=MODEL_N_JOBS,
         )
-        clf_ridge_pca_dow = LogisticRegressionCV(**_build_logistic_cv_kwargs(
-            cs=RIDGE_GRID, cv=tscv, solver=LOGISTIC_RIDGE_SOLVER, l1_ratio=0, scoring='balanced_accuracy'
-        ))
-        _fit_logistic_model(clf_ridge_pca_dow, pca_selection['X_train_pca'], y_train)
-        ridge_pca_dow_c_1se, ridge_pca_dow_c_best, _ = _select_c_1se_from_logregcv(clf_ridge_pca_dow)
-        clf_ridge_pca_dow_1se = LogisticRegression(**_build_logistic_kwargs(
-            solver=LOGISTIC_RIDGE_SOLVER,
-            l1_ratio=0,
-            c_value=ridge_pca_dow_c_1se,
-        ))
-        _fit_logistic_model(clf_ridge_pca_dow_1se, pca_selection['X_train_pca'], y_train)
+        with warnings.catch_warnings():
+            _suppress_expected_no_penalty_warning()
+            gs_ridge_pca_dow_init.fit(X_train_dow_pca, y_train)
+        ridge_pca_dow_c_initial = float(gs_ridge_pca_dow_init.best_params_['C'])
+        pca_selection = _retune_pca_with_fixed_logistic(
+            X_train_dow, y_train, X_test_dow, BASELINE_PCA_GRID, tscv,
+            c_value=ridge_pca_dow_c_initial, solver=LOGISTIC_RIDGE_SOLVER, l1_ratio=0,
+        )
+        gs_ridge_pca_dow = GridSearchCV(
+            LogisticRegression(**_build_logistic_kwargs(solver=LOGISTIC_RIDGE_SOLVER)),
+            {'C': list(RIDGE_GRID)},
+            cv=tscv, scoring='balanced_accuracy', return_train_score=True,
+            refit=make_one_se_refit(['C']), n_jobs=MODEL_N_JOBS,
+        )
+        with warnings.catch_warnings():
+            _suppress_expected_no_penalty_warning()
+            gs_ridge_pca_dow.fit(pca_selection['X_train_pca'], y_train)
+        ridge_pca_dow_c_1se = float(gs_ridge_pca_dow.best_params_['C'])
+        best_mean_idx = int(np.argmax(gs_ridge_pca_dow.cv_results_['mean_test_score']))
+        ridge_pca_dow_c_best = float(gs_ridge_pca_dow.cv_results_['params'][best_mean_idx]['C'])
         return {
-            'clf_ridge_pca_dow': clf_ridge_pca_dow,
+            'gs_ridge_pca_dow': gs_ridge_pca_dow,
             'ridge_pca_dow_c_1se': ridge_pca_dow_c_1se,
             'ridge_pca_dow_c_best': ridge_pca_dow_c_best,
-            'clf_ridge_pca_dow_1se': clf_ridge_pca_dow_1se,
             **pca_selection,
         }
 
@@ -1569,10 +1628,10 @@ if __name__ == "__main__":
         _compute_ridge_pca_dow_stage,
         "RIDGE CV + PCA + DOW",
     )
-    clf_ridge_pca_dow = ridge_pca_dow_stage['clf_ridge_pca_dow']
+    gs_ridge_pca_dow = ridge_pca_dow_stage['gs_ridge_pca_dow']
     ridge_pca_dow_c_1se = ridge_pca_dow_stage['ridge_pca_dow_c_1se']
     ridge_pca_dow_c_best = ridge_pca_dow_stage['ridge_pca_dow_c_best']
-    clf_ridge_pca_dow_1se = ridge_pca_dow_stage['clf_ridge_pca_dow_1se']
+    clf_ridge_pca_dow_1se = gs_ridge_pca_dow.best_estimator_
     selected_pca_ridge_dow = ridge_pca_dow_stage['selected_pca']
     best_pca_ridge_dow = ridge_pca_dow_stage['best_pca']
     pca_threshold_ridge_dow = ridge_pca_dow_stage['pca_threshold']
@@ -1590,40 +1649,39 @@ if __name__ == "__main__":
         f"threshold={pca_threshold_ridge_dow:.4f}"
     )
 
-    # --- LASSO CV + PCA + DOW ---
+    # --- LASSO GridSearchCV + PCA + DOW ---
     def _compute_lasso_pca_dow_stage():
-        print("\n========== LASSO CV + PCA + DOW ==========")
-        clf_lasso_pca_dow_initial = LogisticRegressionCV(**_build_logistic_cv_kwargs(
-            cs=LASSO_GRID, cv=tscv, solver=LOGISTIC_LASSO_SOLVER, l1_ratio=1, scoring='balanced_accuracy'
-        ))
-        _fit_logistic_model(clf_lasso_pca_dow_initial, X_train_dow_pca, y_train)
-        lasso_pca_dow_c_initial, _, _ = _select_c_1se_from_logregcv(clf_lasso_pca_dow_initial)
-        pca_selection = _retune_pca_with_fixed_logistic(
-            X_train_dow,
-            y_train,
-            X_test_dow,
-            BASELINE_PCA_GRID,
-            tscv,
-            c_value=lasso_pca_dow_c_initial,
-            solver=LOGISTIC_LASSO_SOLVER,
-            l1_ratio=1,
+        print("\n========== LASSO (L1) + PCA + DOW — GridSearchCV with 1SE refit ==========")
+        gs_lasso_pca_dow_init = GridSearchCV(
+            LogisticRegression(**_build_logistic_kwargs(solver=LOGISTIC_LASSO_SOLVER, l1_ratio=1)),
+            {'C': list(LASSO_GRID)},
+            cv=tscv, scoring='balanced_accuracy', return_train_score=False,
+            refit=make_one_se_refit(['C']), n_jobs=MODEL_N_JOBS,
         )
-        clf_lasso_pca_dow = LogisticRegressionCV(**_build_logistic_cv_kwargs(
-            cs=LASSO_GRID, cv=tscv, solver=LOGISTIC_LASSO_SOLVER, l1_ratio=1, scoring='balanced_accuracy'
-        ))
-        _fit_logistic_model(clf_lasso_pca_dow, pca_selection['X_train_pca'], y_train)
-        lasso_pca_dow_c_1se, lasso_pca_dow_c_best, _ = _select_c_1se_from_logregcv(clf_lasso_pca_dow)
-        clf_lasso_pca_dow_1se = LogisticRegression(**_build_logistic_kwargs(
-            solver=LOGISTIC_LASSO_SOLVER,
-            l1_ratio=1,
-            c_value=lasso_pca_dow_c_1se,
-        ))
-        _fit_logistic_model(clf_lasso_pca_dow_1se, pca_selection['X_train_pca'], y_train)
+        with warnings.catch_warnings():
+            _suppress_expected_no_penalty_warning()
+            gs_lasso_pca_dow_init.fit(X_train_dow_pca, y_train)
+        lasso_pca_dow_c_initial = float(gs_lasso_pca_dow_init.best_params_['C'])
+        pca_selection = _retune_pca_with_fixed_logistic(
+            X_train_dow, y_train, X_test_dow, BASELINE_PCA_GRID, tscv,
+            c_value=lasso_pca_dow_c_initial, solver=LOGISTIC_LASSO_SOLVER, l1_ratio=1,
+        )
+        gs_lasso_pca_dow = GridSearchCV(
+            LogisticRegression(**_build_logistic_kwargs(solver=LOGISTIC_LASSO_SOLVER, l1_ratio=1)),
+            {'C': list(LASSO_GRID)},
+            cv=tscv, scoring='balanced_accuracy', return_train_score=True,
+            refit=make_one_se_refit(['C']), n_jobs=MODEL_N_JOBS,
+        )
+        with warnings.catch_warnings():
+            _suppress_expected_no_penalty_warning()
+            gs_lasso_pca_dow.fit(pca_selection['X_train_pca'], y_train)
+        lasso_pca_dow_c_1se = float(gs_lasso_pca_dow.best_params_['C'])
+        best_mean_idx = int(np.argmax(gs_lasso_pca_dow.cv_results_['mean_test_score']))
+        lasso_pca_dow_c_best = float(gs_lasso_pca_dow.cv_results_['params'][best_mean_idx]['C'])
         return {
-            'clf_lasso_pca_dow': clf_lasso_pca_dow,
+            'gs_lasso_pca_dow': gs_lasso_pca_dow,
             'lasso_pca_dow_c_1se': lasso_pca_dow_c_1se,
             'lasso_pca_dow_c_best': lasso_pca_dow_c_best,
-            'clf_lasso_pca_dow_1se': clf_lasso_pca_dow_1se,
             **pca_selection,
         }
 
@@ -1633,10 +1691,10 @@ if __name__ == "__main__":
         _compute_lasso_pca_dow_stage,
         "LASSO CV + PCA + DOW",
     )
-    clf_lasso_pca_dow = lasso_pca_dow_stage['clf_lasso_pca_dow']
+    gs_lasso_pca_dow = lasso_pca_dow_stage['gs_lasso_pca_dow']
     lasso_pca_dow_c_1se = lasso_pca_dow_stage['lasso_pca_dow_c_1se']
     lasso_pca_dow_c_best = lasso_pca_dow_stage['lasso_pca_dow_c_best']
-    clf_lasso_pca_dow_1se = lasso_pca_dow_stage['clf_lasso_pca_dow_1se']
+    clf_lasso_pca_dow_1se = gs_lasso_pca_dow.best_estimator_
     selected_pca_lasso_dow = lasso_pca_dow_stage['selected_pca']
     best_pca_lasso_dow = lasso_pca_dow_stage['best_pca']
     pca_threshold_lasso_dow = lasso_pca_dow_stage['pca_threshold']
@@ -1675,10 +1733,10 @@ if __name__ == "__main__":
     print("\n===== Combined Comparison Table (raw + DOW) =====")
     print(combined_df.to_string())
 
-    ranked_df = rank_models_by_metrics(pd.DataFrame(ranking_rows), criteria=CV_SELECTION_CRITERIA)
+    ranked_df = rank_models_by_metrics(pd.DataFrame(ranking_rows), criteria=TEST_SELECTION_CRITERIA)
     print("\n===== Ranked Models Across Raw + DOW =====")
-    print(ranked_df[['Model', 'rank_validation_avg_roc_auc', 'rank_validation_avg_sensitivity',
-                     'rank_validation_avg_specificity', 'rank_validation_std_accuracy', 'average_rank']].to_string(index=False))
+    print(ranked_df[['Model', 'rank_test_roc_auc_macro', 'rank_test_split_accuracy',
+                     'rank_test_sensitivity', 'rank_test_specificity', 'average_rank']].to_string(index=False))
 
     final_plot_configs = dict(plot_configs)
     final_plot_configs.update({
@@ -1707,7 +1765,8 @@ if __name__ == "__main__":
                 {
                     'type': 'c',
                     'suffix': 'dow_classifier_C',
-                    'logregcv': ridge_dow_cv,
+                    'grid_search': gs_ridge_dow,
+                    'c_param_key': 'classifier__C',
                     'one_se_c': ridge_dow_c_1se,
                     'model_title': 'Ridge (L2) - LR + DOW',
                     'feature_title': 'Raw OHLCV + Day-of-Week Features',
@@ -1723,7 +1782,8 @@ if __name__ == "__main__":
                 {
                     'type': 'c',
                     'suffix': 'dow_classifier_C',
-                    'logregcv': lasso_dow_cv,
+                    'grid_search': gs_lasso_dow,
+                    'c_param_key': 'classifier__C',
                     'one_se_c': lasso_dow_c_1se,
                     'model_title': 'LASSO (L1) - LR + DOW',
                     'feature_title': 'Raw OHLCV + Day-of-Week Features',
@@ -1739,7 +1799,8 @@ if __name__ == "__main__":
                 {
                     'type': 'c',
                     'suffix': 'dow_classifier_C',
-                    'logregcv': clf_ridge_pca_dow,
+                    'grid_search': gs_ridge_pca_dow,
+                    'c_param_key': 'C',
                     'one_se_c': ridge_pca_dow_c_1se,
                     'model_title': 'Ridge (L2) - LR + DOW',
                     'feature_title': f'PCA + DOW Features ({n_components_ridge_dow} comps, {best_n_comp_ridge_dow*100:.0f}% variance)',
@@ -1771,7 +1832,8 @@ if __name__ == "__main__":
                 {
                     'type': 'c',
                     'suffix': 'dow_classifier_C',
-                    'logregcv': clf_lasso_pca_dow,
+                    'grid_search': gs_lasso_pca_dow,
+                    'c_param_key': 'C',
                     'one_se_c': lasso_pca_dow_c_1se,
                     'model_title': 'LASSO (L1) - LR + DOW',
                     'feature_title': f'PCA + DOW Features ({n_components_lasso_dow} comps, {best_n_comp_lasso_dow*100:.0f}% variance)',
@@ -1817,22 +1879,16 @@ if __name__ == "__main__":
         output_bv_path = base_bv_path if idx == 0 else _append_plot_suffix(base_bv_path, spec['suffix'])
         output_direct_path = base_direct_path if idx == 0 else _append_plot_suffix(base_direct_path, spec['suffix'])
         if spec['type'] == 'c':
+            bv_data = _bv_curves_from_gridsearch(spec['grid_search'], spec['c_param_key'])
             diagnostics = {
-                'single_bv': _compute_bv_curves(
-                    spec['logregcv'],
-                    spec['X_train_plot'],
-                    y_train,
-                    tscv,
-                    spec['l1_ratio'],
-                    'saga',
-                ),
+                'single_bv': bv_data,
                 'single_direct': _compute_direct_split_errors(
                     spec['X_train_plot'],
                     y_train,
                     spec['X_test_plot'],
                     y_test,
                     _augment_c_grid_with_selected_values(
-                        spec['logregcv'].Cs_,
+                        bv_data['cs'],
                         spec['one_se_c'],
                     ),
                     spec['l1_ratio'],

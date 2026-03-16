@@ -1,1 +1,0 @@
-Now extract the accuracy, precision, ROC-AUC of the text result files (cnn_result, logistic_regression_7days_comparison, lstm_result, rnn_result, SVM_results_original data) for different method to construct a table for comparison. Export that table to overwrite the file comparision.txt in folder output

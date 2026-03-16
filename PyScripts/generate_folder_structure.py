@@ -13,6 +13,11 @@ DEFAULT_EXCLUDES = {
     ".git",
     ".venv",
     "__pycache__",
+    "cache",
+    "base_plot_curves",
+    "New",
+    "kaggle",
+    "Old",
     ".DS_Store",
     ".idea",
     ".vscode",
@@ -22,8 +27,8 @@ DEFAULT_EXCLUDES = {
 }
 
 
-def build_folder_tree_lines(root: Path, *, exclude_names: set[str]) -> list[str]:
-    """Return an ASCII tree containing directories only, at all nesting levels."""
+def build_folder_tree_lines(root: Path, *, exclude_names: set[str], max_depth: int = 3) -> list[str]:
+    """Return an ASCII tree containing directories only, up to max_depth levels."""
 
     def _dirs(path: Path) -> list[Path]:
         return sorted(
@@ -37,16 +42,18 @@ def build_folder_tree_lines(root: Path, *, exclude_names: set[str]) -> list[str]
 
     lines = [f"{root.name}/"]
 
-    def _walk(path: Path, prefix: str) -> None:
+    def _walk(path: Path, prefix: str, depth: int) -> None:
+        if max_depth != -1 and depth > max_depth:
+            return
         children = _dirs(path)
         for idx, child in enumerate(children):
             is_last = idx == len(children) - 1
             branch = "`-- " if is_last else "|-- "
             lines.append(f"{prefix}{branch}{child.name}/")
             extension = "    " if is_last else "|   "
-            _walk(child, prefix + extension)
+            _walk(child, prefix + extension, depth + 1)
 
-    _walk(root, "")
+    _walk(root, "", 1)
     return lines
 
 
@@ -102,13 +109,19 @@ def main() -> None:
         default="project",
         help="Prefix for generated files in output/.",
     )
+    parser.add_argument(
+        "--max-depth",
+        type=int,
+        default=3,
+        help="Maximum folder nesting depth to display (default: 3).",
+    )
     args = parser.parse_args()
 
     project_root = Path(__file__).resolve().parents[1]
     output_dir = project_root / "output"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    lines = build_folder_tree_lines(project_root, exclude_names=DEFAULT_EXCLUDES)
+    lines = build_folder_tree_lines(project_root, exclude_names=DEFAULT_EXCLUDES, max_depth=args.max_depth)
 
     txt_path = output_dir / f"{args.output_prefix}_folder_structure.txt"
     png_path = output_dir / f"{args.output_prefix}_folder_structure.png"

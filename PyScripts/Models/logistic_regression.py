@@ -29,7 +29,7 @@ from H_modeling import (
     transform_with_fitted_scaler_pca,
 )
 from H_eval import (
-    CV_SELECTION_CRITERIA,
+    TEST_SELECTION_CRITERIA,
     get_final_metrics,
     get_or_compute_final_metrics,
     _metrics_stage_name,
@@ -514,7 +514,7 @@ if __name__=="__main__":
         {"Model": "PCA Ridge(int.) Log. Reg.", **pca_ridge_results},
         {"Model": "PCA LASSO(int.) Log. Reg.", **pca_lasso_results},
     ])
-    ranked_df = rank_models_by_metrics(ranking_df, criteria=CV_SELECTION_CRITERIA)
+    ranked_df = rank_models_by_metrics(ranking_df, criteria=TEST_SELECTION_CRITERIA)
     best_model_name = str(ranked_df.iloc[0]["Model"])
     plot_model_name = select_non_degenerate_plot_model(ranked_df)
     output_dir = cwd / "output"

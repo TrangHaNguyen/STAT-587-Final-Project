@@ -35,7 +35,7 @@ from matplotlib.lines import Line2D
 from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
 
-from H_eval import rank_models_by_metrics
+from H_eval import rank_models_by_metrics, TEST_SELECTION_CRITERIA
 from H_prep import clean_data, import_data, to_binary_class
 from H_search_history import load_search_checkpoint, load_stage_checkpoint
 from model_grids import RANDOM_SEED, TEST_SIZE, TRAIN_TEST_SHUFFLE
@@ -115,7 +115,7 @@ def resolve_auto_candidate(
         require_complete=require_complete,
     )
 
-    dataset_df = rank_models_by_metrics(dataset_df).reset_index(drop=True)
+    dataset_df = rank_models_by_metrics(dataset_df, criteria=TEST_SELECTION_CRITERIA).reset_index(drop=True)
 
     return dataset_df.iloc[0]
 
@@ -132,7 +132,7 @@ def resolve_all_candidates(
         dataset_label=dataset_label,
         require_complete=require_complete,
     )
-    return rank_models_by_metrics(dataset_df).reset_index(drop=True)
+    return rank_models_by_metrics(dataset_df, criteria=TEST_SELECTION_CRITERIA).reset_index(drop=True)
 
 
 def _load_base_raw_dataset() -> dict[str, Any]:

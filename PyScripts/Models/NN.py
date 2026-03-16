@@ -33,7 +33,7 @@ else:
 sys.path.append(os.path.abspath(cwd / "PyScripts" / "Models"))
 
 from H_eval import (
-    CV_SELECTION_CRITERIA,
+    TEST_SELECTION_CRITERIA,
     build_base_style_comparison_df,
     build_compact_export_table,
     comparison_row_from_metrics,
@@ -586,7 +586,7 @@ def generate_nn_epoch_diagnostics(
     been computed (and checkpointed) before calling this function so that the
     CV-selected epoch used for model evaluation matches what is shown in the plots.
     """
-    ranked_df = rank_models_by_metrics(ranking_df, criteria=CV_SELECTION_CRITERIA)
+    ranked_df = rank_models_by_metrics(ranking_df, criteria=TEST_SELECTION_CRITERIA)
     plot_model_name = str(ranked_df.iloc[0]["Model"])
     output_bv = output_dir / f"{output_prefix}_nn_best_bias_variance.png"
     output_direct = output_dir / f"{output_prefix}_nn_best_train_test.png"

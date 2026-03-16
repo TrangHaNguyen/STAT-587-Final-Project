@@ -1,0 +1,17 @@
+\begin{table}[htbp]
+\centering
+\caption{8yrs 4-method comparison}
+\label{tab:8yrs_4methods_comparison}
+\begin{tabular}{lrrrrr}
+\toprule
+Model & ROC-AUC & MCC & Test Acc & Recall & Specificity \\
+\midrule
+Logistic Regression: PCA LASSO(int.) Log. Reg. & 0.523 & -0.006 & 0.499 & 0.516 & 0.478 \\
+Random Forest: LASSO RF & 0.513 & 0.015 & 0.519 & 0.647 & 0.368 \\
+SVM: Raw RBF SVM & 0.509 & 0.010 & 0.540 & 0.986 & 0.016 \\
+Neural Network: LSTM & 0.532 & 0.083 & 0.554 & 0.734 & 0.343 \\
+\bottomrule
+\end{tabular}
+\par\smallskip
+\footnotesize Each row is the single winner for one method family across its feature-set variants. For Logistic Regression, Random Forest, and SVM, winners are selected using training-only time-series CV metrics. For Neural Network, winners are selected using hold-out test metrics (no CV tuning). All rows report final hold-out test metrics.
+\end{table}

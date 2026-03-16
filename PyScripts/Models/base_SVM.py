@@ -12,7 +12,7 @@ import numpy as np
 
 from H_prep import clean_data, import_data, to_binary_class
 from H_eval import (
-    CV_SELECTION_CRITERIA,
+    TEST_SELECTION_CRITERIA,
     get_final_metrics,
     get_or_compute_final_metrics,
     _metrics_stage_name,
@@ -89,9 +89,14 @@ def _effective_svm_gamma(value, n_features: int) -> float:
         return float("inf")
 
 
-def make_one_se_refit(complexity_cols: list[str], sort_value_map: dict[str, callable] | None = None):
-    """Return a GridSearchCV refit callable implementing the 1-SE rule."""
-    def _pick_index(cv_results):
+class _OneSERefit:
+    """Picklable callable implementing the 1-SE rule for GridSearchCV refit."""
+
+    def __init__(self, complexity_cols: list[str], sort_value_map: dict[str, callable] | None = None):
+        self.complexity_cols = complexity_cols
+        self.sort_value_map = sort_value_map
+
+    def __call__(self, cv_results):
         mean = np.asarray(cv_results["mean_test_score"], dtype=float)
         std = np.asarray(cv_results["std_test_score"], dtype=float)
         se = std / np.sqrt(TIME_SERIES_CV_SPLITS)
@@ -102,16 +107,20 @@ def make_one_se_refit(complexity_cols: list[str], sort_value_map: dict[str, call
             return best_idx
 
         def key_fn(i: int):
-            complexity = []
-            for col in complexity_cols:
-                val = cv_results[f"param_{col}"][i]
-                sort_fn = (sort_value_map or {}).get(col, _as_sortable_numeric)
-                complexity.append(sort_fn(val))
+            complexity = [
+                (self.sort_value_map or {}).get(col, _as_sortable_numeric)(cv_results[f"param_{col}"][i])
+                for col in self.complexity_cols
+            ]
             return tuple(complexity + [-float(mean[i])])
 
         return int(min(candidate_idx, key=key_fn))
 
-    return _pick_index
+
+def make_one_se_refit(
+    complexity_cols: list[str], sort_value_map: dict[str, callable] | None = None
+) -> "_OneSERefit":
+    """Return a GridSearchCV refit callable implementing the 1-SE rule."""
+    return _OneSERefit(complexity_cols, sort_value_map)
 
 
 def _fit_or_load_search(
@@ -301,7 +310,7 @@ if __name__ == "__main__":
         {"Model": "Raw RBF SVM", **rbf_results},
         {"Model": "Raw Poly SVM", **poly_results},
     ])
-    ranked_df = rank_models_by_metrics(ranking_df, criteria=CV_SELECTION_CRITERIA)
+    ranked_df = rank_models_by_metrics(ranking_df, criteria=TEST_SELECTION_CRITERIA)
     best_model_name = str(ranked_df.iloc[0]["Model"])
     plot_model_name = select_non_degenerate_plot_model(ranked_df)
     best_plot_config = {

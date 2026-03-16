@@ -1,7 +1,7 @@
 \begin{table}[htbp]
 \centering
 \caption{Raw SVM Model Comparison}
-\label{tab:base\_svm\_comparison}
+\label{tab:base_svm_comparison}
 \begin{tabular}{lrrrrr}
 \toprule
 Model & ROC-AUC & MCC & Test Acc & Recall & Specificity \\
@@ -12,5 +12,5 @@ Raw Poly SVM & 0.518 & 0.034 & 0.480 & 0.124 & 0.897 \\
 \bottomrule
 \end{tabular}
 \par\smallskip
-\footnotesize Test Acc = plain hold-out accuracy on the final 20\% test split. All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. Recall = positive-class sensitivity.
+\footnotesize Test Acc = plain hold-out accuracy on the final 20\% test split. All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. Recall = positive-class sensitivity, TP / (TP + FN). Specificity = TN / (TN + FP).
 \end{table}

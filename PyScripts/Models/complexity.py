@@ -18,7 +18,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from H_eval import rank_models_by_metrics
+from H_eval import rank_models_by_metrics, TEST_SELECTION_CRITERIA
 
 
 def _default_output_dir() -> Path:
@@ -51,7 +51,7 @@ def _load_metrics_subset(output_dir: Path, dataset_label: str) -> pd.DataFrame |
 def _family_leaders(leaderboard_df: pd.DataFrame) -> pd.DataFrame:
     leaders = []
     for source_script, group in leaderboard_df.groupby("source_script", sort=True):
-        ranked = rank_models_by_metrics(group).reset_index(drop=True)
+        ranked = rank_models_by_metrics(group, criteria=TEST_SELECTION_CRITERIA).reset_index(drop=True)
         leaders.append(ranked.iloc[0])
     leader_df = pd.DataFrame(leaders).reset_index(drop=True)
     return leader_df.sort_values(["validation_std_accuracy", "test_split_accuracy"], ascending=[True, False])
@@ -72,17 +72,37 @@ def _balanced_point_label(row: pd.Series) -> str:
     )
 
 
-def _annotate_points(ax, plot_df: pd.DataFrame, x_col: str, y_col: str, label_fn) -> None:
+def _test_acc_with_balanced_label(row: pd.Series) -> str:
+    try:
+        cv_test_acc = float(row["validation_avg_accuracy"])
+    except (KeyError, TypeError, ValueError):
+        cv_test_acc = None
+    try:
+        cv_train_acc = float(row["train_avg_accuracy"])
+    except (KeyError, TypeError, ValueError):
+        cv_train_acc = None
+    parts = []
+    if cv_test_acc is not None:
+        parts.append(f"Test {cv_test_acc:.3f}")
+    if cv_train_acc is not None:
+        parts.append(f"Train {cv_train_acc:.3f}")
+    base = str(row["candidate_model"])
+    if parts:
+        base += "\nCV Acc: " + ", ".join(parts)
+    return base
+
+
+def _annotate_points(ax, plot_df: pd.DataFrame, x_col: str, y_col: str, label_fn, *, xytext=(7, 7), va="bottom") -> None:
     for _, row in plot_df.iterrows():
         label = label_fn(row)
         ax.annotate(
             label,
             (row[x_col], row[y_col]),
             textcoords="offset points",
-            xytext=(7, 7),
+            xytext=xytext,
             fontsize=6.3,
             ha="left",
-            va="bottom",
+            va=va,
         )
 
 
@@ -105,6 +125,7 @@ def plot_family_leaders_scatter(
     y_label: str,
     out_path: Path,
     label_fn=_default_point_label,
+    label_position: str = "above",
 ) -> None:
     plot_df = leader_df.copy()
     required_cols = [x_col, y_col, "candidate_model", "source_script"]
@@ -126,7 +147,9 @@ def plot_family_leaders_scatter(
     )
     scatter.set_array(None)
 
-    _annotate_points(ax, plot_df, x_col, y_col, label_fn)
+    annotation_xytext = (7, -7) if label_position == "below" else (7, 7)
+    annotation_va = "top" if label_position == "below" else "bottom"
+    _annotate_points(ax, plot_df, x_col, y_col, label_fn, xytext=annotation_xytext, va=annotation_va)
 
     ax.set_title(title)
     ax.set_xlabel(x_label)
@@ -183,6 +206,8 @@ def main() -> int:
         x_label="CV Accuracy SD",
         y_label="Test Plain Accuracy",
         out_path=out_path,
+        label_fn=_test_acc_with_balanced_label,
+        label_position="below",
     )
 
     balanced_path = None

@@ -471,8 +471,7 @@
       \item Balanced accuracy in parameter tunning (reduced degenerated one)
       \item Between different models: 
       \begin{itemize}
-        \item Mainly ROC-AUC for better differentiation between up and down
-        \item Other metrics: MCC, Test accuracy,  Specificity, Sensitivity (recall)
+        \item Test accuracy, ROC-AUC, Specificity, Sensitivity (recall)
       \end{itemize}
     \end{itemize}
 \end{itemize}
@@ -570,7 +569,7 @@
 
 \subsection{Extended Feature Models}
 \begin{frame}[t,shrink=25]{Results}
-\safeinput{../output/8yrs_3methods_comparison.tex}
+\safeinput{../output/8yrs_4methods_comparison.tex}
 %The table compares Random Forest, SVM, and Logistic Regression models over an 8-year period, reporting accuracy, standard deviation, precision, recall, and F1 for the positive class ("Up").
 \end{frame}
 
@@ -655,8 +654,8 @@
 
   \begin{itemize}
     \item Data: 8 years rather than longer, causing mild response bias
-    \item Models: Limited grid-search lists in main models, too simple neural net architectures in experiment one.
-    \item Evaluation: Hard to use multiple metrics when they are not available for all models
+    \item Models: Limited grid-search lists, too simple neural net architectures.
+    \item Evaluation: Hard threshold decision of 0.5
     \item Time constraints: limited time for extensive hyperparameter tuning and model decision threshold
     \item Computational resources: limited in training more complex models
     \end{itemize}
@@ -667,6 +666,7 @@
 \begin{itemize}
   \item More extensive list for hyperparameter tuning and various choices of model decision threshold
   \item Possibly experiment with cSE rule rather than 1SE rule.
+  \item Varying threshold of decision for classifier
   \item Include longer time series, shorter time window
   \item Explore more sophisticated models (more complicated deep learning architectures)
   \item Potential of combination with economic method of time series forecasting (e.g., ARIMA, GARCH)

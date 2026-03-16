@@ -4,7 +4,7 @@ This file gives a full command-line workflow for:
 - connecting to ORCA: ssh orca when you save orca infor in your config
 - cloning or updating this repo on ORCA
 - creating the Python environment
-- submitting run_all.slurm
+- submitting run_allothers.slurm
 - checking logs, outputs, and checkpoints
 
 ==================================================
@@ -29,49 +29,64 @@ module avail python
 
 
 ==================================================
-2. CREATE THE PYTHON ENVIRONMENT
+2A. CREATE THE PYTHON ENVIRONMENT — NEURAL NETWORK MODELS
 ==================================================
 
-Option A: ORCA has Python 3.11 as a module
+Neural network scripts (NN.py, base_NN.py) require TensorFlow 2.17.x, which:
+  - Only supports Python 3.11 on ORCA (not 3.12/3.13)
+  - Requires numpy < 2.0 (pinned to numpy==1.26.4 in requirements_nn.txt)
 
+The full requirements.txt pins numpy==2.4.2 for the other models, which
+CONFLICTS with TensorFlow. You must use a SEPARATE virtual environment for
+NN models — do NOT install requirements_nn.txt and requirements.txt into
+the same venv.
+
+Use uv to install Python 3.11 (not available as an ORCA module):
 
 deactivate 2>/dev/null || true
 module purge
 module load uv
 uv python install 3.11
-uv venv --python 3.11 .venv311
-source .venv311/bin/activate
-python --version
+uv venv --python 3.11 .venv_nn
+source .venv_nn/bin/activate
 pip install --upgrade pip
-pip install -r requirements.txt
-
-
-source .venv311/bin/activate
-python -m ensurepip --upgrade
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-
-
-
+pip install -r requirements_nn.txt
 python --version
-python -m pip --version
 
+Verify TensorFlow and numpy installed correctly:
+
+python -c "import tensorflow as tf; import numpy as np; print('TF:', tf.__version__, '  numpy:', np.__version__)"
+
+If the venv is broken and you need to recreate it:
 
 deactivate 2>/dev/null || true
-mv .venv .venv_broken_$(date +%Y%m%d_%H%M%S)
-module purge
+rm -rf .venv_nn
 module load uv
-uv venv --python 3.11 .venv
+uv venv --python 3.11 .venv_nn
+source .venv_nn/bin/activate
+pip install --upgrade pip
+pip install -r requirements_nn.txt
+
+
+==================================================
+2B. CREATE THE PYTHON ENVIRONMENT — OTHER MODELS
+==================================================
+
+All non-neural-network scripts (logistic regression, random forest, SVM, etc.)
+use numpy==2.4.2 and do not require TensorFlow. Python 3.12 is available
+directly as an ORCA module and is compatible with the full requirements.txt.
+
+IMPORTANT: Do NOT install requirements.txt into the same venv as
+requirements_nn.txt — the numpy versions conflict.
+
+deactivate 2>/dev/null || true
+module purge
+module load python/3.12
+python -m venv .venv
 source .venv/bin/activate
-echo "$VIRTUAL_ENV"
-
-
-python -m ensurepip --upgrade
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-
+pip install --upgrade pip
+pip install -r requirements.txt
 python --version
-python -m pip --version
 
 
 
@@ -83,31 +98,31 @@ python -m pip --version
 If you used the standard Python-module route:
 
 cd ~/projects/STAT-587-Final-Project
-sbatch run_all.slurm
+sbatch run_allothers.slurm
 
 If you used the uv route:
 
 cd ~/projects/STAT-587-Final-Project
-USE_UV=1 sbatch run_all.slurm
+USE_UV=1 sbatch run_allothers.slurm
 
 Slurm should return a job ID, for example:
 
 Submitted batch job 123456
 
-To run only the neural-network script instead of the full pipeline:
+To run only the neural-network scripts (base_NN.py then NN.py):
 
 cd ~/projects/STAT-587-Final-Project
 sbatch run_nn.slurm
 
-If you used the uv route:
+If you used the uv route (required for NN since Python 3.11 is not a module):
 
 cd ~/projects/STAT-587-Final-Project
 USE_UV=1 sbatch run_nn.slurm
 
-If you want the baseline neural-network script instead:
+To run only one NN script instead of both:
 
-cd ~/projects/STAT-587-Final-Project
-NN_SCRIPT=PyScripts/Models/base_NN.py sbatch run_nn.slurm
+RUN_BOTH=0 NN_SCRIPT=PyScripts/Models/base_NN.py sbatch run_nn.slurm
+RUN_BOTH=0 sbatch run_nn.slurm
 
 
 ==================================================
@@ -118,8 +133,8 @@ When back to orca:
 ssh orca
 cd ~/STAT-587-Final-Project
 squeue -u $USER
-tail -n 50 output/all_pipeline.log
-cat output/all_pipeline_state.json
+tail -n 50 output/allothers_pipeline.log
+cat output/allothers_pipeline_state.json
 
 
 
@@ -128,8 +143,8 @@ Check whether it is queued or running:
 squeue -u $USER
 
 
-tail -f all_models-<batchid>81704.out
-tail -f output/all_pipeline.log
+tail -f allothers_models-<batchid>81704.out
+tail -f output/allothers_pipeline.log
 squeue -u $USER
 
 
@@ -140,17 +155,17 @@ squeue -u $USER
 
 The Slurm logs are written in the repo root:
 
-- all_models-<jobid>.out
-- all_models-<jobid>.err
+- allothers_models-<jobid>.out
+- allothers_models-<jobid>.err
 
 The pipeline itself writes outputs inside:
 
 output/
 
-Important files created by PyScripts/Models/All.py:
+Important files created by PyScripts/Models/AllOthers.py:
 
-- output/all_pipeline.log
-- output/all_pipeline_state.json
+- output/allothers_pipeline.log
+- output/allothers_pipeline_state.json
 - output/model_*.log
 - output/*.tex
 - output/*.png
@@ -159,12 +174,16 @@ Important files created by PyScripts/Models/All.py:
 Useful commands:
 
 ls output
-tail -f output/all_pipeline.log
-cat output/all_pipeline_state.json
+tail -f output/allothers_pipeline.log
+cat output/allothers_pipeline_state.json
 
 To inspect more files and checkpoint directories:
 
 find output -maxdepth 3 | sort
+
+
+To copy history to your local computer (when you already set up config)
+scp -r orca:~/STAT-587-Final-Project/output/checkpoints ~/orcacheckpoint/
 
 
 ==================================================
@@ -185,29 +204,66 @@ See the newest files first:
 ls -lt output
 
 Check the pipeline status:
-cat output/all_pipeline_state.json
+cat output/allothers_pipeline_state.json
 
 Check the pipeline log:
-tail -n 50 output/all_pipeline.log
+tail -n 50 output/allothers_pipeline.log
 
 To copy the whole tex and png output from ORCA to your local machine, run this
 from your LOCAL terminal, not from inside ORCA:
 scp 'orca:~/STAT-587-Final-Project/output/*.png' /Users/tranghanguyen/STAT-587-Final-Project/output/
 scp 'orca:~/STAT-587-Final-Project/output/*.tex' /Users/tranghanguyen/STAT-587-Final-Project/output/
 ==================================================
-6. RESUME / CHECKPOINT BEHAVIOR
+6. EXPECTED RUNTIMES (FRESH RUN — NO CHECKPOINTS)
 ==================================================
 
-run_all.slurm runs All.py with:
+Checkpoints are NOT included in the repository (~1 GB, too large for GitHub).
+Every fresh clone will require a full training run. Runtimes below are
+measured on the 8-year dataset on ORCA with 6 CPUs / 48 GB RAM.
 
-python PyScripts/Models/All.py --resume --n-jobs ...
+run_allothers.slurm  (other models, ~11 hrs total):
+
+  base.py                  ~6 min
+  base_random_forest.py   ~48 min
+  base_SVM.py              ~7 min
+  logistic_regression.py   ~9 min
+  random_forest.py        **9+ hrs**   (RF grid is large; dominates)
+  SVM.py                  ~56 min
+
+run_nn.slurm  (NN models — measured on local Mac, ORCA times will differ):
+
+  base_NN.py   epoch CV sweep: ~2 min  |  model eval (with checkpoints): <1 min
+  NN.py        epoch CV sweep: ~12 min |  model eval (with checkpoints): <1 min
+
+  Note: full fresh-run training times are not in the log (original runs were
+  not captured). The epoch CV sweep timings above are from local Mac runs
+  (checkpoint timestamps: 2026-03-15 17:41–17:43 for base_NN, 17:55–18:07
+  for NN). ORCA with 6 CPUs may be faster or slower than a Mac M-chip.
+  NN scripts require the separate .venv_nn environment (Python 3.11 +
+  TensorFlow 2.17.x) — they cannot share .venv with other models.
+
+On a RERUN where checkpoints already exist locally, --resume skips completed
+stages and most scripts finish in under 5 minutes.
+
+Time limits set in the slurm files:
+  run_allothers.slurm  18 hrs  (covers worst-case RF)
+  run_nn.slurm          8 hrs  (covers both base_NN + NN with epoch sweep)
+
+==================================================
+7. RESUME / CHECKPOINT BEHAVIOR
+==================================================
+
+Rerunning the Slurm job skips completed stages automatically.
+run_allothers.slurm runs AllOthers.py with:
+
+python PyScripts/Models/AllOthers.py --resume --n-jobs ...
 
 This means rerunning the Slurm job should skip completed stages based on
 the saved pipeline state and stage checkpoints in output/.
 
 To inspect current pipeline progress:
 
-cat output/all_pipeline_state.json
+cat output/allothers_pipeline_state.json
 
 
 ==================================================
@@ -236,42 +292,65 @@ pip install -r requirements.txt
 
 Submit again:
 
-sbatch run_all.slurm
+sbatch run_allothers.slurm
 
 Or with uv mode:
 
-USE_UV=1 sbatch run_all.slurm
+USE_UV=1 sbatch run_allothers.slurm
 
 
 ==================================================
 8. SHORT VERSION
 ==================================================
 
-If Python 3.11 is available:
+--- For Neural Network models (Python 3.11 + requirements_nn.txt) ---
 
 ssh your_username@orca
 cd ~/projects
 git clone <your-github-repo-url>
 cd STAT-587-Final-Project
-module load python/3.11
+module load uv
+uv python install 3.11
+uv venv --python 3.11 .venv_nn
+source .venv_nn/bin/activate
+pip install -r requirements_nn.txt
+sbatch run_nn.slurm
+squeue -u $USER
+tail -f nn_only-<jobid>.out
+
+--- For other models (logistic regression, random forest, SVM — Python 3.12) ---
+
+ssh your_username@orca
+cd ~/projects
+git clone <your-github-repo-url>
+cd STAT-587-Final-Project
+module load python/3.12
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-sbatch run_all.slurm
+sbatch run_allothers.slurm
 squeue -u $USER
-tail -f all_models-<jobid>.out
-tail -f output/all_pipeline.log
-cat output/all_pipeline_state.json
+tail -f allothers_models-<jobid>.out
+tail -f output/allothers_pipeline.log
+cat output/allothers_pipeline_state.json
 
 
 ==================================================
 9. NOTES
 ==================================================
 
-- "Python 3 supported" on ORCA does not automatically mean Python 3.11.
-- Check with:
+- ORCA provides Python 3.9 (default), 3.12, and 3.13 as modules.
+  Python 3.11 is NOT available as a module — install it via uv (see 2A).
+- Check available versions with:
   python3 --version
   module avail python
-- This project prefers Python 3.11 because of TensorFlow compatibility.
-- The repo and the virtual environment both live on ORCA after setup.
+- Neural network scripts (NN.py, base_NN.py) require Python 3.11 because
+  TensorFlow does not support Python 3.12+ on this cluster.
+- All other model scripts work on Python 3.12 (available as an ORCA module).
+- TensorFlow 2.17.x requires numpy < 2.0 (pinned to 1.26.4 in
+  requirements_nn.txt). The main requirements.txt uses numpy==2.4.2.
+  These two CANNOT share the same virtual environment — always use:
+    .venv_nn  →  NN scripts  (Python 3.11, requirements_nn.txt)
+    .venv     →  all other scripts  (Python 3.12, requirements.txt)
+- The repo and both virtual environments live on ORCA after setup.
 - Slurm submits the job from ORCA; it does not copy your repo there for you.

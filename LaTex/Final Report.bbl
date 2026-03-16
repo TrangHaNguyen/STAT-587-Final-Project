@@ -25,6 +25,36 @@ Global, S.%
 \PrintBackRefs{\CurrentBib}
 
 \bibitem [\protect \citeauthoryear {%
+Hastie%
+, Tibshirani%
+\BCBL {}\ \BBA {} Friedman%
+}{%
+Hastie%
+\ \protect \BOthers {.}}{%
+{\protect \APACyear {2009}}%
+}]{%
+ESL}
+\APACinsertmetastar {%
+ESL}%
+\begin{APACrefauthors}%
+Hastie, T.%
+, Tibshirani, R.%
+\BCBL {}\ \BBA {} Friedman, J.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYear{2009}.
+\newblock
+\APACrefbtitle {The Elements of Statistical Learning: Data Mining, Inference,
+  and Prediction} {The elements of statistical learning: Data mining,
+  inference, and prediction}\ (\PrintOrdinal{2}\ \BEd).
+\newblock
+\APACaddressPublisher{}{Springer}.
+\newblock
+\begin{APACrefDOI} \doi{10.1007/978-0-387-84858-7} \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
 Investopedia%
 }{%
 Investopedia%

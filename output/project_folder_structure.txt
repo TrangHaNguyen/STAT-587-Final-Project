@@ -14,5 +14,3 @@ STAT-587-Final-Project/
     |-- Data/
     |-- EDA/
     `-- Models/
-        |-- Extra/
-        `-- Unused/

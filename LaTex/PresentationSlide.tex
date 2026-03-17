@@ -165,29 +165,6 @@
 \end{frame}
 
 
-% --- Slides ---
-% \section{Requirement}
-% \begin{frame}{Requirement}
-% \begin{itemize}
-  
-%    \item Motivation \& research question (1 min)
-%    \item Dataset \& preprocessing (1 min)
-%    \item Methods overview tied to ESL (3 min)
-%    \item Key results \& visualizations (3 min)
-%    \item Limitations \& next steps (1 min)
-%    \item Final summary (1 min)
-
-%\end{itemize}
-%Presentation must include:
-%\begin{itemize}
-%    \item 1–2 clear plots per model type
-%    \item Model comparison graphic
-%    \item Clear labeling and readable visuals
-%\end{itemize}
-%\end{frame}
-
-
-
 \section{Introduction}
 
 \subsection{Motivation}
@@ -444,7 +421,7 @@
     \xi_i\ge 0,\quad i=1,\dots,N
     \]
 
-    \item Experiment with some neural net models (CNN-2D, LSTM, RNN)
+    \item Experiment with some neural net models (CNN-2D, LSTM, RNN) 
     
 \end{itemize}
 \end{block}
@@ -453,11 +430,6 @@
 {\tiny \textit{Source:} Hastie, Tibshirani, and Friedman (2009), \textit{The Elements of Statistical Learning}, Ch.~4, Ch.~7, Ch.~12, and Ch.~15.}
 
 \end{frame}
-
-
-
-
-
 
 
 \begin{frame}[t,shrink=8]{Method Overview: Models and Model Selection}
@@ -531,23 +503,10 @@
 \begin{itemize}
   \item Raw RF outperforms logistic regression
   \item Applying PCA and LASSO before the random forest worsen test accuracy. 
-  \item Ridge-based filtering gives the best performance.
   \item Simple RF with DOW is much better than without DOW
 \end{itemize}
 \end{frame}
 
-
-
-\begin{frame}{RF with raw features and DOW}
-\begin{figure}[htbp]
-  \centering
-  \safeincludegraphics[width=0.32\textwidth]{../output/8yrs_base_rf_best_model_bias_variance.png}
-   \safeincludegraphics[width=0.32\textwidth]{../output/8yrs_base_rf_best_model_bias_variance_classifier_max_features.png}
-    \safeincludegraphics[width=0.32\textwidth]{../output/8yrs_base_rf_best_model_bias_variance_classifier_n_estimators.png}
-  \caption{Bias Variance Tradeoff during parameter tunning process for Random Forest with raw data and DOW}
-  \label{fig:validation-best-bv}
-\end{figure}
-\FloatBarrier
 
 
 \begin{frame}{RF with raw features and DOW}
@@ -559,95 +518,139 @@
 \end{figure}
 \end{frame}
 
+\subsubsection{SVM Models}
+\begin{frame}[t,shrink=25]{Results}
+\textbf{SVM Models}\\
+\safeinput{../output/8yrs_base_svm_comparison.tex}
+%\FloatBarrier
+\end{frame}
+
+\subsubsection{NN Models}
+\begin{frame}[t,shrink=25]{Results}
+\textbf{Neural Net Models}\\
+\safeinput{../output/8yrs_base_nn_comparison.tex}
+%\FloatBarrier
+\end{frame}
+
+\begin{frame}{Results}
+\begin{itemize}
+  \item Using the RBF kernel improves the test accuracy slightly compared to the linear kernel 
+  \item SVM Model using the polynomial kernel is better in ROC-AUC but worse test accuracy overall
+  \item LSTM is closer to time-series setting but the raw RNN model is the best performer
+\end{itemize}
+\end{frame}
 
 
 \subsection{Extended Feature Models}
 \begin{frame}[t,shrink=25]{Results}
+\textbf{Logistic Regression}\\
 \safeinput{../output/8yrs_logistic_regression_comparison.tex}
 \end{frame}
 
 \begin{frame}[t,shrink=25]{Results}
+  \textbf{Random Forest}\\
 \safeinput{../output/8yrs_random_forest_comparison.tex}
 \end{frame}
 
 \begin{frame}[t,shrink=25]{Results}
+  \textbf{SVM}\\
 \safeinput{../output/8yrs_svm_comparison.tex}
 \end{frame}
 
 \begin{frame}[t,shrink=25]{Results}
+  \textbf{Neural Network}\\
 \safeinput{../output/8yrs_nn_comparison.tex}
 \end{frame}
 
 \begin{frame}{Results}
 \begin{itemize}
-  \item Random forest models, especially Raw RF, achieve the highest test accuracy but show upward CV bias
-  \item Other models perform only slightly better than random guessing
-  \item RF variants using dimensionality reduction have lower test accuracy and higher variability.
-  \item SVM with polynomial kernel has the highest F1 score and second in accuracy. Also bias "Up".
-  \item Logistic Regression (Ridge and LASSO) provides balanced performance, with moderate accuracy and F1, and low standard deviation.
+  \item Using engineered features in forcast-
+ing does not noticeably improve test accuracy performance
+\item Engineered features do not really capture the non-
+linear relationship
+\item Best performer: RF applied to raw data with DOW
+dummies
+\item RF variants using dimensionality reduction have lower test accuracy and higher variability.
 \end{itemize}
 \end{frame}
 
 
-\begin{frame}[t,shrink=25]{Results}
-\safeinput{model_comparison_table.tex}
+
+\begin{frame}{Best performer: RF with raw and DOW}
+\begin{figure}[htbp]
+  \centering
+  \safeincludegraphics[width=0.32\textwidth]{../output/8yrs_base_rf_best_model_bias_variance.png}
+   \safeincludegraphics[width=0.32\textwidth]{../output/8yrs_base_rf_best_model_bias_variance_classifier_max_features.png}
+    \safeincludegraphics[width=0.32\textwidth]{../output/8yrs_base_rf_best_model_bias_variance_classifier_n_estimators.png}
+  \caption{Bias Variance Tradeoff during parameter tunning process for Random Forest with raw data and DOW}
+  \label{fig:validation-best-bv}
+\end{figure}
 \end{frame}
 
-%%%%%%%%%%%%%%%%%%%%NEW PLOT FOR OVER/UNDERFITTING IS HERE%%%%%%%%%%%%%%%%%%%%%%
 
-
-% \begin{frame}{Random Forest - enginereed features}
-% \begin{figure}[h]
-%     \centering
-%     \includegraphics[width=\linewidth]{../output/8yrs_1SE_base_logistic_bias_variance.png}
-%     \caption{Bias Variance trade off in tuning parameter of Feature engineered Random Forest - Also over and under fitting analysis}
-%     \label{fig:top-sectors}
-% \end{figure}
-% \end{frame}
-
-% \begin{frame}{SVM - enginereed features}
-% \begin{figure}[h]
-%     \centering
-%     \includegraphics[width=\linewidth]{../output/8yrs_1SE_base_logistic_bias_variance.png}
-%     \caption{Bias Variance trade off in tuning parameter of Feature engineered Random Forest - Also over and under fitting analysis}
-%     \label{fig:top-sectors}
-% \end{figure}
-% \end{frame}
+\begin{frame}{Best performer: RF with raw and DOW}
+\begin{figure}[htbp]
+  \centering
+  \safeincludegraphics[width=0.32\textwidth]{../output/8yrs_base_rf_best_model_train_test.png}
+   \safeincludegraphics[width=0.32\textwidth]{../output/8yrs_base_rf_best_model_train_test_classifier_max_features.png}
+    \safeincludegraphics[width=0.32\textwidth]{../output/8yrs_base_rf_best_model_train_test_classifier_n_estimators.png}
+  \caption{Over/underfitting during parameter tunning process for Random Forest with raw data and DOW}
+  \label{fig:validation-best-bv}
+\end{figure}
+\end{frame}
 
 
 \begin{frame}{Results}
-  Additional comparison with neural network models 
+  \textbf{Complexity}
+\begin{figure}[htbp]
+  \centering
+  \safeincludegraphics[width=0.95\textwidth]{../output/8yrs_family_leaders_accuracy_vs_cv_sd.png}
+  \caption{Accuracy and Proxy for Noise of The Best Models within Model Families and Data Set Performer}
+  \label{fig:complexity2}
+\end{figure}
+\end{frame}
+
+
+\begin{frame}{Results}
+  \textbf{Complexity}
+\begin{figure}[htbp]
+  \centering
+\safeincludegraphics[width=0.95\textwidth]{../output/8yrs_family_leaders_cv_accuracy_vs_cv_sd.png}
+  \caption{Cross-Validation: Balanced Accuracy for The Best Candidate within Model Families and Data Set}
+  \label{fig:complexity1}
+\end{figure}
+\end{frame}
+
+
+
+
+\begin{frame}{Results}
+  \textbf{Prediction Visualization}
+\begin{figure}[htbp]
+  \centering
+  \safeincludegraphics[width=0.95\textwidth]{../output/8yrs_prediction_distribution_base_random_forest_py_rf_dow.png}
+  \caption{Predicted Probability Distribution by True Class on The Test Set}
+  \label{fig:pred-dist-base-rf-dow}
+\end{figure}
+\end{frame}
+
+\begin{frame}{Results}
 \begin{itemize}
-  \item Sequential models (RNN and LSTM) achieve the best overall performance 
-  \item Simple RNN emerges as the recommended model for deployment
+  \item RF using raw data with DOW is still a good candidate in diagnostic plots
+  \item LSTM is the second best
   \item LASSO regularization (L1) demonstrates superior highest accuracy (0.5486) and the only ROC-AUC above 0.50 (0.5342)
   \item  SVM with RBF kernel exhibits degenerate behavior, predicting all samples as ``Up'' 
   \item The dimensionality reduction models (PCA, LASSO-reduced, Ridge-reduced) show moderate performance, potentially due to losing important predictive signals. 
-  \item Recommend: logistic regression with Ridge and LASSO regularization for the predictors included engineered features.
 \end{itemize}
 \end{frame}
 
-\subsection{Experiment with hourly data}
-\begin{frame}[t]{Experiment with hourly data}
-\tiny
-\safeinput{../output/8yrs_logistic_regression_24hours_three_model_comparison.tex}
-%\FloatBarrier
-\end{frame}
-
-\begin{frame}{Experiment with hourly data}
-\begin{itemize}
-  \item To further investigate the temporal dependencies of the market,
-  \item The performance of the hourly models is better than the daily models, 
-  \item The best performing model  with an accuracy of 0.5478 and ROC-AUC value around 60 \%. 
-  \item \textbf{Key: a clearer short window of dependencies rather than by days/ weeks.}
-\end{itemize}
-\end{frame}
 
 \begin{frame}{Results - Summary}
 \begin{itemize}
   \item Predictive performance of RF is the best
   \item More advanced models suffer from higher variablity (reflected in Validation SE) while not always give better performance
   \item RF models suggest that the EMH is not supported.
+  \item Prediction visualisation suggest further tuning of decision threshold.
 \end{itemize}
 \end{frame}
 
@@ -679,10 +682,10 @@
 \begin{frame}{Summary}
 
 \begin{itemize}
-  \item Supporting evidence for: market is quite efficient when looking overally at daily trading, but not efficient in shorter time window.
-  \item Relying solely on historical daily price and volume data may not be sufficient. 
-  \item Better result for short time windows suggests implications for high-frequency trading strategies and intraday trading.
-  \item Future work could focus on short-time dependencies, more sophisticated models, additional features (e.g., sentiment analysis, macroeconomic indicators), and alternative modeling approaches (e.g., ensemble methods, deep learning architectures).
+  \item Supporting evidence for challenging EMH
+  \item Relying solely on historical daily price and volume data may not be sufficient for good performance
+  \item Even not very good, result still can be employed in trading strategy.
+  \item Future work : more extensive parameter grids, varying decision threshold, more models exploration, more comprehensive evaluation framework
   \end{itemize}
 \end{frame}
 

@@ -18,6 +18,8 @@ DEFAULT_EXCLUDES = {
     "New",
     "kaggle",
     "Old",
+    "Extra",
+    "Unused",
     ".DS_Store",
     ".idea",
     ".vscode",

@@ -263,7 +263,6 @@ This section include data analysis of different methods mentioned above for two 
 \subsection{Model Comparison}
 \subsubsection{Models with raw features}
 \vspace{-0.5em}
-\paragraph{Logistic Regression Models}
 \safeinput{../output/8yrs_1SE_base_logistic_comparison.tex}%Comment: improve on this presentation.
 \FloatBarrier
 
@@ -272,17 +271,18 @@ Table~\ref{tab:base_logistic_comparison} presents the performance comparison of 
 The best performer in test accuracy is the models with LASSO regularization only(with or without days of the week). Meanwhile, the best candidate in terms of ROC-AUC is the model using 3 PCA components without regularization (Base + PCA (3, 65\%)). Balancing between test accuracy, ROC-AUC, specificity, and sensitivity suggests that the model use 3 PCA components without regularization is the best candidate within this group. 
 
 The low accuracy in this group of models implies that either raw OHLCV features may not contain strong predictive signals for the market direction, or that the relationship between these features and the target variable is likely complex and non-linear, or both. This means that more sophisticated models or additional feature engineering may be necessary to achieve better predictive performance.
-\paragraph{Random Forest Models}
+
 \safeinput{../output/8yrs_1SE_base_random_forest.tex}
 \FloatBarrier
+
 Table \ref{tab:base_rf_comparison} presents the performance comparison of different random forest models with predictors of raw features and of selected PCA components. The depth of the tree and number of estimators are selected based on grid search cross validation. The random forest models outperforms the logistic regression models in almost all metrics, namely test accuracy, sensitivity, ROC-AUC, and specificity on the same predictor set. Applying PCA with the random forest method worsen the method performance due to the loss of information. 
-\paragraph{Support Vector Machine Models}
+
 \safeinput{../output/8yrs_base_svm_comparison.tex}
 \FloatBarrier
 Table \ref{tab:base_svm_comparison} shows different metrics for 3 variants of SVM method, namely SVM using linear, RBF, and polynomial kernels. Using RFB kernel improve the test accuracy slightly compared to linear kernel ( 54 \% compared to 53.5 \%), but increase ROC-AUC noticeably (0.509 compared to 0.465). The model use polynomial kernel is better in ROC-AUC and improve the prediction for the down day of the market but worse the test accuracy overall. 
-\paragraph{Neural Network}
+
 \safeinput{../output/8yrs_base_nn_comparison.tex}
-Table \ref{tab: 8yrs_base_nn_comparison.tex} lists the test set metric for the neural network models on the raw data set. Though LSTM is closer to time-series setting, the raw RNN model is the best performer in both test accuracy, sensitivity, and ROC-AUC.
+Table \ref{tab:base_nn_comparison.tex} lists the test set metric for the neural network models on the raw data set. Though LSTM is closer to time-series setting, the raw RNN model is the best performer in both test accuracy, sensitivity, and ROC-AUC.
 
 
 
@@ -315,17 +315,10 @@ Comparing across all models for both raw data (with or without DOW), and enginee
   \label{fig:complexity2}
 \end{figure}
 \FloatBarrier
-Figure \ref{fig:complexity2} plots the test accuracy against standard deviation (SD) of the balanced accuracy in the cross validation set (CV) for the best performer of each 8 model groups above (4 methods vs 2 data set). The standard deviation of the balanced accuracy i the cross validation set can be used to proxy for potential noise of the model. Based on the plot, the random forest model using raw data with DOW is also a good candidate when the its test accuracy is second highest while its SD of CV balanced accuracy is fairly low compared to others. 
-
-\subsection{Hourly Models}
-
-\safeinput{../output/logistic_regression_24hours_three_model_comparison.tex}
-\FloatBarrier
-
-To further investigate the temporal dependencies of the market, we also experimented with similar models for the hourly data. The hourly-comparison table below presents the performance comparison of logistic regression models with L2 regularization, Elastic Net regularization, and feature-engineered L2 regularization using 24-hour lag features. The results indicate that the performance of the hourly models is better than the daily models, with the best performing model with an accuracy of 0.5478 and ROC-AUC value around 60 \%. This suggests that a clearer short window of dependencies rather than by days/weeks.
+Figure \ref{fig:complexity2} plots the test accuracy against standard deviation (SD) of the balanced accuracy in the cross validation set (CV) for the best performer of each 8 model groups above (4 methods vs 2 data set). The standard deviation of the plain accuracy in the cross validation set can be used to proxy for potential noise of the model. Based on the plot, the random forest model using raw data with DOW is also a good candidate when the its test accuracy is second highest while its SD of CV balanced accuracy is fairly low compared to others. Overall, the best model's test accuracy is just 0.55 with CV accuracy is around 0.035. This means that a random guess of 0.5 is not included in one standard deviation interval of this test accuracy and the model is informative in forecasting the market.
 
 \subsection{Visualization of predictions}
-
+Figure \ref{fig:pred-dist-base-rf-dow} presents distribution of the predicted probability by true class in the hold-out test set. The graph indicate that to the left hand side of the decision threshold (0.5), the majority of the bin is observed with higher frequency of true down day. Meanwhile, to the right hand side of the decision threshold, the majority of the bin experienced a frequency of the up days. These imply that the classifier does have power in forcasting the up and down day the market. The plot also indicate some switching in frequency of two classes in the direction of harming test accuracy in 3 bins around the current decision threshold. This, together with a ROC-AUC of around 0.59 of the selected model, implies that its weakness in forcasting accuracy might partly arise from the decision threshold used in converting the predicted probability to classification. The selected model can be further improved through tuning the decison threshold for predicted probability.  
 \begin{figure}[htbp]
   \centering
   \safeincludegraphics[width=0.95\textwidth]{../output/8yrs_prediction_distribution_base_random_forest_py_rf_dow.png}
@@ -333,11 +326,8 @@ To further investigate the temporal dependencies of the market, we also experime
   \label{fig:pred-dist-base-rf-dow}
 \end{figure}
 
-
 \subsection{Validation results}
-\quad \ Initially, a \verb|window_size| of 21 days was chosen to represent roughly a month worth of trading days, and a \verb|horizon| of 5 days to represent roughly a week worth of trading days. However, this posed an issue of overfitting (further in detail below) since the feature space would almost always be greater than the \verb|window_size|.
-
-The validation plots below summarize the final bias-variance tradeoffs for the best-performing daily models retained in the 8-year analysis. They are included here to show how the selected model complexity settings balanced cross-validation fit against out-of-sample performance.
+Figure \ref{fig:validation-best-bv} summarize the final bias-variance tradeoffs during the parameter tuning process of the best-performing model through changing of cross validation balanced misclassification error and standard deviation. The selected parameter value is indicated by the 1SE red line. Overall, the bias-variace trade off is reflected more clearly in the first panel of the figure when the test misclassification standard deviation band is narrower when the model complexity increase. In the two other panels, the changes in test accuracy standard deviation across parameter used in grid for searching is not trivial.
 
 \begin{figure}[htbp]
   \centering
@@ -349,6 +339,7 @@ The validation plots below summarize the final bias-variance tradeoffs for the b
 \end{figure}
 \FloatBarrier
 
+Because the model complexity depends not only on the model family but also the parameter used for that specific family, it's hard to find metric to reflect the trade off of bias and variance across complexity of models in this report. Therefore, in order to compare across different method, this report use an empirical approach with the employment of standard deviation of the CV accuracy to reflect how noisy the model can bring to forcasting problem. This is reflected in Figure \ref{fig:complexity1}. Clearly, the plot is not in the alignment of the complexity flow of different method used in this report (logistic regression, random forest/ SVM, and neural network). Instead, it indicates that the supposedly complex model like neural net and random forest when tunned with appropriate parameters and used with appropriate data set still outperform other supposedly simple method like logistic regression interm of noisy in prediction/ forecasting.
 
 \begin{figure}[htbp]
   \centering
@@ -360,8 +351,7 @@ The validation plots below summarize the final bias-variance tradeoffs for the b
 
 
 \subsection{Overfitting/underfitting analysis}
-
-
+Further analysis of over and under fitting is provided for the best candidate in this report only. Figure \ref{fig:overunder-best} presents the plain train and hold-out test misclassification error against different parameter grids.  All of three panels indicate a similar trend of declining hold-out test misclassification error when the parameter is increase to a certain level and then the error increase when the model turned to be too complex. Meanwhile, the misclassification error on the train set is constantly decline when model complexity is higher.
 
 \begin{figure}[htbp]
   \centering
@@ -373,28 +363,17 @@ The validation plots below summarize the final bias-variance tradeoffs for the b
 \end{figure}
 \FloatBarrier
 
-
-
-\quad \ A general note on overfitting and other issues with select models. Given by the fact that the raw data inherently has more features than observations, overfitting was a big issue, especially in earlier implementations of the model. Overfitting results in a train misclassification rate of zero perpetually and no amount of generalization was possible towards validation sets and test splits. Furthermore, partly because of this overfitting, when certain models (most notably logistic regression) would search for an optimal hyperparameter, since the training misclassification rate would be impeccable, if the lower bound of the $C$-values were small enough, the model would degenerate to always guessing 1 or 0 depending on the imbalance in the splits. 
-
-This issue was mostly alleviated by introducing further dimensionality reduction methods (most notably grouping by sector and collinearity reduction), which reduced the dimensionality of the feature space enough for there to be any sense of meaningful training on the training set.
-
-The train-versus-test plots below complement the validation figures by showing how the best-selected model settings behaved on direct hold-out splits. These plots make the remaining overfitting and underfitting patterns easier to compare across the final daily-model candidates.
-
-
 \section{Discussion}
+This section summarize the implication of findings from the best model selected as well as its performance provided in previous section. 
 
-% \subsection{Interpretation of findings}
-
+\subsection{Interpretation of findings}
+The result that 1 standard deviation of cross validation accuracy away from test accuracy of the best model does not include the randomguess  implies that the model is predictive and the historical data has some signals about the market direction. Even this signal is not strong as the testv accuracy is just around 55\%, this result still contradict the weak form of EMH. \endnote{Additional result for hourly data is included in the Appendix to investigate if there is any difference in historical signal in daily data and hourly data. The result shows a more predictive strength of the hourly data in even with logistic regression method - the poor performer in the leader board.}
 \subsection{Real-world implications}
- The accuracy of prediction in the best model is around 54\% suggests that there may be some predictive signal in the data. However, it is not very strong to consistently outperform random guessing. This has implications for traders and investors who may be looking for reliable methods to forecast market direction, indicating that relying solely on historical daily price and volume data may not be sufficient for making informed trading decisions. In contrast, the hourly models show better performance, which suggests that there may be more short-term dependencies in the market that can be captured with more granular data. This could have implications for high-frequency trading strategies and intraday trading.
-
+ As weak EMH is not supported based on some predictive strength observed in the best performed model, the historical data should remain as one of the reliable data source for forcasting the stock market. In addition, the specific model with accuracy around 55\% and cross validation accuracy standard deviation around 3\% constructed in this report can be utilized in forcasting market direction and the result can be used to design certain trade strategy with appropriate risk management. Furthermore, the accuracy of just 55\% from the historical data implies that the market forcast problem should utilize a more extensive data set more than just historical price and trading volume. 
 \subsection{Limitations}
-
-  This study has several limitations. In terms of data, only 8 years of daily data are used with servere bias toward upward direction of the market. In terms of modeling, only limited list of values are used in grid search for parameter tunning. Also, the deep learning architectures of the neural network models are very simple. In terms of evaluation, though variation of threshold in decision making in each classifier is accounted for by ROC-AUC metric, the actual accuracy, specificity, and sensitivity are not computed across different threshold while the plot for predicted probability by class clearly shows some potentially better threshold for the best model. All of these limitation can be relieved with more time and better computational resource.
+  This study has several limitations. In terms of data, only 8 years of daily data are used with servere bias toward upward direction of the market. In terms of modeling, only limited list of values are used in grid search for parameter tunning. Also, the deep learning architectures of the neural network models are very simple. In terms of evaluation, though variation of threshold in decision making in each classifier is accounted for by ROC-AUC metric, the actual accuracy, specificity, and sensitivity are not computed across different threshold while the plot for predicted probability by class clearly shows some potentially better threshold for the best model. These limitation can be relieved with more time and better computational resource.
 
 \subsection{Possible methodological extensions}
-
 Future methodological extensions include more extensive hyperparameter tuning, various choice of model decision threshold, and broader model experimentation, along with a more comprehensive evaluation framework. More specifically, for parameter tunning, a larger list for grid search in should be used. For decision threshold, potentially better one can be constructed by average median/ mean of actual class predicted probability. For cross validation selection rule, a cSE rule can be employed in the place of 1SE rule with various choice of c. For broader models, more complicated neural network structure can be used. And finalluy, for evaluation framewok, additional metric, namely Mathew Correlation Coeficient should be included. In addition, future work should explore potentials of hybrid strategies that combine machine learning with classical economic time-series methods such as ARIMA and GARCH.
 
 \section{Reproducibility Requirements}
@@ -402,10 +381,9 @@ In order to replicate the results of this report, environment set up and computa
 \subsection{Environment file or package list}
 The computations for the final model runs were performed on the Oregon Regional Computing Accelerator (Orca) at Portland State University \cite{orca_2026}. Different models require different environment setting, leading to the two list of requirement packages, namely \texttt{requirement\_nn.txt} for the Neural Network Models and \texttt{requirement.txt} for all other models.
 \subsection{Folder structure}
-
 \begin{figure}[htbp]
   \centering
-  \safeincludegraphics[width=0.95\textwidth]{../output/project_folder_structure.png}
+  \safeincludegraphics{../output/project_folder_structure.png}
   \caption{Project Repository Folder Structure}
   \label{fig:folderstructure}
 \end{figure}
@@ -505,4 +483,9 @@ For each sector, correlation with the S\&P 500 series is computed using Pearson 
 \rho_s=\mathrm{corr}\!\left(R_{t,s},\,y_t\right).
 \]
 
+\subsection{Hourly Models}
+To further investigate the temporal dependencies of the market, similar models is experimented for the additionally loaded hourly data. All features in this data set are the same with the daily data set except. Due to constraint of time, only logistic regression result is completed and is presented below.
+\safeinput{../output/logistic_regression_24hours_three_model_comparison.tex}
+\FloatBarrier
+The hourly-comparison table below presents the performance comparison of logistic regression models with L2 regularization, Elastic Net regularization, and feature-engineered L2 regularization using 24-hour lag features. The results indicate that the performance of the hourly models is better than the daily logistic models for engineered data, with the best performing model with an accuracy of 0.5478 and ROC-AUC value around 60 \%. This suggests that a clearer short window of dependencies rather than by days/weeks.
 \end{document}

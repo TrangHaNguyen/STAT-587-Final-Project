@@ -2,6 +2,7 @@
 \centering
 \caption{Baseline neural-network model comparison on raw OHLCV and raw OHLCV + Day-of-Week sequence features.}
 \label{tab:base_nn_comparison}
+\begin{adjustbox}{max width=\linewidth}
 \begin{tabular}{lrrrrr}
 \toprule
 Model & ROC-AUC & MCC & Test Acc & Recall & Specificity \\
@@ -14,6 +15,7 @@ DOW RNN & 0.488 & -0.044 & 0.524 & 0.931 & 0.049 \\
 DOW CNN & 0.504 & 0.031 & 0.489 & 0.208 & 0.816 \\
 \bottomrule
 \end{tabular}
+\end{adjustbox}
 \par\smallskip
 \footnotesize Columns follow the base-model comparison format, excluding Precision, F1, and cross-validation columns because neural-network hyperparameters have not yet been tuned with cross-validation.
 \end{table}

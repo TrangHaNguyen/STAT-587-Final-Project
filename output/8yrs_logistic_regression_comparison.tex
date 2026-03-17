@@ -2,6 +2,7 @@
 \centering
 \caption{Logistic Regression Model Comparison}
 \label{tab:logistic_regression_comparison}
+\begin{adjustbox}{max width=\linewidth}
 \begin{tabular}{lrrrrr}
 \toprule
 Model & ROC-AUC & MCC & Test Acc & Recall & Specificity \\
@@ -13,6 +14,7 @@ PCA Ridge(int.) & 0.513 & -0.067 & 0.448 & 0.033 & 0.940 \\
 PCA LASSO(int.) & 0.523 & -0.006 & 0.499 & 0.516 & 0.478 \\
 \bottomrule
 \end{tabular}
+\end{adjustbox}
 \par\smallskip
 \footnotesize Test Acc = plain hold-out accuracy on the final 20\% test split. All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. Recall = positive-class sensitivity, TP / (TP + FN). Specificity = TN / (TN + FP).
 \end{table}

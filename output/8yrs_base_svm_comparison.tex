@@ -2,6 +2,7 @@
 \centering
 \caption{Raw SVM Model Comparison (Raw OHLCV vs +Day-of-Week)}
 \label{tab:base_svm_comparison}
+\begin{adjustbox}{max width=\linewidth}
 \begin{tabular}{lrrrrr}
 \toprule
 Model & ROC-AUC & MCC & Test Acc & Recall & Specificity \\
@@ -14,6 +15,7 @@ RBF SVM+DOW & 0.526 & 0.082 & 0.483 & 0.069 & 0.968 \\
 Poly SVM+DOW & 0.466 & -0.039 & 0.532 & 0.972 & 0.016 \\
 \bottomrule
 \end{tabular}
+\end{adjustbox}
 \par\smallskip
 \footnotesize Test Acc = plain hold-out accuracy on the final 20\% test split. All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. Recall = positive-class sensitivity, TP / (TP + FN). Specificity = TN / (TN + FP).
 \end{table}

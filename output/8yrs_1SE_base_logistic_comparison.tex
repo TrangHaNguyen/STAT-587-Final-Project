@@ -2,6 +2,7 @@
 \centering
 \caption{Logistic Regression Model Comparison: Raw OHLCV vs Raw OHLCV + Day-of-Week}
 \label{tab:base_logistic_comparison}
+\begin{adjustbox}{max width=\linewidth, max totalheight=0.72\textheight}
 \begin{tabular}{lrrrrr}
 \toprule
 Model & ROC-AUC & MCC & Test Acc & Recall & Specificity \\
@@ -19,8 +20,8 @@ Ridge+PCA+DOW (3)$^\dagger$ & 0.529 & 0.000 & 0.460 & 0.000 & 1.000 \\
 LASSO+PCA+DOW (3)$^\dagger$ & 0.529 & 0.000 & 0.460 & 0.000 & 1.000 \\
 \bottomrule
 \end{tabular}
+\end{adjustbox}
 \par\smallskip
-\footnotesize Base = baseline logistic regression without regularization. Test Acc = plain hold-out accuracy on the final 20\% test split. All reported CV/train/test accuracy columns in this table use plain accuracy after hyperparameters were selected by CV balanced accuracy. Recall = positive-class sensitivity, TP / (TP + FN). Specificity = TN / (TN + FP).
-\\
-\footnotesize $^\dagger$ Degenerate classifier: optimal $C = 10^{-6}$ shrinks all coefficients to zero; model predicts majority class for every observation (Recall $\approx 0$ or 1 depending on majority class; Precision $\approx$ base rate).
+\scriptsize Base = no regularization. Test Acc = hold-out accuracy (final 20\%). Recall = TP/(TP+FN). Specificity = TN/(TN+FP). \\
+\scriptsize $^\dagger$ Degenerate: $C = 10^{-6}$ shrinks all coefficients to zero; predicts majority class only.
 \end{table}

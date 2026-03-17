@@ -12,47 +12,45 @@ Reallocated singl_function (elt_size=4) to 100 items from 50.
 Reallocated wiz_functions (elt_size=4) to 9000 items from 6000.
 Reallocated singl_function (elt_size=4) to 100 items from 50.
 Database file #1: Bibliography.bib
-Warning--I didn't find a database entry for "chicco_2020"
 apacite.bst [2013/07/21 v6.03 APA bibliography style]
-You've used 7 entries,
+You've used 8 entries,
             6951 wiz_defined-function locations,
-            1315 strings with 12046 characters,
-and the built_in function-call counts, 11584 in all, are:
-= -- 1416
-> -- 100
-< -- 497
-+ -- 493
-- -- 18
-* -- 712
-:= -- 2078
-add.period$ -- 31
-call.type$ -- 7
-change.case$ -- 119
+            1322 strings with 12294 characters,
+and the built_in function-call counts, 13932 in all, are:
+= -- 1692
+> -- 114
+< -- 640
++ -- 634
+- -- 20
+* -- 891
+:= -- 2589
+add.period$ -- 35
+call.type$ -- 8
+change.case$ -- 138
 chr.to.int$ -- 0
-cite$ -- 14
-duplicate$ -- 298
-empty$ -- 514
-format.name$ -- 163
-if$ -- 2262
+cite$ -- 16
+duplicate$ -- 343
+empty$ -- 594
+format.name$ -- 187
+if$ -- 2665
 int.to.chr$ -- 0
-int.to.str$ -- 21
+int.to.str$ -- 24
 missing$ -- 0
-newline$ -- 185
-num.names$ -- 56
-pop$ -- 371
+newline$ -- 214
+num.names$ -- 64
+pop$ -- 394
 preamble$ -- 1
-purify$ -- 28
+purify$ -- 34
 quote$ -- 0
-skip$ -- 644
+skip$ -- 771
 stack$ -- 0
-substring$ -- 537
-swap$ -- 165
-text.length$ -- 16
+substring$ -- 685
+swap$ -- 197
+text.length$ -- 20
 text.prefix$ -- 0
 top$ -- 1
-type$ -- 560
+type$ -- 640
 warning$ -- 0
-while$ -- 55
+while$ -- 64
 width$ -- 0
-write$ -- 222
-(There was 1 warning)
+write$ -- 257

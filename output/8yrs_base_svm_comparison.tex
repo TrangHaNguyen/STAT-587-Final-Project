@@ -1,6 +1,6 @@
 \begin{table}[htbp]
 \centering
-\caption{Raw SVM Model Comparison}
+\caption{Raw SVM Model Comparison (Raw OHLCV vs +Day-of-Week)}
 \label{tab:base_svm_comparison}
 \begin{tabular}{lrrrrr}
 \toprule
@@ -9,6 +9,9 @@ Model & ROC-AUC & MCC & Test Acc & Recall & Specificity \\
 Raw Linear SVM & 0.465 & -0.024 & 0.535 & 0.977 & 0.016 \\
 Raw RBF SVM & 0.509 & 0.010 & 0.540 & 0.986 & 0.016 \\
 Raw Poly SVM & 0.518 & 0.034 & 0.480 & 0.124 & 0.897 \\
+Linear SVM+DOW & 0.465 & -0.024 & 0.535 & 0.977 & 0.016 \\
+RBF SVM+DOW & 0.526 & 0.082 & 0.483 & 0.069 & 0.968 \\
+Poly SVM+DOW & 0.466 & -0.039 & 0.532 & 0.972 & 0.016 \\
 \bottomrule
 \end{tabular}
 \par\smallskip

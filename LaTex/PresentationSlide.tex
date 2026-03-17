@@ -17,6 +17,7 @@
 \usepackage{amsmath,amsthm,bm}
 \usepackage{graphicx}
 \usepackage{booktabs,multicol}
+\usepackage{adjustbox}
 \usepackage{placeins}
 \usepackage{tikz}
 \usepackage{todonotes}
@@ -40,17 +41,17 @@
   }%
 }
 
+% Make table environment non-floating inside Beamer frames
+\renewenvironment{table}[1][]{%
+  \def\@captype{table}%
+}{%
+}
+
 \makeatother
 
 \newcommand{\safeinput}[1]{%
   \IfFileExists{#1}{%
-    \begin{center}
-    \fbox{%
-      \parbox{0.9\linewidth}{%
-        \centering External table omitted in compile-safe slide mode\\\texttt{\detokenize{#1}}%
-      }%
-    }
-    \end{center}
+    \input{#1}%
   }{%
     \begin{center}
     \fbox{%
@@ -69,7 +70,7 @@
 \title[Historical Signals and Market Direction]{Historical Signals and Market Direction}
 \author{Trang Nguyen} 
 \institute{STAT 587: Data Science \\ Portland State University}
-\date{March 9th, 2026}
+\date{March 16th, 2026}
 
 % --- Remove default navigation symbols ---
 \setbeamertemplate{navigation symbols}{}
@@ -462,13 +463,7 @@
 \subsubsection{Logistic Regression Models}
 \begin{frame}[t]{Results}
 \textbf{Logistic Regression Models}\\
-\begingroup
-\scriptsize
-\setlength{\tabcolsep}{2pt}
-\renewcommand{\arraystretch}{0.9}
 \safeinput{../output/8yrs_1SE_base_logistic_comparison.tex}
-\endgroup
-%\FloatBarrier
 \end{frame}
 
 \begin{frame}{Results}
@@ -478,25 +473,16 @@
   \item Best ROC-AUC: Base+PCA: Model without regularization: 0.530
   \item Several combination of Ridge/LASSO with PCA are degenerated
   \item Regularization improve accuracy by about 2-3 pct point, and might reduce predictive variance
-  \item Best candidate: 
 \end{itemize}
 \end{frame}
 
-\begin{frame}{Logistic - Base+PCA}
-\begin{figure}[h]
-    \centering
-    \safeincludegraphics[width=\linewidth]{../output/8yrs_1SE_base_logistic_bias_variance.png}
-    \caption{Bias-variance tradeoff for the Base+PCA logistic model, with over/underfitting analysis}
-    \label{fig:vb_log_base}
-\end{figure}
-\end{frame}
+
 
 
 \subsubsection{Random Forest Models}
 \begin{frame}[t,shrink=25]{Results}
 \textbf{Random Forest Models}\\
-\safeinput{../output/8yrs_1SE_base_rf_comparison.tex}
-%\FloatBarrier
+\safeinput{../output/8yrs_1SE_base_random_forest.tex}
 \end{frame}
 
 \begin{frame}{Results}
@@ -512,7 +498,7 @@
 \begin{frame}{RF with raw features and DOW}
 \begin{figure}[h]
     \centering
-    \safeincludegraphics[width=\linewidth]{../output/8yrs_base_rf_best_tree.png}
+    \safeincludegraphics[width=\textwidth,height=0.75\textheight,keepaspectratio]{../output/8yrs_base_rf_best_tree.png}
     \caption{RF Tree Classification}
     \label{fig:rf_base_besttree}
 \end{figure}
@@ -579,11 +565,27 @@ dummies
 \begin{frame}{Best performer: RF with raw and DOW}
 \begin{figure}[htbp]
   \centering
-  \safeincludegraphics[width=0.32\textwidth]{../output/8yrs_base_rf_best_model_bias_variance.png}
-   \safeincludegraphics[width=0.32\textwidth]{../output/8yrs_base_rf_best_model_bias_variance_classifier_max_features.png}
-    \safeincludegraphics[width=0.32\textwidth]{../output/8yrs_base_rf_best_model_bias_variance_classifier_n_estimators.png}
-  \caption{Bias Variance Tradeoff during parameter tunning process for Random Forest with raw data and DOW}
-  \label{fig:validation-best-bv}
+  \safeincludegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{../output/8yrs_base_rf_best_model_bias_variance.png}
+  \caption{Bias-Variance Tradeoff: max_depth}
+  \label{fig:bv-overall}
+\end{figure}
+\end{frame}
+
+\begin{frame}{Best performer: RF with raw and DOW}
+\begin{figure}[htbp]
+  \centering
+  \safeincludegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{../output/8yrs_base_rf_best_model_bias_variance_classifier_max_features.png}
+  \caption{Bias-Variance Tradeoff: \texttt{max\_features}}
+  \label{fig:bv-maxfeatures}
+\end{figure}
+\end{frame}
+
+\begin{frame}{Best performer: RF with raw and DOW}
+\begin{figure}[htbp]
+  \centering
+  \safeincludegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{../output/8yrs_base_rf_best_model_bias_variance_classifier_n_estimators.png}
+  \caption{Bias-Variance Tradeoff: \texttt{n\_estimators}}
+  \label{fig:bv-nestimators}
 \end{figure}
 \end{frame}
 
@@ -591,11 +593,27 @@ dummies
 \begin{frame}{Best performer: RF with raw and DOW}
 \begin{figure}[htbp]
   \centering
-  \safeincludegraphics[width=0.32\textwidth]{../output/8yrs_base_rf_best_model_train_test.png}
-   \safeincludegraphics[width=0.32\textwidth]{../output/8yrs_base_rf_best_model_train_test_classifier_max_features.png}
-    \safeincludegraphics[width=0.32\textwidth]{../output/8yrs_base_rf_best_model_train_test_classifier_n_estimators.png}
-  \caption{Over/underfitting during parameter tunning process for Random Forest with raw data and DOW}
-  \label{fig:validation-best-bv}
+  \safeincludegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{../output/8yrs_base_rf_best_model_train_test.png}
+  \caption{Over/Underfitting: max_depth}
+  \label{fig:ov-overall}
+\end{figure}
+\end{frame}
+
+\begin{frame}{Best performer: RF with raw and DOW}
+\begin{figure}[htbp]
+  \centering
+  \safeincludegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{../output/8yrs_base_rf_best_model_train_test_classifier_max_features.png}
+  \caption{Over/Underfitting: \texttt{max\_features}}
+  \label{fig:ov-maxfeatures}
+\end{figure}
+\end{frame}
+
+\begin{frame}{Best performer: RF with raw and DOW}
+\begin{figure}[htbp]
+  \centering
+  \safeincludegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{../output/8yrs_base_rf_best_model_train_test_classifier_n_estimators.png}
+  \caption{Over/Underfitting: \texttt{n\_estimators}}
+  \label{fig:ov-nestimators}
 \end{figure}
 \end{frame}
 
@@ -604,7 +622,7 @@ dummies
   \textbf{Complexity}
 \begin{figure}[htbp]
   \centering
-  \safeincludegraphics[width=0.95\textwidth]{../output/8yrs_family_leaders_accuracy_vs_cv_sd.png}
+  \safeincludegraphics[width=\textwidth,height=0.62\textheight,keepaspectratio]{../output/8yrs_family_leaders_accuracy_vs_cv_sd.png}
   \caption{Accuracy and Proxy for Noise of The Best Models within Model Families and Data Set Performer}
   \label{fig:complexity2}
 \end{figure}
@@ -615,7 +633,7 @@ dummies
   \textbf{Complexity}
 \begin{figure}[htbp]
   \centering
-\safeincludegraphics[width=0.95\textwidth]{../output/8yrs_family_leaders_cv_accuracy_vs_cv_sd.png}
+\safeincludegraphics[width=\textwidth,height=0.62\textheight,keepaspectratio]{../output/8yrs_family_leaders_cv_accuracy_vs_cv_sd.png}
   \caption{Cross-Validation: Balanced Accuracy for The Best Candidate within Model Families and Data Set}
   \label{fig:complexity1}
 \end{figure}
@@ -628,7 +646,7 @@ dummies
   \textbf{Prediction Visualization}
 \begin{figure}[htbp]
   \centering
-  \safeincludegraphics[width=0.95\textwidth]{../output/8yrs_prediction_distribution_base_random_forest_py_rf_dow.png}
+  \safeincludegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{../output/8yrs_prediction_distribution_base_random_forest_py_rf_dow.png}
   \caption{Predicted Probability Distribution by True Class on The Test Set}
   \label{fig:pred-dist-base-rf-dow}
 \end{figure}

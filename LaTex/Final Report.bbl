@@ -1,6 +1,39 @@
 \begin{thebibliography}{}
 
 \bibitem [\protect \citeauthoryear {%
+Chicco%
+\ \BBA {} Jurman%
+}{%
+Chicco%
+\ \BBA {} Jurman%
+}{%
+{\protect \APACyear {2020}}%
+}]{%
+chicco_2020}
+\APACinsertmetastar {%
+chicco_2020}%
+\begin{APACrefauthors}%
+Chicco, D.%
+\BCBT {}\ \BBA {} Jurman, G.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2020}{{\APACmonth{01}}}{}.
+\newblock
+{\BBOQ}\APACrefatitle {The advantages of the {Matthews} correlation coefficient
+  ({MCC}) over {F1} score and accuracy in binary classification evaluation}
+  {The advantages of the {Matthews} correlation coefficient ({MCC}) over {F1}
+  score and accuracy in binary classification evaluation}.{\BBCQ}
+\newblock
+\APACjournalVolNumPages{BMC Genomics}{21}{1}{6}.
+\newblock
+\begin{APACrefURL} \url{https://doi.org/10.1186/s12864-019-6413-7}
+  \end{APACrefURL}
+\newblock
+\begin{APACrefDOI} \doi{10.1186/s12864-019-6413-7} \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
 Global%
 }{%
 Global%

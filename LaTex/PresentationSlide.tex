@@ -461,7 +461,6 @@
 
 
 \begin{frame}[t,shrink=8]{Method Overview: Models and Model Selection}
-  \textbf{Modification of loss function: balanced weight for classes is used}
 \begin{block}{Model Tuning and Selection} (Mainly Ch. 7, ESL)
 \begin{itemize}
     \item Validation methods: \textbf{Time series} cross-validation
@@ -471,7 +470,8 @@
       \item Balanced accuracy in parameter tunning (reduced degenerated one)
       \item Between different models: 
       \begin{itemize}
-        \item Test accuracy, ROC-AUC, Specificity, Sensitivity (recall)
+        \item Test accuracy, ROC-AUC, Specificity, Recall (sensitivity), MCC
+        \item Diagnostic plots with CV balanced accuracy
       \end{itemize}
     \end{itemize}
 \end{itemize}
@@ -501,12 +501,12 @@
 
 \begin{frame}{Results}
 \begin{itemize}
-  \item Overall accuracy around 50-55\%, slightly better than random guessing
-  \item Best test accuracy: Base+PCA, Test Acc = 0.5572
-  \item Best ROC-AUC: Ridge CV (PCA-197)
-  \item Several LASSO models are degenerated
-  \item PCA leads to some information loss
-  \item Regularization techniques do not significantly improve test accuracy, but might reduce predictive variance
+  \item Overall accuracy around 50-53\%, slightly better than random guessing
+  \item Best test accuracy: LASSO (with or without day of the week) = 0.5572
+  \item Best ROC-AUC: Base+PCA: Model without regularization: 0.530
+  \item Several combination of Ridge/LASSO with PCA are degenerated
+  \item Regularization improve accuracy by about 2-3 pct point, and might reduce predictive variance
+  \item Best candidate: 
 \end{itemize}
 \end{frame}
 
@@ -530,33 +530,27 @@
 \begin{frame}{Results}
 \begin{itemize}
   \item Raw RF outperforms logistic regression
-  \item Applying PCA and LASSO before the random forest does not improve performance. 
+  \item Applying PCA and LASSO before the random forest worsen test accuracy. 
   \item Ridge-based filtering gives the best performance.
-  \item Models with DOW and lag are not competitive compared to the raw-feature branch.
-  \item The standard deviation of both train and test cross validation accuracy is higher $\to$ sensitive method. 
+  \item Simple RF with DOW is much better than without DOW
 \end{itemize}
 \end{frame}
 
-\begin{frame}{RF - Ridge Filtered}
-\begin{figure}[h]
-    \centering
-    \safeincludegraphics[width=\linewidth]{../output/8yrs_1SE_base_rf_ridge_bias_variance.png}
-    \caption{Bias-variance tradeoff for the ridge-filtered random forest model}
-    \label{fig:vb_rf_base_ridge}
+
+
+\begin{frame}{RF with raw features and DOW}
+\begin{figure}[htbp]
+  \centering
+  \safeincludegraphics[width=0.32\textwidth]{../output/8yrs_base_rf_best_model_bias_variance.png}
+   \safeincludegraphics[width=0.32\textwidth]{../output/8yrs_base_rf_best_model_bias_variance_classifier_max_features.png}
+    \safeincludegraphics[width=0.32\textwidth]{../output/8yrs_base_rf_best_model_bias_variance_classifier_n_estimators.png}
+  \caption{Bias Variance Tradeoff during parameter tunning process for Random Forest with raw data and DOW}
+  \label{fig:validation-best-bv}
 \end{figure}
-\end{frame}
-
-\begin{frame}{RF with raw features}
-\begin{figure}[h]
-    \centering
-    \safeincludegraphics[width=\linewidth]{../output/8yrs_base_rf_train_test.png}
-    \caption{RF Tree Classification}
-    \label{fig:vb_rf_base_treedeepth}
-\end{figure}
-\end{frame}
+\FloatBarrier
 
 
-\begin{frame}{RF with raw features}
+\begin{frame}{RF with raw features and DOW}
 \begin{figure}[h]
     \centering
     \safeincludegraphics[width=\linewidth]{../output/8yrs_base_rf_best_tree.png}
@@ -569,12 +563,20 @@
 
 \subsection{Extended Feature Models}
 \begin{frame}[t,shrink=25]{Results}
-\safeinput{../output/8yrs_4methods_comparison.tex}
-%The table compares Random Forest, SVM, and Logistic Regression models over an 8-year period, reporting accuracy, standard deviation, precision, recall, and F1 for the positive class ("Up").
+\safeinput{../output/8yrs_logistic_regression_comparison.tex}
 \end{frame}
 
+\begin{frame}[t,shrink=25]{Results}
+\safeinput{../output/8yrs_random_forest_comparison.tex}
+\end{frame}
 
+\begin{frame}[t,shrink=25]{Results}
+\safeinput{../output/8yrs_svm_comparison.tex}
+\end{frame}
 
+\begin{frame}[t,shrink=25]{Results}
+\safeinput{../output/8yrs_nn_comparison.tex}
+\end{frame}
 
 \begin{frame}{Results}
 \begin{itemize}

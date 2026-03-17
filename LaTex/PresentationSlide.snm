@@ -2,6 +2,9 @@
 \beamer@slide {fig:top-sectors}{11}
 \beamer@slide {fig:sector-vol}{12}
 \beamer@slide {fig:vb_log_base}{22}
-\beamer@slide {fig:vb_rf_base_ridge}{25}
-\beamer@slide {fig:vb_rf_base_treedeepth}{26}
-\beamer@slide {fig:rf_base_besttree}{27}
+\beamer@slide {fig:rf_base_besttree}{25}
+\beamer@slide {fig:validation-best-bv}{34}
+\beamer@slide {fig:validation-best-bv}{35}
+\beamer@slide {fig:complexity2}{36}
+\beamer@slide {fig:complexity1}{37}
+\beamer@slide {fig:pred-dist-base-rf-dow}{38}

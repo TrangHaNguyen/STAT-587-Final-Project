@@ -130,7 +130,7 @@ One motivation for using only historical data is that market prices may already 
 
 The raw data contains 2009 trading days and 2520 features. The sizable number of columns is explained by each stock (503 tickers)\footnote{This differ from 500 tickers though the name of the index is S\&P 500. This is because some company ticker is not available for the whole period while some other company has more than one stock tickers listed in the market} and index (1) having their own price metrics for CP, OP, HP, LP and TV $([503+1] * 5)=2520$. The number of rows is explained by the exclusion of 19 holidays and 211 weekend days. 
 
-The raw features are then modified to create target variables and additional features that are commonly seen used in quantitative technical analysis and trading strategies. Target variable is the binary value if the S \&P 500 goes up in the next day. Meanwhile, beside the day of the week (DOW - dummies), engineered features include lag values, day-to-day percent change, volatility, max/min channel position, rolling volume weighted average prices, rolling z-scores, daily range. Details of formula for each variable generation is provided in the Subsection \ref{subsec:feature_engineering} of the Appendix. 
+The raw features are then modified to create target variables and additional features that are commonly seen used in quantitative technical analysis and trading strategies. Target variable is the binary value if the S \&P 500 goes up in the next day. Meanwhile, beside the day of the week (DOW - dummies), engineered features include lag values, day-to-day percent change, volatility, max/min channel position, rolling volume weighted average prices, rolling z-scores, daily range. Details of formula for each variable generation is provided in the Appendix. 
 
 Lag feature is particularly important for statistical learning models that aren't traditional economic time-series analysis models, allowing to capture the relationship between past and future values in a more flexible way. Currently 7 lag days are and the results will be compared to see if there is any significant difference. It should be noted that beside the reason that the engineered features are included by usual financial analysis, they are used in this project because of their potentials in capturing some level of non-linear relationship between raw data and target variabels. This is critically important in the case of employing generalized linear models in later data analysis. Finally, the day of week dunmies are added to reflect any potential cyclical patterns in stock movements. 
 
@@ -264,7 +264,7 @@ Table \ref{tab:base_rf_comparison} presents the performance comparison of differ
 Table \ref{tab:base_svm_comparison} shows different metrics for 3 variants of SVM method, namely SVM using linear, RBF, and polynomial kernels. Using the RBF kernel improves the test accuracy slightly compared to the linear kernel (54\% compared to 53.5\%), but increases ROC-AUC noticeably (0.509 compared to 0.465). The model using the polynomial kernel is better in ROC-AUC and improves the prediction for the down days of the market, but has worse test accuracy overall. 
 
 \safeinput{../output/8yrs_base_nn_comparison.tex}
-Table \ref{tab:base_nn_comparison.tex} lists the test set metric for the neural network models on the raw data set. Though LSTM is closer to time-series setting, the raw RNN model is the best performer in both test accuracy, sensitivity, and ROC-AUC.
+Table \ref{tab:base_nn_comparison} lists the test set metric for the neural network models on the raw data set. Though LSTM is closer to time-series setting, the raw RNN model is the best performer in both test accuracy, sensitivity, and ROC-AUC.
 
 \subsection{Extended Feature Models}
 \vspace{-0.5em}
@@ -272,6 +272,8 @@ This subsection will present the performance comparison of models that utilize t
 
 \safeinput{../output/8yrs_logistic_regression_comparison.tex}
 Results for logistic regression methods indicate that using engineered features in forcasting does not noticeably improve test accuracy performance. Also, when balancing between improvement in both test set accuracy and ROC-AUC, all logistic regression models using engineered features are worse compared to the best candidate of the logistic regression method applied to raw data. This means that the engineered features do not really capture the non-linear relationship with the market direction as expected.
+\safeinput{../output/8yrs_random_forest_comparison.tex}
+
 Results of the random forest method for the engineered data set also confirm previous observations of the low capability of engineered features in capturing useful non-linear relationships for forecasting. More specifically, the RF method used with raw data and DOW outperforms the one used with engineered features in test accuracy, ROC-AUC, and specificity. Though RF with engineered data and LASSO in dimensional reduction performs best in Table \ref{tab:random_forest_comparison}, it is still not as good as the best candidate among the group of models using RF with raw data.
 
 \safeinput{../output/8yrs_svm_comparison.tex}
@@ -291,7 +293,7 @@ Comparing across all models for both raw data (with or without DOW) and engineer
 \end{figure}
 Figure \ref{fig:complexity2} plots the test accuracy against the standard deviation (SD) of the balanced accuracy in the cross-validation set (CV) for the best performer of each of the 8 model groups above (4 methods vs 2 data sets). The standard deviation of the plain accuracy in the cross-validation set can be used as a proxy for potential noise in the model. Based on the plot, the random forest model using raw data with DOW is also a good candidate, as its test accuracy is the second highest while its SD of CV balanced accuracy is fairly low compared to others. Overall, the best model's test accuracy is just 0.55, with CV accuracy around 0.035. This means that a random guess of 0.5 is not included in one standard deviation interval of this test accuracy, and the model is informative in forecasting the market.
 
-Figure \ref{fig:pred-dist-base-rf-dow} presents distribution of the predicted probability by true class in the hold-out test set. The graph indicate that to the left hand side of the decision threshold (0.5), the majority of the bin is observed with higher frequency of true down day. Meanwhile, to the right hand side of the decision threshold, the majority of the bin experienced a frequency of the up days. These imply that the classifier does have power in forcasting the up and down day the market. The plot also indicate some switching in frequency of two classes in the direction of harming test accuracy in 3 bins around the current decision threshold. This, together with a ROC-AUC of around 0.59 of the selected model, implies that its weakness in forcasting accuracy might partly arise from the decision threshold used in converting the predicted probability to classification. The selected model can be further improved through tuning the decison threshold for predicted probability.  
+Figure \ref{fig:pred-dist-base-rf-dow} presents distribution of the predicted probability by true class in the hold-out test set for the best model. The graph indicate that to the left hand side of the decision threshold (0.5), the majority of the bin is observed with higher frequency of true down day. Meanwhile, to the right hand side of the decision threshold, the majority of the bin experienced a frequency of the up days. These imply that the classifier does have power in forcasting the up and down day the market. The plot also indicate some switching in frequency of two classes in the direction of harming test accuracy in 3 bins around the current decision threshold. This, together with a ROC-AUC of around 0.59 of the selected model, implies that its weakness in forcasting accuracy might partly arise from the decision threshold used in converting the predicted probability to classification. The selected model can be further improved through tuning the decison threshold for predicted probability.  
 \begin{figure}[htbp]
   \centering
   \safeincludegraphics[width=0.95\textwidth]{../output/8yrs_prediction_distribution_base_random_forest_py_rf_dow.png}
@@ -299,7 +301,7 @@ Figure \ref{fig:pred-dist-base-rf-dow} presents distribution of the predicted pr
   \label{fig:pred-dist-base-rf-dow}
 \end{figure}
 
-Figure Figure \ref{validation-best-depth},  Figure \ref{fig:validation-best-maxfeatures}, and Figure \ref{fig:validation-best-nestimators}summarize the final bias-variance tradeoffs during the parameter tuning process of the best-performing model through changing of cross validation balanced misclassification error and standard deviation. The selected parameter value is indicated by the 1SE red line. Overall, the bias-variace trade off is reflected more clearly in the first panel of the figure when the test misclassification standard deviation band is narrower when the model complexity increase. In the two other panels, the changes in test accuracy standard deviation across parameter used in grid for searching is not trivial.
+Figure \ref{fig:validation-best-depth},  Figure \ref{fig:validation-best-maxfeature}, and Figure \ref{fig:validation-best-nestimators}summarize the final bias-variance tradeoffs during the parameter tuning process of the best-performing model through changing of cross validation balanced misclassification error and standard deviation. The selected parameter value is indicated by the 1SE red line. Overall, the bias-variace trade off is reflected more clearly in the first panel of the figure when the test misclassification standard deviation band is narrower when the model complexity increase. In the two other panels, the changes in test accuracy standard deviation across parameter used in grid for searching is not trivial.
 
 \begin{figure}[htbp]
   \centering
@@ -332,7 +334,6 @@ Because the model complexity depends not only on the model family but also the p
   \label{fig:complexity1}
 \end{figure}
 
-\subsection{Overfitting/underfitting analysis}
 Further analysis of over and under fitting is provided for the best candidate in this report only. Figure \ref{fig:overunder-best-depth},  Figure \ref{fig:overunder-best-maxfeatures}, and Figure \ref{fig:overunder-best-nestimators} presents the plain train and hold-out test misclassification error against different parameter grids.  All of them indicate a similar trend of declining hold-out test misclassification error when the parameter is increase to a certain level and then the error increase when the model turned to be too complex. Meanwhile, the misclassification error on the train set is constantly decline when model complexity is higher.
 
 \begin{figure}[htbp]
@@ -359,16 +360,12 @@ Further analysis of over and under fitting is provided for the best candidate in
 \subsection{Discussion}
 This section summarizes the implications of findings from the best model selected as well as its performance provided in the previous section. 
 
-\subsection{Interpretation of findings}
 The result that one standard deviation of cross-validation accuracy away from the test accuracy of the best model does not include the random guess implies that the model is predictive and the historical data has some signals about the market direction. Even though this signal is not strong, as the test accuracy is just around 55\%, this result still contradicts the weak form of EMH. \footnote{Additional result for hourly data was included in the Presentation of this report previously. However, due to time constraints, only the daily data analysis is included in this report and revised Presentation.}
 
-\subsection{Real-world implications}
 As weak EMH is not supported based on some predictive strength observed in the best performing model, the historical data should remain as one of the reliable data sources for forecasting the stock market. In addition, the specific model with accuracy around 55\% and cross-validation accuracy standard deviation around 3\% constructed in this report can be utilized in forecasting market direction, and the result can be used to design certain trade strategies with appropriate risk management. Furthermore, the accuracy of just 55\% from the historical data implies that the market forecast problem should utilize a more extensive data set than just historical price and trading volume.
 
-\subsection{Limitations}
 This study has several limitations. In terms of data, only 8 years of daily data are used with severe bias toward the upward direction of the market. In terms of modeling, only a limited list of values is used in grid search for parameter tuning. Also, the deep learning architectures of the neural network models are very simple. In terms of evaluation, though variation of threshold in decision making in each classifier is accounted for by ROC-AUC metric, the actual accuracy, specificity, and sensitivity are not computed across different thresholds, while the plot for predicted probability by class clearly shows some potentially better threshold for the best model. These limitations can be relieved with more time and better computational resources.
 
-\subsection{Possible methodological extensions}
 Future methodological extensions include more extensive hyperparameter tuning, various choices of model decision threshold, and broader model experimentation, along with a more comprehensive evaluation framework. More specifically, for parameter tuning, a larger list for grid search should be used. For decision threshold, potentially better ones can be constructed by average median/mean of actual class predicted probability. For cross-validation selection rule, a cSE rule can be employed in place of the 1SE rule with various choices of c. For broader models, more complicated neural network structures can be used. And finally, for evaluation framework, additional metrics, namely Matthew Correlation Coefficient, should be included. In addition, future work should explore the potential of hybrid strategies that combine machine learning with classical economic time-series methods such as ARIMA and GARCH.
 
 \section{Reproducibility Requirements}
@@ -396,8 +393,6 @@ The python code for this project is organized in folder PyScript under 3 subfold
 \bibliography{Bibliography}
 \appendix
 \section{Appendix}
-\subsection{Details of Enginearing Features Before Dimensionality Reduction}
-\label{subsec:feature_engineering}
 Engineered predictors and targets are generated as follows:
 \paragraph{(1) Percent-change base variables}
 For each stock and day \(t\), percent-change features are computed from raw prices:

@@ -1,6 +1,39 @@
 \begin{thebibliography}{}
 
 \bibitem [\protect \citeauthoryear {%
+Chicco%
+\ \BBA {} Jurman%
+}{%
+Chicco%
+\ \BBA {} Jurman%
+}{%
+{\protect \APACyear {2020}}%
+}]{%
+chicco_2020}
+\APACinsertmetastar {%
+chicco_2020}%
+\begin{APACrefauthors}%
+Chicco, D.%
+\BCBT {}\ \BBA {} Jurman, G.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2020}{{\APACmonth{01}}}{}.
+\newblock
+{\BBOQ}\APACrefatitle {The advantages of the {Matthews} correlation coefficient
+  ({MCC}) over {F1} score and accuracy in binary classification evaluation}
+  {The advantages of the {Matthews} correlation coefficient ({MCC}) over {F1}
+  score and accuracy in binary classification evaluation}.{\BBCQ}
+\newblock
+\APACjournalVolNumPages{BMC Genomics}{21}{1}{6}.
+\newblock
+\begin{APACrefURL} \url{https://doi.org/10.1186/s12864-019-6413-7}
+  \end{APACrefURL}
+\newblock
+\begin{APACrefDOI} \doi{10.1186/s12864-019-6413-7} \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
 Global%
 }{%
 Global%
@@ -22,6 +55,36 @@ Global, S.%
 \newblock
 \APAChowpublished
   {\url{https://www.spglobal.com/spdji/en/documents/methodologies/methodology-sp-us-indices.pdf}}.
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Hastie%
+, Tibshirani%
+\BCBL {}\ \BBA {} Friedman%
+}{%
+Hastie%
+\ \protect \BOthers {.}}{%
+{\protect \APACyear {2009}}%
+}]{%
+ESL}
+\APACinsertmetastar {%
+ESL}%
+\begin{APACrefauthors}%
+Hastie, T.%
+, Tibshirani, R.%
+\BCBL {}\ \BBA {} Friedman, J.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYear{2009}.
+\newblock
+\APACrefbtitle {The Elements of Statistical Learning: Data Mining, Inference,
+  and Prediction} {The elements of statistical learning: Data mining,
+  inference, and prediction}\ (\PrintOrdinal{2}\ \BEd).
+\newblock
+\APACaddressPublisher{}{Springer}.
+\newblock
+\begin{APACrefDOI} \doi{10.1007/978-0-387-84858-7} \end{APACrefDOI}
 \PrintBackRefs{\CurrentBib}
 
 \bibitem [\protect \citeauthoryear {%
@@ -77,6 +140,40 @@ Investopedia.%
 \newblock
 \APAChowpublished
   {\url{https://www.investopedia.com/ask/answers/041015/what-history-sp-500.asp}}.
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+James%
+, Witten%
+, Hastie%
+, Tibshirani%
+\BCBL {}\ \BBA {} Taylor%
+}{%
+James%
+\ \protect \BOthers {.}}{%
+{\protect \APACyear {2023}}%
+}]{%
+ISLP}
+\APACinsertmetastar {%
+ISLP}%
+\begin{APACrefauthors}%
+James, G.%
+, Witten, D.%
+, Hastie, T.%
+, Tibshirani, R.%
+\BCBL {}\ \BBA {} Taylor, J.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYear{2023}.
+\newblock
+\APACrefbtitle {An Introduction to Statistical Learning: with Applications in
+  Python} {An introduction to statistical learning: with applications in
+  python}.
+\newblock
+\APACaddressPublisher{}{Springer}.
+\newblock
+\begin{APACrefDOI} \doi{10.1007/978-3-031-38747-0} \end{APACrefDOI}
 \PrintBackRefs{\CurrentBib}
 
 \bibitem [\protect \citeauthoryear {%
@@ -148,6 +245,30 @@ Lin, C\BPBI Y.%
 \newblock
 \begin{APACrefDOI} \doi{https://doi.org/10.1016/j.ssaho.2024.100864}
   \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+{Oregon Regional Computing Accelerator}%
+}{%
+{Oregon Regional Computing Accelerator}%
+}{%
+{\protect \APACyear {2026}}%
+}]{%
+orca_2026}
+\APACinsertmetastar {%
+orca_2026}%
+\begin{APACrefauthors}%
+{Oregon Regional Computing Accelerator}.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2026}{}{}.
+\newblock
+\APACrefbtitle {Orca User Documentation.} {Orca user documentation.}
+\newblock
+\begin{APACrefURL} \url{https://orca.pdx.edu/} \end{APACrefURL}
+\newblock
+\APACrefnote{Accessed March 14, 2026}
 \PrintBackRefs{\CurrentBib}
 
 \bibitem [\protect \citeauthoryear {%

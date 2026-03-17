@@ -1,4 +1,3 @@
-
 \documentclass[11pt]{article}
 \usepackage[utf8]{inputenc}  
 \usepackage[english]{babel}    
@@ -95,10 +94,7 @@ Computational resources used in this work were supported by the Oregon Regional 
 
 AI tools were used for technical consultation on coding choices, debugging, runtime planning and optimization, formatting assistance such as LaTeX cleanup, slide reformatting, and file-path corrections, and limited language support such as grammar checking and shortening slide text. The author directed the project workflow, determined the analytical goals, wrote the content of the report and presentation slides, and is responsible for the final interpretation and presentation of the work.
 
-
 %---------------- Table of Contents ----------------%
-\newpage
-\listoftodos
 \newpage
 \tableofcontents
 \newpage      
@@ -110,7 +106,7 @@ AI tools were used for technical consultation on coding choices, debugging, runt
 
 \quad Predicting the stock market is challenging yet crucial for investors, traders, and researchers \cite{LIN_2024}. Rather than aiming to predict exact future stock prices, this study focuses on the more practical goal of forecasting the next-day direction of the U.S. stock market using historical data on prices and trading volume. The motivation for studying this problem lies in its potential implications for the financial industry as well as economic discussion. 
 
-The predictive performance of our models may inform the investors and policy makers about potential market reaction to previous trends. In addition, it also provide evidence on supporting or contradicting the Efficient Market Hypothesis. If our models achieve meaningful out-of-sample predictive accuracy using only such historical data, this would suggest that these variables contain some predictive content and would therefore be inconsistent with weak-form market efficiency. Conversely, if the models perform poorly, the results would be more consistent with weak-form market efficiency.
+The predictive performance of our models may inform investors and policy makers about potential market reactions to previous trends. In addition, it also provides evidence supporting or contradicting the Efficient Market Hypothesis (EMH). If our models achieve meaningful out-of-sample predictive accuracy using only such historical data, this would suggest that these variables contain some predictive content and would therefore be inconsistent with weak-form market efficiency. Conversely, if the models perform poorly, the results would be more consistent with weak-form market efficiency.
 
 \subsection{Research problem}
 
@@ -118,7 +114,7 @@ The predictive performance of our models may inform the investors and policy mak
 
 \subsection{Background context}
 
-\quad According to \citeauthor{wolfers_2004}, the Efficient Market Hypothesis states that market prices fully reflect available information \endnote{The Efficient Market Hypothesis states that market prices fully reflect available information. The form of the hypothesis depends on the type of information incorporated into prices.In its strong form, prices reflect all information; in its semi-strong form, prices reflect all publicly available information; and in its weak form, prices reflect information contained in past prices and trading data.}. This implies that excess returns should not be systematically predictable from the relevant information set. Under the weak form of the Efficient Market Hypothesis\endnote{See the preceding endnote.}, historical price and trading-volume data should therefore not contain exploitable patterns for predicting future returns. If our models achieve meaningful out-of-sample predictive accuracy using only such historical data, this would suggest that these variables contain some predictive content and would therefore be inconsistent with weak-form market efficiency. Conversely, if the models perform poorly, the results would be more consistent with weak-form market efficiency.
+\quad According to \citeauthor{wolfers_2004}, the Efficient Market Hypothesis states that market prices fully reflect available information \footnote{The Efficient Market Hypothesis states that market prices fully reflect available information. The form of the hypothesis depends on the type of information incorporated into prices.In its strong form, prices reflect all information; in its semi-strong form, prices reflect all publicly available information; and in its weak form, prices reflect information contained in past prices and trading data.}. This implies that excess returns should not be systematically predictable from the relevant information set. Under the weak form of the Efficient Market Hypothesis\footnote{See the preceding endnote.}, historical price and trading-volume data should therefore not contain exploitable patterns for predicting future returns. If our models achieve meaningful out-of-sample predictive accuracy using only such historical data, this would suggest that these variables contain some predictive content and would therefore be inconsistent with weak-form market efficiency. Conversely, if the models perform poorly, the results would be more consistent with weak-form market efficiency.
 
 The S\&P 500 Index is a stock market index that measures the stock performance of the top 500 companies in terms of market capitalization listed on the stock exchanges in the United States \cite{spglobal_2024}. This index is one of the most commonly followed equity indices and is often used as a benchmark for the overall performance of the U.S. stock market. The index includes companies from various sectors, including technology, healthcare, financial services, consumer discretionary, and more. The S\&P 500 Index is widely regarded as a leading indicator of the health of the U.S. economy and is closely watched by investors, analysts, and policymakers \cite{investopedia_2024}.
 
@@ -130,10 +126,9 @@ One motivation for using only historical data is that market prices may already 
 
 \subsection{Dataset description}
 
+\quad \ The raw data was retrieved via Yahoo Finance's API \verb|yfinance|, containing the open price (OP), close price (CP), high price (HP), low price (LP), and traded volume (TV) for each stock. They will be mentioned as OHLCV features. The data utilized contains information on stocks that are and/or were listed on the S\&P 500 index during the period from January 1st, 2018, to December 31st, 2025, inclusive. The cleaning process involved evaluating the data for changes in tickers\footnote{this usually happens when one or more company merges with another company}, invalid data \footnote{for example, when a stock was in a frozen state}, holidays where the market was closed, and missing data due to being listed or delisted during the time frame. All observations with missing information for any of the five price metrics or trading volume were removed.
 
-\quad \ The raw data was retrieved via Yahoo Finance's API \verb|yfinance|, containing the open price (OP), close price (CP), high price (HP), low price (LP), and traded volume (TV) for each stock. They will be mentioned as OHLCV features. The data utilized contain information on stocks that are and/or were listed on the S\&P 500 index during the time period spanning January 1st, 2018, to December 31st, 2025, including both end. The cleaning process pertained to evaluating the data for change in tickers\endnote{this usually happens when one or more company merges with another company}, invalid data \endnote{for example, when a stock was in a frozen state}, holidays where the market was closed, and missing data due to being listed or delisted during the time frame. All the observations with missing information of any of the 5 price metrics or trading volume were removed.
-
-The raw data contains 2009 trading days and 2520 features. The sizable number of columns is explained by each stock (503 tickers)\endnote{This differ from 500 tickers though the name of the index is S\&P 500. This is because some company ticker is not available for the whole period while some other company has more than one stock tickers listed in the market} and index (1) having their own price metrics for CP, OP, HP, LP and TV $([503+1] * 5)=2520$. The number of rows is explained by the exclusion of 19 holidays and 211 weekend days. 
+The raw data contains 2009 trading days and 2520 features. The sizable number of columns is explained by each stock (503 tickers)\footnote{This differ from 500 tickers though the name of the index is S\&P 500. This is because some company ticker is not available for the whole period while some other company has more than one stock tickers listed in the market} and index (1) having their own price metrics for CP, OP, HP, LP and TV $([503+1] * 5)=2520$. The number of rows is explained by the exclusion of 19 holidays and 211 weekend days. 
 
 The raw features are then modified to create target variables and additional features that are commonly seen used in quantitative technical analysis and trading strategies. Target variable is the binary value if the S \&P 500 goes up in the next day. Meanwhile, beside the day of the week (DOW - dummies), engineered features include lag values, day-to-day percent change, volatility, max/min channel position, rolling volume weighted average prices, rolling z-scores, daily range. Details of formula for each variable generation is provided in the Subsection \ref{subsec:feature_engineering} of the Appendix. 
 
@@ -152,9 +147,8 @@ Overall, the data set (both raw and engineered) has a large number of individual
     \caption{Correlation across sectors and that of each sector with the S\&P 500 daily return. Highlighted are the three sectors with the highest absolute market-cap-weighted correlation with the S\&P 500: Healthcare ($|r|=0.1244$), Financial Services ($|r|=0.1198$), and Consumer Defensive ($|r|=0.1112$). Dark colours indicate stronger correlation while light colours indicate weaker correlation. The correlation is calculated based on the engineered feature `Close PC'.}
     \label{fig:sector-correlation}
 \end{figure}
-\FloatBarrier
 
-Figure \ref{fig:sector-correlation} shows the correlation of mean daily returns across all sectors \endnote{GICS: Global Industry Classification Standard - a standardized sector taxonomy developed jointly by MSCI and S\&P Dow Jones Indices. It groups companies into 11 sectors. See more at https://www.msci.com/gics} over the 8 years in analysis. The sector in the correlation graph are sorted by hierarchical clustering, which reveals sub-groups of sectors tend to move together. Certain sectors, such as Healthcare, Financial Services, and Consumer Defensive, exhibit stronger positive correlations with each other. Meanwhile, Energy, Consumer Defensive, and Utilities have weaker correlation with the remaining. In addition, the sectors' market-cap-weighted correlation with the S\&P 500 Index indicates that Healthcare, Financial Services, and Consumer Defensive have the strongest absolute correlations with the overall market and seems to be the market driver.
+Figure \ref{fig:sector-correlation} shows the correlation of mean daily returns across all sectors \footnote{GICS: Global Industry Classification Standard - a standardized sector taxonomy developed jointly by MSCI and S\&P Dow Jones Indices. It groups companies into 11 sectors. See more at https://www.msci.com/gics} over the 8 years in analysis. The sector in the correlation graph are sorted by hierarchical clustering, which reveals sub-groups of sectors tend to move together. Certain sectors, such as Healthcare, Financial Services, and Consumer Defensive, exhibit stronger positive correlations with each other. Meanwhile, Energy, Consumer Defensive, and Utilities have weaker correlation with the remaining. In addition, the sectors' market-cap-weighted correlation with the S\&P 500 Index indicates that Healthcare, Financial Services, and Consumer Defensive have the strongest absolute correlations with the overall market and seems to be the market driver.
 
 
 \begin{figure}[h]
@@ -165,7 +159,6 @@ Figure \ref{fig:sector-correlation} shows the correlation of mean daily returns 
     \caption{Intra-sector correlation matrices for the top three sectors by absolute market-cap-weighted correlation with S\&P 500 returns. From left to right: Financial Services ($|r|=0.1198$), Healthcare ($|r|=0.1244$), and Consumer Defensive ($|r|=0.1112$). Hierarchical clustering reveals sub-groups of stocks with similar return dynamics. Warm colours indicate strong positive co-movement while cool colours indicate divergence.}
     \label{fig:top-sectors}
 \end{figure}
-\FloatBarrier
 
 Figure \ref{fig:top-sectors} shows the intra-sector correlation matrices for the Financial Services, Healthcare, and Consumer Defensive sectors, respectively. The tickers in those plots are also sorted by hierarchical clustering. The plots suggest certain segments within these sectors may be driving their overall correlation with the broader market and that there might be a high degree of redundancy in the data. 
 
@@ -174,40 +167,33 @@ Figure \ref{fig:top-sectors} shows the intra-sector correlation matrices for the
     \safeincludegraphics[width=0.45\linewidth]{../output/8yrs_sector_volatility_over_time.png}
     \safeincludegraphics[width=0.45\linewidth]{../output/8yrs_smoothed_sector_volatility.png}
     \caption{Sector Return Dispersion. Left panel: Sector Return Dispersion over Time. Right panel: Smoothed Sector Return Dispersion over Time.}
-    \vspace{0.3em}
     {\footnotesize
     \textit{Note.} Returns are expressed in decimal form rather than percentage points; for example, 0.01 corresponds to a 1\% return. The left panel reports the 21-day rolling average of the daily cross-sectional standard deviation of stock returns within each sector. The right panel reports a further smoothed version of this series using a 40-day rolling mean.
     }
     \label{fig:sector-vol}
 \end{figure}
-\FloatBarrier
 
-Figure \ref{fig:sector-vol} shows the dispersion of 21-day rolling average of stock returns dispersion for each GICS sector and their smoothed version obtained by applying a 40-day rolling mean. The graphs reveal that certain sectors, such as Healthcare and Technology, tend to exhibit higher volatility. This indicates important information of individual stock price movements should be included as predictors rather than aggregate indexes for the whole sector/ market. In addition, similar time trend across sectors suggest data redundency if all stock price movement are included in predictors.
+Figure \ref{fig:sector-vol} shows the dispersion of 21-day rolling average of stock returns dispersion for each GICS sector and their smoothed version obtained by applying a 40-day rolling mean. The graphs reveal that certain sectors, such as Healthcare and Technology, tend to exhibit higher volatility. This indicates important information of individual stock price movements should be included as predictors rather than aggregate indexes for the whole sector/ market. In addition, similar time trends across sectors suggest data redundancy if all stock price movements are included as predictors.
 
 
 \safeinput{../output/8yrs_descriptive_stats.tex}
-\FloatBarrier
-Table \ref{tab: descriptive_stats} reports yearly S\&P 500 up-day proportion and the means and standard deviations of returns for the three key sectors.
+Table \ref{tab:descriptive_stats} reports yearly S\&P 500 up-day proportion and the means and standard deviations of returns for the three key sectors.
 Average daily returns are generally positive. The volatility in return rises sharply in 2020 and again in 2022. The S\&P 500 up-day proportion is above 0.50 in most years but drops below 0.50 in 2022, meaning that the data is not very balanced in terms of responses.
 
-In summary, data is time-series, characterized by a large number of features (columns) compared to the number of observations (rows), unbalanced in the response category, and has high risk of multicollinearity . Certain sectors and stocks may have better information for predicting S\&P 500. In addition, information contained in the individual stocks should be exploited in prediction rather than just aggregation across sectors. Also, there is quite evidence on the redundancy of the data. 
-
-
+In summary, data is time-series, characterized by a large number of features (columns) compared to the number of observations (rows), unbalanced in the response category, and has high risk of multicollinearity . Certain sectors and stocks may have better information for predicting S\&P 500. In addition, information contained in the individual stocks should be exploited in prediction rather than just aggregation across sectors. Also, there is quite evidence on the redundancy of the data.
 
 Overall, the data is time series in nature and expose unbalanced class in target variable. It is also characterized by a large number of features (columns) compared to the number of observations (rows), which can pose challenges for classical linear regression. Furthermore, many engineered features are created based on the same raw data, leading to a high risk of multicollinearity. The multicollinearity problem is also reflected more clearly in a high correlation of sectors and individual tickers features. Besides that, similar volatility patterns over time shows potential of information redundancy in the data. These characteristics of the data will influence the choice of methods and techniques used for forecasting and analysis in this project. %Prof's comment: Content of this paragraph appears incomplete and also could be rewritten better. Fix this please.
 
-
-
 \section{Methods}
-The selection of methods in this project is highly depend specific characteristics of the data set, namely high-dimensional predictors, potentially high multicollinearity, and time-series structure, and unbalanced class in the binary classification problem.
+he selection of methods in this project highly depends on the specific characteristics of the data set, namely high-dimensional predictors, potentially high multicollinearity, and time-series structure, and unbalanced class in the binary classification problem.
 
-First, high-dimensional features in the data set can cause the infeasibility of application for some methods while cost computational time for the others. Therefore, this characteristic need to be addressed well before further step of data analysis. Two methods are employed, namely Principaliple Component Analysis (PCA)\endnote{PCA and wavelet transform were the most popular methods used in literature, according to \citeauthor{KUMBURE_2022}} and LASSO regularization. Though the loss of interpretability could discourage us from using PCA, our primary focus is on the prediction of the market direction, not explanation of features' impact. 
-The PCA method extract the M components that are highest in explaning the variance of the features as follows:
+First, high-dimensional features in the data set can make some methods infeasible and increase computational time for others. Therefore, this characteristic need to be addressed well before further step of data analysis. Two methods are employed, namely Principaliple Component Analysis (PCA)\footnote{PCA and wavelet transform were the most popular methods used in literature, according to \citeauthor{KUMBURE_2022}} and LASSO regularization. Though the loss of interpretability could discourage us from using PCA, our primary focus is on the prediction of the market direction, not explanation of features' impact. 
+The PCA method extracts the M components that explain the most variance in the features as follows:
 \[
 z_{im} = \sum_{j=1}^p x_{ij} \phi_{jm}, \qquad m=1,\dots,M
 \]
-where $\phi_m$ is the largest $m$th loading direction.( Ch. 14, Section 14.5.1, \cite{ESL})
-The LASSO regilarization perform optimization with the objective function include not only loss function but also the penalty term for absolute norm of the model coefficients as follows: 
+where $\phi_m$ is the largest $m$th loading direction.\footnote{Ch. 14, Section 14.5.1, \cite{ESL}}
+LASSO regularization performs optimization with an objective function that includes not only the loss function but also a penalty term for the absolute norm of the model coefficients as follows: 
     \[
     \hat{\beta}^{\mathrm{lasso}}
     = \arg\min_{\beta}\left\{
@@ -216,30 +202,30 @@ The LASSO regilarization perform optimization with the objective function includ
     \right\}
     \]
 
-Second, beside the high correlation of stocks' movement in raw feature set, the secondary indicators constructed from the raw data pause even a higher risk of multicollinearity problem. This can result in unstable result for model prediction and need to be addressed well. In this aspect, Ridge regularization will be used beside PCA and LASSO. Ridge regularization use the penalty for the second norm of the model parameters in the objective function for optimization is as follows: 
+Second, besides the high correlation of stock movements in the raw feature set, the secondary indicators constructed from the raw data pose an even higher risk of multicollinearity. This can result in unstable result for model prediction and need to be addressed well. In this aspect, Ridge regularization will be used beside PCA and LASSO. Ridge regularization uses a penalty for the squared norm of the model parameters in the objective function for optimization as follows\footnote{Chapter 3, Section 3.4.1, \cite{ESL}}: 
     \[
     \hat{\beta}^{\mathrm{ridge}}
     = \arg\min_{\beta}\left\{
     \sum_{i=1}^n (y_i-\beta_0-x_i^\top \beta)^2
     + \lambda \sum_{j=1}^p \beta_j^2
     \right\}
-    \]( Chapter 3, Section 3.4.1, \cite{ESL})
+    \]
     
 Third, regarding time-series structure of the data set, two approaches are used in this project. One of them is create lagged predictors to preserve temporal ordering for the data analysis methods that are suitable with binary classification problem but not developed with inherent time-series natures. The other is to directly select binary classification methods with inherent time-series nature. The next paragraphs will discuss the selections of methods used for classification problem in more details, featuring Logistic Regression (LR), Random Forest (RF), Support Vector Machine (SVM), and Neural Network (NN).
 
-Logistic Regression with dimensional reduction or feature selections throigh PCA and LASSO is our simplest model to be implemented because it fits with binary classification problem and it is within genralized linear models, the most classic approach. Logistic regression would result in a predicted response that measures the probability of the following day being a positive day as
+Logistic Regression with dimensional reduction or feature selections throigh PCA and LASSO is our simplest model to be implemented because it fits with binary classification problem and it is within genralized linear models, the most classic approach. Logistic regression would result in a predicted response that measures the probability of the following day being a positive day as\footnote{This is binary version for equation (4.17) in Chapter 4, Section 4.4, \cite{ESL}}
     \[
     \Pr(G=1\mid X=x)
     =
     \frac{\exp(\beta_0+x^\top\beta)}
     {1+\exp(\beta_0+x^\top\beta)}
-    \] (This is binary version for equation (4.17) in Chapter 4, Section 4.4, \cite{ESL})
+    \] 
 It should be noted that logistic regression has its merits in the simplicity of being applied together with Ridge and LASSO regularization. The parameters need to be tune in this family of models include the number of PCA components and inverse regularization term (parameter C rather than $\lambda$ in Ridge and LASSO). As the number of features is very large, we do not use additioinal traditional methods of forward-stepwise/ backward-stepwise/ forward-stagewise/ best subset in feature selection for generalized linear models. 
 
-The second method that is suitable to the binary classification problem as well as high-dimensional data in this project is Random Forest Classifiier (RF). This method directly forecast the direction and its computation is not restricted by the requirement of less features than data points like in the generalized regression model. RF perform feature-importance selection and deduce which features carry the biggest weight. It ensembles classification trees with the use of bootstrap sampling and use the majority vote for the final prediction (Chapter 15, \cite{ESL}). Parameters need to be tune in this method are maximum number of features in splitting, the depth of the tree, and number of trees used for aggregation. Though dimensional reduction technique is not required to apply this method, additional RF with dimensional reduction and regularization are still explored to reduce the instability of the model coefficients and performance.
+The second method that is suitable to the binary classification problem as well as high-dimensional data in this project is Random Forest Classifiier (RF). This method directly forecast the direction and its computation is not restricted by the requirement of less features than data points like in the generalized regression model. RF perform feature-importance selection and deduce which features carry the biggest weight. It ensembles classification trees with the use of bootstrap sampling and use the majority vote for the final prediction\footnote{This is based on the description in Chapter 15, \cite{ESL}}. Parameters need to be tune in this method are maximum number of features in splitting, the depth of the tree, and number of trees used for aggregation. Though dimensional reduction technique is not required to apply this method, additional RF with dimensional reduction and regularization are still explored to reduce the instability of the model coefficients and performance.
 
 
-The next method used for binary classification with high-dimensional features is support vector machine. Similar to Random Forest method, it does not require p < n. Further more, SVM is a straight forward solution to a binary classication problem with more features than data points as it use kernel to capture data point proximity in constructing decision boundary. Additionally, this method can work for both linear and non-linear separable data depending on the kenel used. In this analysis, I employed 3 different kernels, namely linear, polynomial and Radial Basis Function (RBF) one. The objective function for optimization in this method is as follows:
+The next method used for binary classification with high-dimensional features is the support vector machine. Similar to the Random Forest method, it does not require p < n. Furthermore, SVM is a straightforward solution to a binary classification problem with more features than data points, as it uses kernels to capture data point proximity in constructing the decision boundary. Additionally, this method can work for both linear and non-linearly separable data depending on the kernel used. In this analysis, I employed 3 different kernels, namely linear, polynomial and Radial Basis Function (RBF) one. The objective function for optimization in this method is as follows\footnote{Chapter 12, Section 12.1, \cite{ESL}}:
     \[
     \min_{\beta,\beta_0,\xi}\ 
     \frac{1}{2}\|\beta\|^2 + C\sum_{i=1}^N \xi_i
@@ -248,65 +234,54 @@ The next method used for binary classification with high-dimensional features is
     \text{subject to } \quad
     y_i(x_i^\top\beta+\beta_0)\ge 1-\xi_i,\qquad
     \xi_i\ge 0,\quad i=1,\dots,N
-    \] (Chapter 12, Section 12.2, \cite{ESL})
+    \] 
 
-Additional method employed in our analysis is neural networks, including convolutional neural network (CNN with 2D design), simple recurrent neural networks (RNN), and long short term memory network (LSTM) with 7 days window. As the neural network learning algorithm already use all data points in constructing each nodes, it is not necessary to use lag values as predictors in these models. Among CNN, simple RNN, and LSTM, the most natural option among them is the last one because its nature is very close to time-series data. This is also the most applied method in recent year in stock market prediction \cite{KUMBURE_2022}. The inclusion of CNN and RNN in this project is due to initial concern of LSTM computing time and partly due to our curiosity of their application for time series. The parameters for tunning in neural network should be the number of hidden layers, number of nodes in those layers as well as epoch for training process. Within the scope of this project, only epoch is tunned while the structure is simplified for shor-time computation. It should be noted that the neural network method is a blackbox and is not interpretable. 
+Additional method employed in this analysis is neural networks, including convolutional neural network (CNN with 2D design), simple recurrent neural networks (RNN), and long short term memory network (LSTM) with 7 days window. As the neural network learning algorithm already use all data points in constructing each nodes, it is not necessary to use lag values as predictors in these models. Among CNN, simple RNN, and LSTM, the most natural option among them is the last one because its nature is very close to time-series data. This is also the most applied method in recent year in stock market prediction \cite{KUMBURE_2022}. The inclusion of CNN and RNN in this project is due to initial concern of LSTM computing time and partly due to our curiosity of their application for time series. The parameters for tuning in neural networks should be the number of hidden layers, the number of nodes in those layers, as well as the number of epochs for the training process. Within the scope of this project, only the number of epochs is tuned, while the structure is simplified for short-time computation. It should be noted that the neural network method is a black box and is not interpretable. 
 
-Regarding to the parameter tunning for the above mentioned methods, time series split and walk-forward cross validation are employed. This is to make sure there is no leakage of future information into the training and parameter tunning process which is likely caused by simple k-fold cross validation. To reduce the complexity of the models, as well as noise it may cause in prediction, parsimonious model is selected when similar performance are observed through 1SE rule (Chapter 7, \cite{ESL}). The metric used for parameter tunning process is balanced accuracy rather than simple validation accuracy to compensate for the bias of the training data (more up days).
+Regarding to the parameter tunning for the above mentioned methods, time series split and walk-forward cross validation are employed. This is to make sure there is no leakage of future information into the training and parameter tunning process which is likely caused by simple k-fold cross validation. To reduce the complexity of the models, as well as noise it may cause in prediction, parsimonious model is selected when similar performance are observed through 1SE rule\footnote{Chapter 7, \cite{ESL}}. The metric used for parameter tunning process is balanced accuracy rather than simple validation accuracy to compensate for the bias of the training data (more up days).
 
 To finalize which model should be employ in forcasting after the parameter tuning process, other metrics on the hold-out test set are used, including plain accuracy, area under the receiver operating characteristic curve (ROC-AUC), specificity, and sensitivity. While the test accuracy is a clear evaluation metric, ROC-AUC helps to access the performance of classifier at different threshold of decision making. Specificity and sensitivity evaluate the accuracy in smaller sub set of each binary class. In addition, the Matthews correlation coefficient (MCC) is also employed as a supporting metric. This coefficient evaluate overall performance of the classifier over all 4 cells of the confusion matrix \cite{chicco_2020}. For all of these metric, the higher values indicates a better classifier. Furthermore, diagnostic plots with validation balanced accuracy as well as its standard deviation are also employed in as supporting evidence for making the final decisions.
 
 \section{Results}
 
-This section include data analysis of different methods mentioned above for two set of data: raw and engineered ones. This is for comparing and examining if feature creation for non-linear relationship improves model performance or just introduce more noise in forcasting.
+This section includes data analysis of the different methods mentioned above for two sets of data: raw and engineered. This is for comparing and examining whether feature creation for non-linear relationships improves model performance or just introduces more noise in forecasting.
 
-\subsection{Model Comparison}
-\subsubsection{Models with raw features}
+\subsection{Models with raw features}
 \vspace{-0.5em}
 \safeinput{../output/8yrs_1SE_base_logistic_comparison.tex}%Comment: improve on this presentation.
-\FloatBarrier
 
-Table~\ref{tab:base_logistic_comparison} presents the performance comparison of various logistic regression models for raw data set with different regularization and dimensional reduction techniques. Overall the hold-out test set accuracy is just around 50-53 \%, which is only slightly better than random guessing. Regularization improves the test accuracy in prediction by 2-3 percent points and potentially improve the variance of prediction. Meanwhile, the combination of PCA with regularization make logistic regression model performs worse in terms of test set accuracy when they are degenerated to predict every data point to be up.  
+Table~\ref{tab:base_logistic_comparison} presents the performance comparison of various logistic regression models for raw data set with different regularization and dimensional reduction techniques. Overall the hold-out test set accuracy is just around 50-53 \%, which is only slightly better than random guessing. Regularization improves the test accuracy in prediction by 2-3 percentage points and potentially improves the variance of prediction. Meanwhile, the combination of PCA with regularization makes the logistic regression model perform worse in terms of test set accuracy, as they degenerate to predict every data point as up.
 
-The best performer in test accuracy is the models with LASSO regularization only(with or without days of the week). Meanwhile, the best candidate in terms of ROC-AUC is the model using 3 PCA components without regularization (Base + PCA (3, 65\%)). Balancing between test accuracy, ROC-AUC, specificity, and sensitivity suggests that the model use 3 PCA components without regularization is the best candidate within this group. 
+The best performer in test accuracy is the model with LASSO regularization only (with or without days of the week). Meanwhile, the best candidate in terms of ROC-AUC is the model using 3 PCA components without regularization (Base + PCA (3, 65\%)). Balancing between test accuracy, ROC-AUC, specificity, and sensitivity suggests that the model using 3 PCA components without regularization is the best candidate within this group.
 
 The low accuracy in this group of models implies that either raw OHLCV features may not contain strong predictive signals for the market direction, or that the relationship between these features and the target variable is likely complex and non-linear, or both. This means that more sophisticated models or additional feature engineering may be necessary to achieve better predictive performance.
 
 \safeinput{../output/8yrs_1SE_base_random_forest.tex}
-\FloatBarrier
 
-Table \ref{tab:base_rf_comparison} presents the performance comparison of different random forest models with predictors of raw features and of selected PCA components. The depth of the tree and number of estimators are selected based on grid search cross validation. The random forest models outperforms the logistic regression models in almost all metrics, namely test accuracy, sensitivity, ROC-AUC, and specificity on the same predictor set. Applying PCA with the random forest method worsen the method performance due to the loss of information. 
+Table \ref{tab:base_rf_comparison} presents the performance comparison of different random forest models with predictors of raw features and of selected PCA components. The depth of the tree and number of estimators are selected based on grid search cross validation. The random forest models outperform the logistic regression models in almost all metrics, namely test accuracy, sensitivity, ROC-AUC, and specificity on the same predictor set. Applying PCA with the random forest method worsens the method's performance due to the loss of information. 
 
 \safeinput{../output/8yrs_base_svm_comparison.tex}
-\FloatBarrier
-Table \ref{tab:base_svm_comparison} shows different metrics for 3 variants of SVM method, namely SVM using linear, RBF, and polynomial kernels. Using RFB kernel improve the test accuracy slightly compared to linear kernel ( 54 \% compared to 53.5 \%), but increase ROC-AUC noticeably (0.509 compared to 0.465). The model use polynomial kernel is better in ROC-AUC and improve the prediction for the down day of the market but worse the test accuracy overall. 
+Table \ref{tab:base_svm_comparison} shows different metrics for 3 variants of SVM method, namely SVM using linear, RBF, and polynomial kernels. Using the RBF kernel improves the test accuracy slightly compared to the linear kernel (54\% compared to 53.5\%), but increases ROC-AUC noticeably (0.509 compared to 0.465). The model using the polynomial kernel is better in ROC-AUC and improves the prediction for the down days of the market, but has worse test accuracy overall. 
 
 \safeinput{../output/8yrs_base_nn_comparison.tex}
 Table \ref{tab:base_nn_comparison.tex} lists the test set metric for the neural network models on the raw data set. Though LSTM is closer to time-series setting, the raw RNN model is the best performer in both test accuracy, sensitivity, and ROC-AUC.
 
-
-
-
-\subsubsection{Extended Feature Models}
+\subsection{Extended Feature Models}
 \vspace{-0.5em}
 This subsection will present the performance comparison of models that utilize the engineered features, including lag values, percent change, volatility, max/min channel position, rolling volume weighted average prices, rolling z-scores, daily range, and day of week. The methods will be the same to the previous subsection. The results will be compared to the models that use raw features to evaluate the impact of feature engineering on predictive performance. Table \ref{tab:logistic_regression_comparison}, Table \ref{tab:random_forest_comparison}, Table \ref{tab:svm_comparison}, Table \ref{tab:nn_comparison} are results for logistic regression, random forest, SVM, and Neural Network methods respectively. 
 
 \safeinput{../output/8yrs_logistic_regression_comparison.tex}
-Results for logistic regression methods indicate that using engineered features in forcasting does not improve the test accuracy performance noticably. Also, when balancing between improvement in both test set accuracy and ROC-AUC, all logistic regression model using engineered features are worse compared to the best candidate of logistic regression method applied to raw data. This means that the engineered features does not really capture the non-linear relationship with the market direction as expected.
-\safeinput{../output/8yrs_random_forest_comparison.tex}
-Results of random forest method for the engineered data set also confirm previous observation of low capability of engineered features in capturing useful non-linear relationship for forcasting. More specifically, RF method used with raw data and DOW outperforms the one used with engineered features in test accuracy, ROC-AUC, and specificity. Though RF with engineered data and LASSO in dimensional reduction performs best in Table \ref{tab:random_forest_comparison}, it is still not as good as the best candidate of the group of models using RF with raw data.
+Results for logistic regression methods indicate that using engineered features in forcasting does not noticeably improve test accuracy performance. Also, when balancing between improvement in both test set accuracy and ROC-AUC, all logistic regression models using engineered features are worse compared to the best candidate of the logistic regression method applied to raw data. This means that the engineered features do not really capture the non-linear relationship with the market direction as expected.
+Results of the random forest method for the engineered data set also confirm previous observations of the low capability of engineered features in capturing useful non-linear relationships for forecasting. More specifically, the RF method used with raw data and DOW outperforms the one used with engineered features in test accuracy, ROC-AUC, and specificity. Though RF with engineered data and LASSO in dimensional reduction performs best in Table \ref{tab:random_forest_comparison}, it is still not as good as the best candidate among the group of models using RF with raw data.
 
 \safeinput{../output/8yrs_svm_comparison.tex}
-\FloatBarrier
-The result for SVM with engineered data is mixed. The ROC-AUC is improved for polynomial kernel at the cost of test accuracy. The reverse direction happens to linear kernel while the test metric is quite similar on both data set when RBF kernel is used.
+The result for SVM with engineered data is mixed. The ROC-AUC is improved for the polynomial kernel at the cost of test accuracy. The reverse happens for the linear kernel, while the test metric is quite similar on both data sets when the RBF kernel is used.
 
 \safeinput{../output/8yrs_nn_comparison.tex}
-\FloatBarrier
 
+Regarding performances of different neural network models in the engineered data set, LSTM outperforms RNN and CNN in almost all metrics. This is different compared to the results of the models on the raw data set, where RNN works better. 
 
-Regarding performances of different neural network models in engineered data set, LSTM outperforms RNN and CNN in almost all metric. This is different compared to the result of the models on raw data set where RNN works better. 
-
-Comparing across all models for both raw data (with or without DOW), and engineered data set, the best perfomer is the random forest method applied to raw data with DOW dummies. This model also has the highest MCC of 0.128 (Table \ref{tab:base_rf_comparison}).
+Comparing across all models for both raw data (with or without DOW) and engineered data set, the best performer is the random forest method applied to raw data with DOW dummies. This model also has the highest MCC of 0.128 (see Table \ref{tab:base_rf_comparison}).
 
 \begin{figure}[htbp]
   \centering
@@ -314,10 +289,8 @@ Comparing across all models for both raw data (with or without DOW), and enginee
   \caption{Accuracy and Proxy for Noise of The Best Models within Model Families and Data Set Performer}
   \label{fig:complexity2}
 \end{figure}
-\FloatBarrier
-Figure \ref{fig:complexity2} plots the test accuracy against standard deviation (SD) of the balanced accuracy in the cross validation set (CV) for the best performer of each 8 model groups above (4 methods vs 2 data set). The standard deviation of the plain accuracy in the cross validation set can be used to proxy for potential noise of the model. Based on the plot, the random forest model using raw data with DOW is also a good candidate when the its test accuracy is second highest while its SD of CV balanced accuracy is fairly low compared to others. Overall, the best model's test accuracy is just 0.55 with CV accuracy is around 0.035. This means that a random guess of 0.5 is not included in one standard deviation interval of this test accuracy and the model is informative in forecasting the market.
+Figure \ref{fig:complexity2} plots the test accuracy against the standard deviation (SD) of the balanced accuracy in the cross-validation set (CV) for the best performer of each of the 8 model groups above (4 methods vs 2 data sets). The standard deviation of the plain accuracy in the cross-validation set can be used as a proxy for potential noise in the model. Based on the plot, the random forest model using raw data with DOW is also a good candidate, as its test accuracy is the second highest while its SD of CV balanced accuracy is fairly low compared to others. Overall, the best model's test accuracy is just 0.55, with CV accuracy around 0.035. This means that a random guess of 0.5 is not included in one standard deviation interval of this test accuracy, and the model is informative in forecasting the market.
 
-\subsection{Visualization of predictions}
 Figure \ref{fig:pred-dist-base-rf-dow} presents distribution of the predicted probability by true class in the hold-out test set. The graph indicate that to the left hand side of the decision threshold (0.5), the majority of the bin is observed with higher frequency of true down day. Meanwhile, to the right hand side of the decision threshold, the majority of the bin experienced a frequency of the up days. These imply that the classifier does have power in forcasting the up and down day the market. The plot also indicate some switching in frequency of two classes in the direction of harming test accuracy in 3 bins around the current decision threshold. This, together with a ROC-AUC of around 0.59 of the selected model, implies that its weakness in forcasting accuracy might partly arise from the decision threshold used in converting the predicted probability to classification. The selected model can be further improved through tuning the decison threshold for predicted probability.  
 \begin{figure}[htbp]
   \centering
@@ -326,18 +299,29 @@ Figure \ref{fig:pred-dist-base-rf-dow} presents distribution of the predicted pr
   \label{fig:pred-dist-base-rf-dow}
 \end{figure}
 
-\subsection{Validation results}
-Figure \ref{fig:validation-best-bv} summarize the final bias-variance tradeoffs during the parameter tuning process of the best-performing model through changing of cross validation balanced misclassification error and standard deviation. The selected parameter value is indicated by the 1SE red line. Overall, the bias-variace trade off is reflected more clearly in the first panel of the figure when the test misclassification standard deviation band is narrower when the model complexity increase. In the two other panels, the changes in test accuracy standard deviation across parameter used in grid for searching is not trivial.
+Figure Figure \ref{validation-best-depth},  Figure \ref{fig:validation-best-maxfeatures}, and Figure \ref{fig:validation-best-nestimators}summarize the final bias-variance tradeoffs during the parameter tuning process of the best-performing model through changing of cross validation balanced misclassification error and standard deviation. The selected parameter value is indicated by the 1SE red line. Overall, the bias-variace trade off is reflected more clearly in the first panel of the figure when the test misclassification standard deviation band is narrower when the model complexity increase. In the two other panels, the changes in test accuracy standard deviation across parameter used in grid for searching is not trivial.
 
 \begin{figure}[htbp]
   \centering
-  \safeincludegraphics[width=0.32\textwidth]{../output/8yrs_base_rf_best_model_bias_variance.png}
-   \safeincludegraphics[width=0.32\textwidth]{../output/8yrs_base_rf_best_model_bias_variance_classifier_max_features.png}
-    \safeincludegraphics[width=0.32\textwidth]{../output/8yrs_base_rf_best_model_bias_variance_classifier_n_estimators.png}
-  \caption{Bias Variance Tradeoff during parameter tunning process for the best model across all families}
-  \label{fig:validation-best-bv}
+  \safeincludegraphics[width=0.95\textwidth]{../output/8yrs_base_rf_best_model_bias_variance.png}
+  \caption{Bias Variance Tradeoff for The RF Model with Raw Data and DOW across The Tree Maximum Depth}
+  \label{fig:validation-best-depth}
 \end{figure}
-\FloatBarrier
+
+\begin{figure}[htbp]
+  \centering
+   \safeincludegraphics[width=0.95\textwidth]{../output/8yrs_base_rf_best_model_bias_variance_classifier_max_features.png}
+  \caption{Bias Variance Tradeoff for The RF Model with Raw Data and DOW across Maximum Number of Features}
+  \footnotesize{The x-axis label represents the relative terms with respect to the total number of features with specific value in parenthesis for specific data set. For example, 0.5 means the maximum number of features used for splitting is 50\% of the total number of features.}
+  \label{fig:validation-best-maxfeature}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+    \safeincludegraphics[width=0.95\textwidth]{../output/8yrs_base_rf_best_model_bias_variance_classifier_n_estimators.png}
+  \caption{Bias Variance Tradeoff for The RF Model with Raw Data and DOW across Number of Trees}
+  \label{fig:validation-best-nestimators}
+\end{figure}
 
 Because the model complexity depends not only on the model family but also the parameter used for that specific family, it's hard to find metric to reflect the trade off of bias and variance across complexity of models in this report. Therefore, in order to compare across different method, this report use an empirical approach with the employment of standard deviation of the CV accuracy to reflect how noisy the model can bring to forcasting problem. This is reflected in Figure \ref{fig:complexity1}. Clearly, the plot is not in the alignment of the complexity flow of different method used in this report (logistic regression, random forest/ SVM, and neural network). Instead, it indicates that the supposedly complex model like neural net and random forest when tunned with appropriate parameters and used with appropriate data set still outperform other supposedly simple method like logistic regression interm of noisy in prediction/ forecasting.
 
@@ -347,53 +331,62 @@ Because the model complexity depends not only on the model family but also the p
   \caption{Cross-Validation: Balanced Accuracy for The Best Candidate within Model Families and Data Set}
   \label{fig:complexity1}
 \end{figure}
-\FloatBarrier
-
 
 \subsection{Overfitting/underfitting analysis}
-Further analysis of over and under fitting is provided for the best candidate in this report only. Figure \ref{fig:overunder-best} presents the plain train and hold-out test misclassification error against different parameter grids.  All of three panels indicate a similar trend of declining hold-out test misclassification error when the parameter is increase to a certain level and then the error increase when the model turned to be too complex. Meanwhile, the misclassification error on the train set is constantly decline when model complexity is higher.
+Further analysis of over and under fitting is provided for the best candidate in this report only. Figure \ref{fig:overunder-best-depth},  Figure \ref{fig:overunder-best-maxfeatures}, and Figure \ref{fig:overunder-best-nestimators} presents the plain train and hold-out test misclassification error against different parameter grids.  All of them indicate a similar trend of declining hold-out test misclassification error when the parameter is increase to a certain level and then the error increase when the model turned to be too complex. Meanwhile, the misclassification error on the train set is constantly decline when model complexity is higher.
 
 \begin{figure}[htbp]
   \centering
-  \safeincludegraphics[width=0.32\textwidth]{../output/8yrs_base_rf_best_model_train_test.png}
-   \safeincludegraphics[width=0.32\textwidth]{../output/8yrs_base_rf_best_model_train_test_classifier_max_features.png}
-    \safeincludegraphics[width=0.32\textwidth]{../output/8yrs_base_rf_best_model_train_test_classifier_n_estimators.png}
-  \caption{Performance of Best Model}
-  \label{fig:overunder-best}
+  \safeincludegraphics[width=0.95\textwidth]{../output/8yrs_base_rf_best_model_train_test.png}
+  \caption{Train and Test Accuracy along Parameter Tuning Process for The RF Model with Raw Data and DOW across The Tree Maximum Depth}
+  \label{fig:overunder-best-depth}
 \end{figure}
-\FloatBarrier
 
-\section{Discussion}
-This section summarize the implication of findings from the best model selected as well as its performance provided in previous section. 
+\begin{figure}[htbp]
+  \centering
+  \safeincludegraphics[width=0.95\textwidth]{../output/8yrs_base_rf_best_model_train_test_classifier_max_features.png}
+  \caption{Train and Test Accuracy along Parameter Tuning Process for The RF Model with Raw Data and DOW across Maximum Number of Features}
+  \label{fig:overunder-best-maxfeatures}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \safeincludegraphics[width=0.95\textwidth]{../output/8yrs_base_rf_best_model_train_test_classifier_n_estimators.png}
+  \caption{Train and Test Accuracy along Parameter Tuning Process for The RF Model with Raw Data and DOW across Number of Trees}
+  \label{fig:overunder-best-nestimators}
+\end{figure}
+
+\subsection{Discussion}
+This section summarizes the implications of findings from the best model selected as well as its performance provided in the previous section. 
 
 \subsection{Interpretation of findings}
-The result that 1 standard deviation of cross validation accuracy away from test accuracy of the best model does not include the randomguess  implies that the model is predictive and the historical data has some signals about the market direction. Even this signal is not strong as the testv accuracy is just around 55\%, this result still contradict the weak form of EMH. \endnote{Additional result for hourly data is included in the Appendix to investigate if there is any difference in historical signal in daily data and hourly data. The result shows a more predictive strength of the hourly data in even with logistic regression method - the poor performer in the leader board.}
+The result that one standard deviation of cross-validation accuracy away from the test accuracy of the best model does not include the random guess implies that the model is predictive and the historical data has some signals about the market direction. Even though this signal is not strong, as the test accuracy is just around 55\%, this result still contradicts the weak form of EMH. \footnote{Additional result for hourly data was included in the Presentation of this report previously. However, due to time constraints, only the daily data analysis is included in this report and revised Presentation.}
+
 \subsection{Real-world implications}
- As weak EMH is not supported based on some predictive strength observed in the best performed model, the historical data should remain as one of the reliable data source for forcasting the stock market. In addition, the specific model with accuracy around 55\% and cross validation accuracy standard deviation around 3\% constructed in this report can be utilized in forcasting market direction and the result can be used to design certain trade strategy with appropriate risk management. Furthermore, the accuracy of just 55\% from the historical data implies that the market forcast problem should utilize a more extensive data set more than just historical price and trading volume. 
+As weak EMH is not supported based on some predictive strength observed in the best performing model, the historical data should remain as one of the reliable data sources for forecasting the stock market. In addition, the specific model with accuracy around 55\% and cross-validation accuracy standard deviation around 3\% constructed in this report can be utilized in forecasting market direction, and the result can be used to design certain trade strategies with appropriate risk management. Furthermore, the accuracy of just 55\% from the historical data implies that the market forecast problem should utilize a more extensive data set than just historical price and trading volume.
+
 \subsection{Limitations}
-  This study has several limitations. In terms of data, only 8 years of daily data are used with servere bias toward upward direction of the market. In terms of modeling, only limited list of values are used in grid search for parameter tunning. Also, the deep learning architectures of the neural network models are very simple. In terms of evaluation, though variation of threshold in decision making in each classifier is accounted for by ROC-AUC metric, the actual accuracy, specificity, and sensitivity are not computed across different threshold while the plot for predicted probability by class clearly shows some potentially better threshold for the best model. These limitation can be relieved with more time and better computational resource.
+This study has several limitations. In terms of data, only 8 years of daily data are used with severe bias toward the upward direction of the market. In terms of modeling, only a limited list of values is used in grid search for parameter tuning. Also, the deep learning architectures of the neural network models are very simple. In terms of evaluation, though variation of threshold in decision making in each classifier is accounted for by ROC-AUC metric, the actual accuracy, specificity, and sensitivity are not computed across different thresholds, while the plot for predicted probability by class clearly shows some potentially better threshold for the best model. These limitations can be relieved with more time and better computational resources.
 
 \subsection{Possible methodological extensions}
-Future methodological extensions include more extensive hyperparameter tuning, various choice of model decision threshold, and broader model experimentation, along with a more comprehensive evaluation framework. More specifically, for parameter tunning, a larger list for grid search in should be used. For decision threshold, potentially better one can be constructed by average median/ mean of actual class predicted probability. For cross validation selection rule, a cSE rule can be employed in the place of 1SE rule with various choice of c. For broader models, more complicated neural network structure can be used. And finalluy, for evaluation framewok, additional metric, namely Mathew Correlation Coeficient should be included. In addition, future work should explore potentials of hybrid strategies that combine machine learning with classical economic time-series methods such as ARIMA and GARCH.
+Future methodological extensions include more extensive hyperparameter tuning, various choices of model decision threshold, and broader model experimentation, along with a more comprehensive evaluation framework. More specifically, for parameter tuning, a larger list for grid search should be used. For decision threshold, potentially better ones can be constructed by average median/mean of actual class predicted probability. For cross-validation selection rule, a cSE rule can be employed in place of the 1SE rule with various choices of c. For broader models, more complicated neural network structures can be used. And finally, for evaluation framework, additional metrics, namely Matthew Correlation Coefficient, should be included. In addition, future work should explore the potential of hybrid strategies that combine machine learning with classical economic time-series methods such as ARIMA and GARCH.
 
 \section{Reproducibility Requirements}
-In order to replicate the results of this report, environment set up and computational resource are required. It should be note that due to different environment needed for different models, there is no option to put all the code in a single file. Therefore, a minimum of 3 files is needed for running to obtain the replication of this project, namely \textbf{base\_NN.py, NN.py, and AllOthers.py}. Details of how to set up the enviroment step by step before running the code can be found in README on the repository of the project.
+In order to replicate the results of this report, environment set up and computational resource are required. 
 \subsection{Environment file or package list}
 The computations for the final model runs were performed on the Oregon Regional Computing Accelerator (Orca) at Portland State University \cite{orca_2026}. Different models require different environment setting, leading to the two list of requirement packages, namely \texttt{requirement\_nn.txt} for the Neural Network Models and \texttt{requirement.txt} for all other models.
 \subsection{Folder structure}
-\begin{figure}[htbp]
-  \centering
-  \safeincludegraphics{../output/project_folder_structure.png}
-  \caption{Project Repository Folder Structure}
-  \label{fig:folderstructure}
-\end{figure}
-\FloatBarrier
-
-
+The project folder structure is organized as follows:
+\begin{itemize}
+  \item LaTex/: Contains all LaTeX files for the report, bibliography, slides, and related documents.
+  \item output/: Stores generated tables, figures, and results used in the report.
+  \item PyScripts/: Includes Python scripts for data processing, EDA, and modeling, with subfolders for Data, EDA, and Models.
+  \item README.md, \texttt{requirements.txt}, \texttt{requirements\_nn.txt}, slurm files to run the code in ORCA, and other Project documentation for ORCA and environment setup files.
+\end{itemize}
 \subsection{Random seed control}
 The random seed can be adjusted in \texttt{model\_grids.py} at \texttt{PyScripts/Models/model\_grids.py}. The random seed for this report is 1.
 \subsection{Function/code organization}
-The python code for this project is organized in folder PyScript under 3 subfolders, namely Data for loading raw data, EDA for exploratory data analysis, and Models for cleaning data and data analysis. 
+The python code for this project is organized in folder PyScript under 3 subfolders, namely Data for loading raw data, EDA for exploratory data analysis, and Models for cleaning data and data analysis. Due to different environment needed for different models, there is no option to put all the code in a single file. Therefore, a minimum of 3 files is needed for running to obtain the replication of this project in a local computer, namely \textbf{base\_NN.py, NN.py, and AllOthers.py}. Details of how to set up the enviroment step by step before running the code can be found in README on the repository of the project.
 \section*{Python Notebook}
  \begin{itemize}
     \item Project Repository: \url{https://github.com/TrangHaNguyen/STAT-587-Final-Project}
@@ -426,7 +419,7 @@ y^{(\mathrm{cls})}_t=\mathbb{1}\{y^{(\mathrm{reg})}_t\ge 0\}.
 \]
 
 \paragraph{(3) Lag features}
-For lag set \(\mathcal{L}\), the model adds:
+For lag set \(\mathcal{L}\), the model adds the following features:
 \[
 \text{Close PC Lag }l:\ \text{Close PC}_{t-l},\qquad
 \text{Open PC Lag }l:\ \text{Open PC}_{t-l},\quad l\in\mathcal{L}.
@@ -453,7 +446,7 @@ channel position is:
 \text{ChannelPos}_t=\frac{P_t-L^{\min}_t}{H^{\max}_t-L^{\min}_t}
 \quad(\text{default }0.5\text{ when denominator }=0).
 \]
-Rolling VWAP uses typical price \(\text{TP}_t=(\text{High}_t+\text{Low}_t+\text{Close}_t)/3\):
+Rolling VWAP uses the typical price \(\text{TP}_t=(\text{High}_t+\text{Low}_t+\text{Close}_t)/3\):
 \[
 \text{RollingVWAP}_t=
 \frac{\sum_{j=t-k+1}^{t}\text{TP}_j\cdot \text{Volume}_j}
@@ -464,28 +457,23 @@ Rolling VWAP uses typical price \(\text{TP}_t=(\text{High}_t+\text{Low}_t+\text{
 \begin{itemize}
   \item Day-of-week indicator and daily range \((\text{High}_t-\text{Low}_t)\).
   \item Forward-lag of open-based metrics (shift by \(-1\)).
-  \item Raw non-stationary price columns (Close/Open/High/Low) are dropped after engineering.
-  \item Rows with missing values are removed after joining predictors and target.
+  \item Raw, non-stationary price columns (Close/Open/High/Low) are dropped after feature engineering.
+  \item Rows with missing values are removed after joining predictors and targets.
 \end{itemize}
 
 \paragraph{(7) EDA sector--market correlation computation}
-In EDA, sector daily return series are first built from ticker-level \(\text{Close PC}\) and then aligned by date with the S\&P 500 target return series \(y\). For sector \(s\), the equal-weight sector return is:
+In EDA, sector daily return series are first built from ticker-level \(\text{Close PC}\) and then aligned by date with the S\&P 500 target return series \(y\). For sector \(s\), the equal-weighted sector return is:
 \[
 R^{(\text{sector},\,eq)}_{t,s}=\frac{1}{N_{t,s}}\sum_{i\in s}\text{Close PC}_{t,i},
 \]
-where \(N_{t,s}\) is the number of available tickers in sector \(s\) at day \(t\). The market-cap weighted variant is:
+where \(N_{t,s}\) is the number of available tickers in sector \(s\) at day \(t\). The market-cap-weighted variant is:
 \[
 R^{(\text{sector},\,mcap)}_{t,s}=\frac{\sum_{i\in s}w_{t,i}\,\text{Close PC}_{t,i}}
 {\sum_{i\in s}w_{t,i}},\qquad w_{t,i}=\text{MarketCap}_{t,i}.
 \]
-For each sector, correlation with the S\&P 500 series is computed using Pearson correlation:
+For each sector, correlation with the S\&P 500 series is computed using the Pearson correlation:
 \[
 \rho_s=\mathrm{corr}\!\left(R_{t,s},\,y_t\right).
 \]
 
-\subsection{Hourly Models}
-To further investigate the temporal dependencies of the market, similar models is experimented for the additionally loaded hourly data. All features in this data set are the same with the daily data set except. Due to constraint of time, only logistic regression result is completed and is presented below.
-\safeinput{../output/logistic_regression_24hours_three_model_comparison.tex}
-\FloatBarrier
-The hourly-comparison table below presents the performance comparison of logistic regression models with L2 regularization, Elastic Net regularization, and feature-engineered L2 regularization using 24-hour lag features. The results indicate that the performance of the hourly models is better than the daily logistic models for engineered data, with the best performing model with an accuracy of 0.5478 and ROC-AUC value around 60 \%. This suggests that a clearer short window of dependencies rather than by days/weeks.
 \end{document}

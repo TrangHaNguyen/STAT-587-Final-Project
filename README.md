@@ -2,10 +2,10 @@
 
 This project ended on March 16, 2026. The repository is being kept as a final archived version of the course project and will remain as is without further improvement or extension.
 
-For a more refined continuation of this research direction, please see the related repository on GitHub: [repo market](https://github.com/TrangHaNguyen/repo-market).
+For a more refined continuation of this research direction, please see the related repository on GitHub: [market](https://github.com/TrangHaNguyen/market).
 
 ## Instruction for Replication
-(to be added later)
+
 Work flow:
 ### 1. Set up the environment to work
 
